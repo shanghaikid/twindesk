@@ -137,6 +137,19 @@ entry mounts and disposes independently. The production Client test also
 covers the plugin-owned `#/inbox` deep link and hash-listener cleanup. The
 upstream slot declarations remain developer-preview compatibility seams.
 
+TD-040 adds exact `0.1.1-rc.2` pins for Agent Presets, scoped registries, the
+Skill registry, Persona, filesystem Skill provider, and Skill Tool, plus the
+published Loader `1.0.2` and Include `1.0.6` plugins used to mount out-of-tree
+compositions. The adapter runtime-checks the Loader, Include, Agent Preset,
+scope, and Skill package versions and keeps all upstream types behind its
+testing projection.
+A keyless deterministic probe composes the technical-lead and communication
+Presets from the same fixture, verifies their distinct prompt and capability
+views, and checks independent lifecycle disposal. The pinned CLI currently
+replaces rather than extends the configured system Preset roots, so the Stage
+0 Profile safely materializes versioned copies in its Harness-home user root
+and refuses to overwrite any divergent copy.
+
 ## Upgrade Procedure
 
 For each intentional Harness upgrade:

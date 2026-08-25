@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The Stage 0 `workbench` Profile proves that TwinDesk can compose the pinned DeepSeek Harness runtime and activate TwinDesk Host and Client plugins without changing Harness core. The plugins contribute one synthetic read-only Tool, one non-secret setting, one browser diagnostic card, and one static Inbox extension spike for compatibility testing. They do not add external connectors, filesystem tools, persistence, or external writes.
+The Stage 0 `workbench` Profile proves that TwinDesk can compose the pinned DeepSeek Harness runtime and activate TwinDesk Host and Client plugins without changing Harness core. The Bundle contributes two Agent Presets; the plugins contribute synthetic read-only Tools, one non-secret setting, one browser diagnostic card, and one static Inbox extension spike for compatibility testing. They do not add external connectors, filesystem mutation Tools, product persistence, or external writes.
 
 ## Composition
 
@@ -43,6 +43,21 @@ The base Profile's supported file provider persists the user layer in `settings.
 
 Schemastery preserves unknown object fields by default. The adapter therefore adds an owner validation rule that accepts only `includeRoadmapStage`; undeclared fields are rejected before persistence, and the rejection text contains neither the untrusted field name nor its value. The namespace declares no credential or secret field. Browser-facing verification uses Harness's mandatory `describe({ redactSecrets: true })` projection immediately after a rejected write and again after restart, and checks the schema, resolved value, user layer, persisted document, and rejection diagnostic for a synthetic secret marker.
 
+## Agent Presets
+
+The Bundle owns two versioned Preset compositions:
+
+| Preset ID | Persona behavior | Preset-scoped Skill | Additional Preset-scoped Tool |
+|---|---|---|---|
+| `twindesk-technical-lead` | Evidence, compatibility risk, reversibility, and a recommended decision | `technical-risk-review` | `twindesk_technical_context` |
+| `twindesk-communication` | Concise stakeholder draft that preserves uncertainty and states the next update | `stakeholder-update` | None |
+
+Both Presets also see the Host-level read-only `twindesk_status` Tool and the Harness `skill` Tool. Their Skill providers disable default roots, so the compatibility result is not affected by machine-local Skills. Neither composition includes shell, filesystem mutation, connector, approval, or external-write Tools. Persona instructions require draft-only output and prohibit claiming that a message was sent or an action was executed. These identity and behavior instructions do not grant authority; future Policy and approval layers remain separate.
+
+The compatibility test mounts the published Loader, Agent Preset, scoped registry, Persona, Skill filesystem, and Skill Tool packages against the exact Harness pin. A deterministic keyless adapter gives both Presets the same synthetic release-delay request. It verifies distinct system prompts, exact Tool and Skill visibility, distinct draft responses, correct preset identity, and independent Agent disposal. The test performs no model, network, filesystem mutation, or external-service call.
+
+Harness `0.1.1-rc.2` lets its CLI configure only the shipped system Preset root plus the Harness-home user root; an external Bundle cannot append its own system root through the current Profile patch. Profile preparation therefore copies these versioned compositions into `$DSH_HOME/.agent-presets`, which is the supported discoverable root. It copies only a missing directory, validates an existing copy byte-for-byte, rejects links and special files, and refuses to overwrite divergent content. This is a Stage 0 deployment workaround, not a product Persona storage design.
+
 ## Client Diagnostic Card
 
 `@twindesk/plugin-ui` declares a Web `dsh.client` entry with explicit graph edges to Harness's conversation, plugin-settings, and sidebar surfaces. Its browser half registers a small read-only card under the `twindesk-work-hub` namespace. The card says that the Client plugin loaded and performs no reads or writes.
@@ -70,7 +85,7 @@ Prepare the local Profile through Harness's supported plugin-management command:
 corepack pnpm@11.7.0 run profile:prepare
 ```
 
-The preparation command pins the child plugin installation to pnpm 11.7.0 and the repository-local `.pnpm-store`, verifies the Client artifacts, installs local links for the Bundle and both plugins, and writes the ordered Bundle list. Re-running it is idempotent for the same repository and Harness home.
+The preparation command pins the child plugin installation to pnpm 11.7.0 and the repository-local `.pnpm-store`, verifies the Client artifacts, installs local links for the Bundle and both plugins, materializes matching Agent Presets without overwriting local divergence, and writes the ordered Bundle list. Re-running it is idempotent for the same repository and Harness home.
 
 Dump the effective configuration without booting the Profile:
 
@@ -103,6 +118,7 @@ The smoke test checks both dumped entries, starts the Profile on port `0` so the
 - The TwinDesk packages remain private Stage 0 workspaces and are linked from the generated Profile rather than published to a registry.
 - The status Tool is a compatibility probe, not a live health check; it does not inspect connectors, storage, models, or external services.
 - The Work Hub namespace, Client card, and empty Inbox are compatibility diagnostics; they are not product settings or a data-backed Inbox.
+- The generated Preset copies currently use Harness's user-trust root because the pinned CLI does not expose an external system-root extension. Product Persona authoring, upgrade, and conflict handling remain Stage 1 work.
 - Harness exposes no public Router or primary sidebar navigation list. The plugin owns `#/inbox` and mounts its supported additive entry in the sidebar footer; [ADR 0001](decisions/0001-upstream-generic-inbox-extension-points.md) limits this path to Stage 0 and selects a generic upstream contract for the product Inbox.
 - The external Client builder covers one source module and the shared React runtime only because the upstream preset is not published.
 - Profile state under `.twindesk/` is disposable compatibility-test data, not a supported user-data location.

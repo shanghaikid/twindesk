@@ -18,6 +18,8 @@ const adapterTesting = await import(pathToFileURL(join(adapterRoot, 'testing.js'
 if (
   typeof adapter.inspectHarnessCompatibility !== 'function' ||
   typeof adapter.SUPPORTED_CORDIS_VERSION !== 'string' ||
+  typeof adapter.SUPPORTED_CORDIS_INCLUDE_VERSION !== 'string' ||
+  typeof adapter.SUPPORTED_CORDIS_LOADER_VERSION !== 'string' ||
   typeof adapter.SUPPORTED_HARNESS_VERSION !== 'string' ||
   typeof adapter.SUPPORTED_SCHEMASTERY_VERSION !== 'string'
 ) {
@@ -27,7 +29,8 @@ if (
 if (
   typeof adapterTesting.probeHarnessToolPlugin !== 'function' ||
   typeof adapterTesting.probeHarnessBooleanSettingPlugin !== 'function' ||
-  typeof adapterTesting.probeHarnessClientInboxSlots !== 'function'
+  typeof adapterTesting.probeHarnessClientInboxSlots !== 'function' ||
+  typeof adapterTesting.probeHarnessAgentPresets !== 'function'
 ) {
   throw new Error('Built Harness adapter is missing its public testing contract.')
 }
@@ -36,6 +39,8 @@ const compatibility = adapter.inspectHarnessCompatibility()
 
 if (
   compatibility.cordisVersion !== adapter.SUPPORTED_CORDIS_VERSION ||
+  compatibility.cordisIncludeVersion !== adapter.SUPPORTED_CORDIS_INCLUDE_VERSION ||
+  compatibility.cordisLoaderVersion !== adapter.SUPPORTED_CORDIS_LOADER_VERSION ||
   compatibility.harnessVersion !== adapter.SUPPORTED_HARNESS_VERSION ||
   compatibility.schemasteryVersion !== adapter.SUPPORTED_SCHEMASTERY_VERSION
 ) {

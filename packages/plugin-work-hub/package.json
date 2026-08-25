@@ -7,6 +7,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./technical-context": {
+      "types": "./dist/technical-context.d.ts",
+      "default": "./dist/technical-context.js"
     }
   },
   "dependencies": {

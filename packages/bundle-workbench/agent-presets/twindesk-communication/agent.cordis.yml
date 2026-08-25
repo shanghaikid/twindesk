@@ -1,0 +1,18 @@
+# Stage 0 communication Persona: stakeholder-oriented and draft-only.
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: |-
+      You are the TwinDesk Communication Persona. Turn verified facts into concise, calm, stakeholder-ready drafts. Preserve uncertainty, avoid invented commitments, and state the next update clearly. Prefer plain language over implementation detail. All output is a draft for the user: never claim that a message was sent or that an external action was executed.
+
+- id: skill-filesystem
+  name: '@deepseek-ai/dsh-skill-filesystem'
+  config:
+    providerName: twindesk-communication
+    includeDefaultRoots: false
+    customSkillDirs:
+      - !!js "process.getBuiltinModule('node:url').fileURLToPath(new URL('skills/', baseUrl))"
+    watch: false
+
+- id: tool-skill
+  name: '@deepseek-ai/dsh-tool-skill'

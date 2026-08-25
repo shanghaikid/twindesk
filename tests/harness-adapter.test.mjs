@@ -3,6 +3,8 @@ import test from 'node:test'
 
 import {
   inspectHarnessCompatibility,
+  SUPPORTED_CORDIS_INCLUDE_VERSION,
+  SUPPORTED_CORDIS_LOADER_VERSION,
   SUPPORTED_CORDIS_VERSION,
   SUPPORTED_HARNESS_VERSION,
   SUPPORTED_SCHEMASTERY_VERSION,
@@ -14,6 +16,8 @@ test('adapter validates the installed pinned Harness contracts', () => {
 
   assert.deepEqual(compatibility, {
     cordisVersion: SUPPORTED_CORDIS_VERSION,
+    cordisIncludeVersion: SUPPORTED_CORDIS_INCLUDE_VERSION,
+    cordisLoaderVersion: SUPPORTED_CORDIS_LOADER_VERSION,
     harnessVersion: SUPPORTED_HARNESS_VERSION,
     schemasteryVersion: SUPPORTED_SCHEMASTERY_VERSION,
     contracts: {
@@ -22,6 +26,9 @@ test('adapter validates the installed pinned Harness contracts', () => {
       settingsRegistry: true,
       toolRegistry: true,
       clientSlotRegistry: true,
+      agentPresetRegistry: true,
+      skillRegistry: true,
+      scopedRegistries: true,
     },
   })
   assert.equal(Object.isFrozen(compatibility), true)

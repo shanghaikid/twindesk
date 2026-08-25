@@ -42,8 +42,9 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 
 The project is in Roadmap Stage 0, validating DeepSeek Harness compatibility.
 The reproducible monorepo scaffold, Host compatibility probes, an external
-Client diagnostic card, and a static `#/inbox` extension spike are available,
-but Work Hub product behavior has not been implemented.
+Client diagnostic card, a static `#/inbox` extension spike, and distinct
+technical-lead and communication Agent Presets are available, but Work Hub
+product behavior has not been implemented.
 
 ## Development
 

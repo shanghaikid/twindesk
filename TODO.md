@@ -108,11 +108,12 @@ Goal: prove that TwinDesk can be built primarily as out-of-tree DeepSeek Harness
 
 ### Personas, Persistence, and Delegation
 
-- [ ] **TD-040 — Create two distinct Agent Presets**
+- [x] **TD-040 — Create two distinct Agent Presets**
   - Create a technical-lead Persona and a communication Persona.
   - Give them visibly different instructions and Tool/Skill exposure.
   - Keep external writes disabled.
   - Depends on: TD-020, TD-021.
+  - Verification record: the versioned technical-lead and communication Presets compose through the pinned public Harness Loader and Agent Preset services; a keyless deterministic probe gives both the same synthetic release-delay request and verifies distinct prompts, exact scoped Skill and read-only Tool exposure, distinct draft-only responses, preset identity, and independent disposal. Profile preparation copies only missing Presets into the supported Harness-home root, validates matching copies byte-for-byte, and refuses to overwrite divergent content.
   - Completion check: the same fixture request produces behavior consistent with each Persona's configuration and authority.
 
 - [ ] **TD-041 — Validate Session persistence and restart recovery**

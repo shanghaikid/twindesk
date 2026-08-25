@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process'
-import { chmod, mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
+import { chmod, cp, lstat, mkdir, readFile, readdir, realpath, writeFile } from 'node:fs/promises'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -12,12 +12,17 @@ export const PROFILE_BUNDLES = Object.freeze([
   '@deepseek-ai/dsh-web-app',
   '@twindesk/bundle-workbench',
 ])
+export const TWIN_DESK_AGENT_PRESET_IDS = Object.freeze([
+  'twindesk-technical-lead',
+  'twindesk-communication',
+])
 
 const scriptRoot = dirname(fileURLToPath(import.meta.url))
 const repositoryRoot = resolve(scriptRoot, '..')
 const defaultHarnessHome = join(repositoryRoot, '.twindesk', 'harness')
 const profilePnpmStore = join(repositoryRoot, '.pnpm-store')
 const bundleRoot = join(repositoryRoot, 'packages', 'bundle-workbench')
+const bundledAgentPresetRoot = join(bundleRoot, 'agent-presets')
 const workHubPluginRoot = join(repositoryRoot, 'packages', 'plugin-work-hub')
 const uiPluginRoot = join(repositoryRoot, 'packages', 'plugin-ui')
 const dshBin = join(repositoryRoot, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
@@ -103,6 +108,107 @@ async function realpathOrUndefined(path) {
   }
 }
 
+/** @param {string} path */
+async function lstatOrUndefined(path) {
+  try {
+    return await lstat(path)
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined
+    throw error
+  }
+}
+
+/**
+ * Read one preset as a relative-path to byte-content map while refusing links
+ * and special files. Preset materialization must never follow an unexpected
+ * path outside the versioned bundle or generated Harness home.
+ * @param {string} root
+ * @returns {Promise<Map<string, Buffer | null>>}
+ */
+async function snapshotPreset(root) {
+  const snapshot = new Map()
+
+  /** @param {string} directory @param {string} relativeDirectory */
+  async function visit(directory, relativeDirectory) {
+    const entries = await readdir(directory, { withFileTypes: true })
+    for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+      const relativePath = join(relativeDirectory, entry.name)
+      const path = join(directory, entry.name)
+      if (entry.isSymbolicLink()) {
+        throw new Error(`Agent Preset contains an unsupported symbolic link: ${path}`)
+      }
+      if (entry.isDirectory()) {
+        snapshot.set(`${relativePath}/`, null)
+        await visit(path, relativePath)
+      } else if (entry.isFile()) {
+        snapshot.set(relativePath, await readFile(path))
+      } else {
+        throw new Error(`Agent Preset contains an unsupported special file: ${path}`)
+      }
+    }
+  }
+
+  await visit(root, '')
+  return snapshot
+}
+
+/**
+ * @param {Map<string, Buffer | null>} expected
+ * @param {Map<string, Buffer | null>} actual
+ */
+function snapshotsEqual(expected, actual) {
+  if (expected.size !== actual.size) return false
+  for (const [path, content] of expected) {
+    const candidate = actual.get(path)
+    if (content === null ? candidate !== null : !candidate?.equals(content)) return false
+  }
+  return true
+}
+
+/**
+ * Install the versioned TwinDesk presets into Harness's supported user root.
+ * Existing matching copies are accepted; divergent content is never replaced.
+ * @param {string} harnessHome
+ */
+export async function prepareTwinDeskAgentPresets(harnessHome = resolveHarnessHome()) {
+  const targetRoot = join(harnessHome, '.agent-presets')
+  await mkdir(targetRoot, { recursive: true })
+  const targetRootStat = await lstat(targetRoot)
+  if (!targetRootStat.isDirectory() || targetRootStat.isSymbolicLink()) {
+    throw new Error(`Refusing to use non-directory Agent Preset root: ${targetRoot}`)
+  }
+
+  for (const presetId of TWIN_DESK_AGENT_PRESET_IDS) {
+    const source = join(bundledAgentPresetRoot, presetId)
+    const target = join(targetRoot, presetId)
+    const sourceStat = await lstatOrUndefined(source)
+    if (!sourceStat?.isDirectory() || sourceStat.isSymbolicLink()) {
+      throw new Error(`Bundled Agent Preset is not a regular directory: ${source}`)
+    }
+    const expected = await snapshotPreset(source)
+    const targetStat = await lstatOrUndefined(target)
+    if (targetStat === undefined) {
+      await cp(source, target, { recursive: true, errorOnExist: true, force: false })
+      if (!snapshotsEqual(expected, await snapshotPreset(target))) {
+        throw new Error(
+          `Copied Agent Preset ${JSON.stringify(presetId)} does not match the versioned bundle: ${target}`,
+        )
+      }
+      continue
+    }
+    if (!targetStat.isDirectory() || targetStat.isSymbolicLink()) {
+      throw new Error(`Refusing to overwrite non-directory Agent Preset target: ${target}`)
+    }
+    if (!snapshotsEqual(expected, await snapshotPreset(target))) {
+      throw new Error(
+        `Refusing to overwrite Agent Preset ${JSON.stringify(presetId)} because its generated Harness copy differs from the versioned bundle: ${target}`,
+      )
+    }
+  }
+
+  return targetRoot
+}
+
 /**
  * @param {unknown} value
  * @returns {value is Record<string, unknown>}
@@ -153,6 +259,7 @@ export async function prepareProfile(harnessHome = resolveHarnessHome()) {
   await mkdir(harnessHome, { recursive: true })
   await ensurePinnedPnpm(harnessHome)
   await inspectClientPluginArtifacts(uiPluginRoot)
+  await prepareTwinDeskAgentPresets(harnessHome)
 
   const [bundleTarget, workHubPluginTarget, uiPluginTarget] = await Promise.all([
     realpathOrUndefined(installedBundle),

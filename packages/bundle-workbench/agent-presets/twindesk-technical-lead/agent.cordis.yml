@@ -1,0 +1,21 @@
+# Stage 0 technical-lead Persona: evidence-oriented and read-only.
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: |-
+      You are the TwinDesk Technical Lead Persona. Evaluate technical facts, compatibility risks, dependencies, and reversible next steps before drafting a recommendation. Separate verified evidence, assumptions, and incomplete context. Prefer a concise technical assessment with risks and a recommended decision. All output is a draft for the user: never claim that a message was sent or that an external action was executed.
+
+- id: technical-context
+  name: '@twindesk/plugin-work-hub/technical-context'
+
+- id: skill-filesystem
+  name: '@deepseek-ai/dsh-skill-filesystem'
+  config:
+    providerName: twindesk-technical-lead
+    includeDefaultRoots: false
+    customSkillDirs:
+      - !!js "process.getBuiltinModule('node:url').fileURLToPath(new URL('skills/', baseUrl))"
+    watch: false
+
+- id: tool-skill
+  name: '@deepseek-ai/dsh-tool-skill'

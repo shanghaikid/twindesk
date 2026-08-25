@@ -1,22 +1,31 @@
 import cordisManifest from '@deepseek-ai/cordis/package.json' with { type: 'json' }
+import includeManifest from '@deepseek-ai/cordis-plugin-include/package.json' with { type: 'json' }
+import loaderManifest from '@deepseek-ai/cordis-plugin-loader/package.json' with { type: 'json' }
+import agentPresetsManifest from '@deepseek-ai/dsh-agent-presets/package.json' with { type: 'json' }
 import agentManifest from '@deepseek-ai/dsh-agent/package.json' with { type: 'json' }
 import agentLoopManifest from '@deepseek-ai/dsh-agent-loop/package.json' with { type: 'json' }
 import appBootManifest from '@deepseek-ai/dsh-app-boot/package.json' with { type: 'json' }
 import clientUiSlotsManifest from '@deepseek-ai/dsh-client-ui-slots/package.json' with { type: 'json' }
 import llmManifest from '@deepseek-ai/dsh-llm/package.json' with { type: 'json' }
 import sessionManifest from '@deepseek-ai/dsh-session/package.json' with { type: 'json' }
+import scopeManifest from '@deepseek-ai/dsh-scope/package.json' with { type: 'json' }
 import settingsManifest from '@deepseek-ai/dsh-settings/package.json' with { type: 'json' }
 import settingsFileManifest from '@deepseek-ai/dsh-settings-file/package.json' with { type: 'json' }
+import skillManifest from '@deepseek-ai/dsh-skill/package.json' with { type: 'json' }
 import systemPromptManifest from '@deepseek-ai/dsh-system-prompt/package.json' with { type: 'json' }
 import toolsManifest from '@deepseek-ai/dsh-tools/package.json' with { type: 'json' }
 import schemasteryManifest from '@deepseek-ai/schemastery/package.json' with { type: 'json' }
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-agent-presets'
 import type { DshProfileManifest as UpstreamProfileManifest } from '@deepseek-ai/dsh-app-boot'
+import type {} from '@deepseek-ai/dsh-skill'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import z from '@deepseek-ai/schemastery'
 
 export const SUPPORTED_CORDIS_VERSION = '4.0.1'
+export const SUPPORTED_CORDIS_INCLUDE_VERSION = '1.0.6'
+export const SUPPORTED_CORDIS_LOADER_VERSION = '1.0.2'
 export const SUPPORTED_HARNESS_VERSION = '0.1.1-rc.2'
 export const SUPPORTED_SCHEMASTERY_VERSION = '3.18.1'
 
@@ -24,20 +33,27 @@ type HasCordisLifecycle = 'effect' | 'plugin' extends keyof CordisContext ? true
 type HasProfileBundles = UpstreamProfileManifest extends { bundles?: string[] } ? true : never
 type HasSettingsRegistry = 'settings' extends keyof CordisContext ? true : never
 type HasToolRegistry = 'tools' extends keyof CordisContext ? true : never
+type HasAgentPresetRegistry = 'agentPresets' extends keyof CordisContext ? true : never
+type HasSkillRegistry = 'skills' extends keyof CordisContext ? true : never
 
 const hasCordisLifecycle: HasCordisLifecycle = true
 const hasProfileBundles: HasProfileBundles = true
 const hasSettingsRegistry: HasSettingsRegistry = true
 const hasToolRegistry: HasToolRegistry = true
+const hasAgentPresetRegistry: HasAgentPresetRegistry = true
+const hasSkillRegistry: HasSkillRegistry = true
 const harnessPackageManifests = Object.freeze([
   ['@deepseek-ai/dsh-agent', agentManifest],
   ['@deepseek-ai/dsh-agent-loop', agentLoopManifest],
+  ['@deepseek-ai/dsh-agent-presets', agentPresetsManifest],
   ['@deepseek-ai/dsh-app-boot', appBootManifest],
   ['@deepseek-ai/dsh-client-ui-slots', clientUiSlotsManifest],
   ['@deepseek-ai/dsh-llm', llmManifest],
   ['@deepseek-ai/dsh-session', sessionManifest],
+  ['@deepseek-ai/dsh-scope', scopeManifest],
   ['@deepseek-ai/dsh-settings', settingsManifest],
   ['@deepseek-ai/dsh-settings-file', settingsFileManifest],
+  ['@deepseek-ai/dsh-skill', skillManifest],
   ['@deepseek-ai/dsh-system-prompt', systemPromptManifest],
   ['@deepseek-ai/dsh-tools', toolsManifest],
 ] as const)
@@ -101,6 +117,8 @@ export interface BooleanHarnessSettingScope<TKey extends string> {
 
 export interface HarnessCompatibility {
   readonly cordisVersion: typeof SUPPORTED_CORDIS_VERSION
+  readonly cordisIncludeVersion: typeof SUPPORTED_CORDIS_INCLUDE_VERSION
+  readonly cordisLoaderVersion: typeof SUPPORTED_CORDIS_LOADER_VERSION
   readonly harnessVersion: typeof SUPPORTED_HARNESS_VERSION
   readonly schemasteryVersion: typeof SUPPORTED_SCHEMASTERY_VERSION
   readonly contracts: {
@@ -109,6 +127,9 @@ export interface HarnessCompatibility {
     readonly settingsRegistry: true
     readonly toolRegistry: true
     readonly clientSlotRegistry: true
+    readonly agentPresetRegistry: true
+    readonly skillRegistry: true
+    readonly scopedRegistries: true
   }
 }
 
@@ -136,6 +157,16 @@ function assertVersion(packageName: string, expected: string, actual: string): v
 export function inspectHarnessCompatibility(): HarnessCompatibility {
   assertVersion('@deepseek-ai/cordis', SUPPORTED_CORDIS_VERSION, cordisManifest.version)
   assertVersion(
+    '@deepseek-ai/cordis-plugin-include',
+    SUPPORTED_CORDIS_INCLUDE_VERSION,
+    includeManifest.version,
+  )
+  assertVersion(
+    '@deepseek-ai/cordis-plugin-loader',
+    SUPPORTED_CORDIS_LOADER_VERSION,
+    loaderManifest.version,
+  )
+  assertVersion(
     '@deepseek-ai/schemastery',
     SUPPORTED_SCHEMASTERY_VERSION,
     schemasteryManifest.version,
@@ -146,6 +177,8 @@ export function inspectHarnessCompatibility(): HarnessCompatibility {
 
   return Object.freeze({
     cordisVersion: SUPPORTED_CORDIS_VERSION,
+    cordisIncludeVersion: SUPPORTED_CORDIS_INCLUDE_VERSION,
+    cordisLoaderVersion: SUPPORTED_CORDIS_LOADER_VERSION,
     harnessVersion: SUPPORTED_HARNESS_VERSION,
     schemasteryVersion: SUPPORTED_SCHEMASTERY_VERSION,
     contracts: Object.freeze({
@@ -154,6 +187,9 @@ export function inspectHarnessCompatibility(): HarnessCompatibility {
       settingsRegistry: hasSettingsRegistry,
       toolRegistry: hasToolRegistry,
       clientSlotRegistry: true,
+      agentPresetRegistry: hasAgentPresetRegistry,
+      skillRegistry: hasSkillRegistry,
+      scopedRegistries: true,
     }),
   })
 }

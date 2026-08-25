@@ -123,9 +123,11 @@ A Profile Bundle that composes the plugins above, default Agent Presets, model T
 The Stage 0 bundle inserts `@twindesk/plugin-work-hub` and
 `@twindesk/plugin-ui` after the pinned Harness base and Web application
 bundles. They currently expose only a synthetic Tool, one non-secret setting,
-a Client diagnostic card, and a static out-of-tree Inbox extension spike.
-Later compatibility tasks add Presets and other probes without moving
-TwinDesk business logic into Harness core.
+a Client diagnostic card, a static out-of-tree Inbox extension spike, and two
+versioned draft-only Agent Presets with different scoped Skills and read-only
+Tool exposure. Preset identity controls behavior and composition only; it does
+not grant policy authority. Later compatibility tasks add persistence and
+delegation probes without moving TwinDesk business logic into Harness core.
 
 ## 4. Harness Capability Mapping
 

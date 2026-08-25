@@ -1,9 +1,13 @@
 import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
+import { pathToFileURL } from 'node:url'
 
 import { Context, type Fiber, type Plugin } from '@deepseek-ai/cordis'
-import AgentRegistry from '@deepseek-ai/dsh-agent'
+import Include from '@deepseek-ai/cordis-plugin-include'
+import Loader from '@deepseek-ai/cordis-plugin-loader'
+import AgentRegistry, { type AgentHandle } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
+import AgentPresets from '@deepseek-ai/dsh-agent-presets'
 import LlmRuntime, {
   CallId,
   createUserMessage,
@@ -13,11 +17,13 @@ import LlmRuntime, {
   type StreamChunk,
 } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import { scopeOf } from '@deepseek-ai/dsh-scope'
 import SettingsProvider, {
   settingsNamespace,
   type SettingsNamespace,
 } from '@deepseek-ai/dsh-settings'
 import FileSettingsProvider from '@deepseek-ai/dsh-settings-file'
+import SkillRegistry from '@deepseek-ai/dsh-skill'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 
@@ -90,6 +96,33 @@ export interface HarnessClientSlotProbeResult {
   readonly conversationRestored: boolean
   readonly footerActionMounted: boolean
   readonly footerActionRemoved: boolean
+}
+
+/** Input for the two-preset, keyless Stage 0 behavior probe. */
+export interface HarnessAgentPresetProbeOptions {
+  readonly presetRoot: string
+  readonly plugin: HarnessHostPlugin
+  readonly technicalPresetId: string
+  readonly communicationPresetId: string
+  readonly fixtureRequest: string
+}
+
+/** Safe projection of one preset's model-facing composition and response. */
+export interface HarnessAgentPresetObservation {
+  readonly presetId: string
+  readonly systemPrompt: string
+  readonly advertisedTools: readonly string[]
+  readonly skills: readonly string[]
+  readonly response: string
+}
+
+/** Observable result of composing two distinct Agent Presets. */
+export interface HarnessAgentPresetProbeResult {
+  readonly fixtureRequest: string
+  readonly technical: HarnessAgentPresetObservation
+  readonly communication: HarnessAgentPresetObservation
+  readonly communicationToolsAfterTechnicalDisposal: readonly string[]
+  readonly globalToolsAfterPluginDisposal: readonly string[]
 }
 
 interface ErasedClientSlotEntry {
@@ -220,6 +253,190 @@ class DeterministicAdapter extends LlmAdapter {
       options.signal?.throwIfAborted()
       yield chunk
     }
+  }
+}
+
+const TECHNICAL_PROBE_RESPONSE =
+  'Technical assessment: verify the dependency compatibility failure and release impact before changing scope. Recommendation: assign an owner and preserve a rollback path. Draft only; no external action was performed.'
+const COMMUNICATION_PROBE_RESPONSE =
+  "Stakeholder draft: Friday's release may move by two days while the dependency upgrade is verified. We will confirm the impact and share the next update. Draft only; not sent."
+
+class PersonaAwareAdapter extends LlmAdapter {
+  readonly requests = new Map<string, GenerateOptions>()
+  private readonly expectedFixtureRequest: string
+
+  constructor(expectedFixtureRequest: string) {
+    super()
+    this.expectedFixtureRequest = expectedFixtureRequest
+  }
+
+  override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+    return Promise.resolve({ provider, id: model, name: model })
+  }
+
+  async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+    const sessionId = String(options.sessionId)
+    this.requests.set(sessionId, options)
+    const hasExpectedFixture = options.messages.some(
+      (message) =>
+        message.role === 'user' &&
+        message.content.some(
+          (block) => block.type === 'text' && block.text === this.expectedFixtureRequest,
+        ),
+    )
+    if (!hasExpectedFixture) {
+      throw new Error(`Agent Preset probe received an unexpected fixture for ${sessionId}`)
+    }
+    const system = options.system ?? ''
+    let response: string
+    if (system.includes('TwinDesk Technical Lead Persona')) {
+      response = TECHNICAL_PROBE_RESPONSE
+    } else if (system.includes('TwinDesk Communication Persona')) {
+      response = COMMUNICATION_PROBE_RESPONSE
+    } else {
+      throw new Error(`Agent Preset probe received an unrecognized Persona for ${sessionId}`)
+    }
+    for (const chunk of textResponse(response)) {
+      options.signal?.throwIfAborted()
+      yield chunk
+    }
+  }
+}
+
+function finalAssistantText(handle: AgentHandle): string {
+  const message = handle.agent.session
+    .deriveMessages()
+    .findLast((candidate) => candidate.role === 'assistant')
+  const text = message?.content.find((candidate) => candidate.type === 'text')
+  if (text?.type !== 'text') throw new Error('Agent Preset probe produced no assistant text')
+  return text.text
+}
+
+/**
+ * Compose both TwinDesk Stage 0 Agent Presets through the pinned public
+ * Harness services and run the same fixture through a deterministic model.
+ * No API key, network request, external write Tool, or product persistence is
+ * involved; this is a replaceable-runtime compatibility probe.
+ */
+export async function probeHarnessAgentPresets(
+  options: HarnessAgentPresetProbeOptions,
+): Promise<HarnessAgentPresetProbeResult> {
+  const ctx = new Context()
+  const serviceFibers: Fiber[] = []
+  const agentHandles: AgentHandle[] = []
+  let pluginFiber: Fiber | undefined
+
+  async function mount(service: Plugin, config?: unknown): Promise<Fiber> {
+    const fiber = await ctx.plugin(service, config)
+    serviceFibers.push(fiber)
+    return fiber
+  }
+
+  async function createObservation(
+    presetId: string,
+    sessionId: string,
+    adapter: PersonaAwareAdapter,
+  ): Promise<{ handle: AgentHandle; observation: HarnessAgentPresetObservation }> {
+    const handle = await ctx.agents.create({
+      sessionId: SessionId(sessionId),
+      agentOptions: { provider: 'twindesk-preset-probe', model: 'deterministic' },
+      setup: async (agentCtx: Context) => void (await ctx.agentPresets.mount(agentCtx, presetId)),
+    })
+    agentHandles.push(handle)
+    handle.agent.followup(
+      createUserMessage({
+        content: [{ type: 'text', text: options.fixtureRequest }],
+        source: { kind: 'user' },
+      }),
+    )
+    await handle.agent.whenIdle()
+
+    const request = adapter.requests.get(sessionId)
+    if (request === undefined) {
+      throw new Error(`Agent Preset probe captured no model request for ${sessionId}`)
+    }
+    const composedPreset = ctx.agentPresets.composedPreset(handle.agent.ctx)
+    if (composedPreset !== presetId) {
+      throw new Error(
+        `Agent Preset probe composed ${JSON.stringify(composedPreset)} instead of ${JSON.stringify(presetId)}`,
+      )
+    }
+    const agentScope = scopeOf(handle.agent.ctx)
+    if (agentScope === undefined) {
+      throw new Error(`Agent Preset probe found no scope for ${sessionId}`)
+    }
+
+    return {
+      handle,
+      observation: Object.freeze({
+        presetId: composedPreset,
+        systemPrompt: request.system ?? '',
+        advertisedTools: Object.freeze((request.tools ?? []).map((schema) => schema.name).sort()),
+        skills: Object.freeze(
+          (await ctx.skills.list({ scope: agentScope })).map((skill) => skill.name).sort(),
+        ),
+        response: finalAssistantText(handle),
+      }),
+    }
+  }
+
+  try {
+    ctx.baseUrl = `${pathToFileURL(options.presetRoot).href.replace(/\/$/u, '')}/`
+    await mount(Loader)
+    ctx.loader.builtins.include = Include
+    await mount(LlmRuntime)
+    await mount(SessionStore)
+    await mount(MemorySettingsProvider)
+    await mount(SystemPrompt, { persona: '' })
+    await mount(ToolRuntime)
+    await mount(SkillRegistry)
+    await mount(AgentRegistry)
+    await mount(AgentLoop, { agents: [] })
+    await mount(AgentPresets, {
+      default: options.technicalPresetId,
+      roots: [{ path: options.presetRoot, trust: 'user' }],
+      includeUserRoot: false,
+    })
+
+    pluginFiber = await ctx.plugin(options.plugin as Plugin)
+    const adapter = new PersonaAwareAdapter(options.fixtureRequest)
+    ctx.llm.registerAdapter(['twindesk-preset-probe'], adapter)
+
+    const technical = await createObservation(
+      options.technicalPresetId,
+      'twindesk-preset-technical',
+      adapter,
+    )
+    const communication = await createObservation(
+      options.communicationPresetId,
+      'twindesk-preset-communication',
+      adapter,
+    )
+
+    await technical.handle.dispose()
+    agentHandles.splice(agentHandles.indexOf(technical.handle), 1)
+    const communicationToolsAfterTechnicalDisposal = ctx.tools
+      .schemas(communication.handle.agent)
+      .map((schema) => schema.name)
+      .sort()
+
+    await pluginFiber.dispose()
+    pluginFiber = undefined
+    const globalToolsAfterPluginDisposal = ctx.tools.schemas().map((schema) => schema.name)
+
+    return Object.freeze({
+      fixtureRequest: options.fixtureRequest,
+      technical: technical.observation,
+      communication: communication.observation,
+      communicationToolsAfterTechnicalDisposal: Object.freeze(
+        communicationToolsAfterTechnicalDisposal,
+      ),
+      globalToolsAfterPluginDisposal: Object.freeze(globalToolsAfterPluginDisposal),
+    })
+  } finally {
+    for (const handle of agentHandles.reverse()) await handle.dispose()
+    if (pluginFiber !== undefined) await pluginFiber.dispose()
+    for (const fiber of serviceFibers.reverse()) await fiber.dispose()
   }
 }
 

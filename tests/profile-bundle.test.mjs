@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
-import { dirname, resolve } from 'node:path'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
@@ -12,11 +13,24 @@ import {
   TWIN_DESK_STATUS_TOOL_NAME,
 } from '../packages/plugin-work-hub/src/index.ts'
 import {
+  apply as applyTechnicalContext,
+  inject as technicalContextInject,
+  name as technicalContextName,
+  TWIN_DESK_TECHNICAL_CONTEXT,
+  TWIN_DESK_TECHNICAL_CONTEXT_TOOL_NAME,
+} from '../packages/plugin-work-hub/src/technical-context.ts'
+import {
   apply as applyUiHost,
   inject as uiHostInject,
   name as uiHostName,
 } from '../packages/plugin-ui/src/index.ts'
-import { PROFILE_BUNDLES, readBootGraph, resolveHarnessHome } from '../scripts/harness-profile.mjs'
+import {
+  prepareTwinDeskAgentPresets,
+  PROFILE_BUNDLES,
+  readBootGraph,
+  resolveHarnessHome,
+  TWIN_DESK_AGENT_PRESET_IDS,
+} from '../scripts/harness-profile.mjs'
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -52,10 +66,78 @@ test('the Workbench Bundle declares and mounts the TwinDesk Host and Client plug
   assert.equal(manifest.dsh.bundle.patch, './cordis.patch.yml')
   assert.equal(manifest.dependencies['@twindesk/plugin-work-hub'], 'workspace:*')
   assert.equal(manifest.dependencies['@twindesk/plugin-ui'], 'workspace:*')
+  assert.deepEqual(manifest.files, ['agent-presets', 'cordis.patch.yml', 'dist'])
+  assert.equal(manifest.dependencies['@deepseek-ai/dsh-persona'], '0.1.1-rc.2')
+  assert.equal(manifest.dependencies['@deepseek-ai/dsh-skill-filesystem'], '0.1.1-rc.2')
+  assert.equal(manifest.dependencies['@deepseek-ai/dsh-tool-skill'], '0.1.1-rc.2')
   assert.match(patch, /id: twindesk-work-hub/u)
   assert.match(patch, /name: '@twindesk\/plugin-work-hub'/u)
   assert.match(patch, /id: twindesk-ui/u)
   assert.match(patch, /name: '@twindesk\/plugin-ui'/u)
+})
+
+test('the Workbench Bundle owns two distinct draft-only Agent Presets', async () => {
+  assert.deepEqual(TWIN_DESK_AGENT_PRESET_IDS, [
+    'twindesk-technical-lead',
+    'twindesk-communication',
+  ])
+  assert.equal(Object.isFrozen(TWIN_DESK_AGENT_PRESET_IDS), true)
+
+  const presetRoot = resolve(repositoryRoot, 'packages/bundle-workbench/agent-presets')
+  const technical = await readFile(
+    join(presetRoot, 'twindesk-technical-lead', 'agent.cordis.yml'),
+    'utf8',
+  )
+  const communication = await readFile(
+    join(presetRoot, 'twindesk-communication', 'agent.cordis.yml'),
+    'utf8',
+  )
+
+  assert.match(technical, /TwinDesk Technical Lead Persona/u)
+  assert.match(technical, /@twindesk\/plugin-work-hub\/technical-context/u)
+  assert.match(technical, /includeDefaultRoots: false/u)
+  assert.match(technical, /never claim that a message was sent/u)
+  assert.match(communication, /TwinDesk Communication Persona/u)
+  assert.match(communication, /includeDefaultRoots: false/u)
+  assert.match(communication, /never claim that a message was sent/u)
+  assert.doesNotMatch(communication, /technical-context/u)
+  assert.doesNotMatch(`${technical}\n${communication}`, /dsh-tool-(?:bash|filesystem)/u)
+})
+
+test('Profile preparation materializes presets idempotently and refuses divergent content', async () => {
+  const harnessHome = await mkdtemp(join(tmpdir(), 'twindesk-profile-presets-'))
+  try {
+    const targetRoot = await prepareTwinDeskAgentPresets(harnessHome)
+    await prepareTwinDeskAgentPresets(harnessHome)
+    const technicalComposition = join(targetRoot, 'twindesk-technical-lead', 'agent.cordis.yml')
+    const original = await readFile(technicalComposition, 'utf8')
+    assert.match(original, /TwinDesk Technical Lead Persona/u)
+
+    const divergent = '# synthetic local edit\n'
+    await writeFile(technicalComposition, divergent)
+    await assert.rejects(
+      prepareTwinDeskAgentPresets(harnessHome),
+      /Refusing to overwrite Agent Preset .* differs from the versioned bundle/u,
+    )
+    assert.equal(await readFile(technicalComposition, 'utf8'), divergent)
+  } finally {
+    await rm(harnessHome, { recursive: true, force: true })
+  }
+})
+
+test('Profile preparation refuses a linked Agent Preset root', async () => {
+  const harnessHome = await mkdtemp(join(tmpdir(), 'twindesk-profile-preset-link-'))
+  try {
+    const linkedTarget = join(harnessHome, 'linked-target')
+    await mkdir(linkedTarget)
+    await symlink(linkedTarget, join(harnessHome, '.agent-presets'), 'dir')
+    await assert.rejects(
+      prepareTwinDeskAgentPresets(harnessHome),
+      /Refusing to use non-directory Agent Preset root/u,
+    )
+  } finally {
+    await rm(harnessHome, { recursive: true, force: true })
+  }
 })
 
 test('the UI Host entry enrolls an external Client plugin', () => {
@@ -86,4 +168,19 @@ test('the Work Hub Host plugin declares the status Tool contract', () => {
     ready: true,
   })
   assert.equal(Object.isFrozen(TWIN_DESK_STATUS), true)
+})
+
+test('the technical-lead Preset plugin declares a scoped read-only context Tool', () => {
+  assert.equal(typeof applyTechnicalContext, 'function')
+  assert.equal(technicalContextName, 'twindesk-technical-context')
+  assert.deepEqual(technicalContextInject, ['tools'])
+  assert.equal(TWIN_DESK_TECHNICAL_CONTEXT_TOOL_NAME, 'twindesk_technical_context')
+  assert.deepEqual(TWIN_DESK_TECHNICAL_CONTEXT, {
+    product: 'TwinDesk',
+    perspective: 'technical_lead',
+    autonomyMode: 'draft_only',
+    evidenceRequired: true,
+    externalWrites: false,
+  })
+  assert.equal(Object.isFrozen(TWIN_DESK_TECHNICAL_CONTEXT), true)
 })
