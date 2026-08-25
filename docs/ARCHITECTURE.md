@@ -33,7 +33,8 @@ Feishu API / Events       Jira API / Webhooks
 
 ### `@twindesk/domain`
 
-Pure TypeScript domain types and rules with no Cordis dependency:
+Pure TypeScript domain types and rules with no Harness, Cordis, Connector, UI,
+or model SDK dependency:
 
 - ExternalEvent
 - WorkItem
@@ -43,6 +44,20 @@ Pure TypeScript domain types and rules with no Cordis dependency:
 - ApprovalRecord
 - ConnectorCursor
 - AuditRecord
+
+### `@twindesk/harness-adapter`
+
+The replaceable runtime boundary:
+
+- owns all source imports from Harness and Cordis packages;
+- pins and probes the public upstream contracts used by TwinDesk;
+- exports only TwinDesk-owned compatibility types and errors;
+- prevents generated declarations from exposing upstream package types;
+- contains no TwinDesk domain or Connector business logic.
+
+Profile Bundle manifests may declare pinned Harness packages as installation
+dependencies, but TwinDesk source code outside this adapter must not import
+their runtime or types directly.
 
 ### `@twindesk/storage-sqlite`
 

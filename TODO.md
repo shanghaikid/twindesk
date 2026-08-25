@@ -47,11 +47,12 @@ Goal: prove that TwinDesk can be built primarily as out-of-tree DeepSeek Harness
   - Verification record: the frozen install and combined `pnpm run check` pass from a clean temporary copy.
   - Completion check: install, type-check, test, and build commands pass from a clean checkout.
 
-- [ ] **TD-012 — Define the Harness adapter boundary**
+- [x] **TD-012 — Define the Harness adapter boundary**
   - Create an adapter package that owns Harness and Cordis imports.
   - Keep `@twindesk/domain` free of Harness, Cordis, Feishu, Jira, UI, and model SDK dependencies.
   - Add a dependency-boundary test or static check.
   - Depends on: TD-011.
+  - Verification record: static import/dependency checks, built declaration checks, and a runtime import-denial test protect the boundary.
   - Completion check: domain tests run without loading Harness packages.
 
 ### Server-Side Plugin Validation

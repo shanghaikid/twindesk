@@ -8,5 +8,13 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     }
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.1",
+    "@deepseek-ai/dsh-app-boot": "0.1.1-rc.2"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "@types/js-yaml": "4.0.9"
   }
 }

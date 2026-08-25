@@ -8,6 +8,7 @@
     "node": "^24.0.0"
   },
   "scripts": {
+    "adapter:check": "node scripts/check-adapter-output.mjs",
     "build": "tsc -b",
     "clean": "tsc -b --clean",
     "format": "prettier --write .",

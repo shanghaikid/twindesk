@@ -31,7 +31,21 @@ importers:
 
   packages/domain: {}
 
-  packages/harness-adapter: {}
+  packages/harness-adapter:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.1
+        version: 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
+      '@deepseek-ai/dsh-app-boot':
+        specifier: 0.1.1-rc.2
+        version: 0.1.1-rc.2(d7ed335ddbfb7670edc51bd2c8928580)
+    devDependencies:
+      '@types/js-yaml':
+        specifier: 4.0.9
+        version: 4.0.9
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
 
   packages/plugin-feishu: {}
 
@@ -2578,6 +2592,9 @@ packages:
 
   '@tanstack/virtual-core@3.17.8':
     resolution: {integrity: sha512-BfEvehNpOT75r5Ksc5xW6NZuXujTfb7nlSEyVu4XHG3gdxNg1KqXruWbDewXOUaUYIo4oRbSfkjIajz4MAT8tA==, tarball: https://registry.npmjs.org/@tanstack/virtual-core/-/virtual-core-3.17.8.tgz}
+
+  '@types/js-yaml@4.0.9':
+    resolution: {integrity: sha512-k4MGaQl5TGo/iipqb2UDG2UwjXziSWkh0uysQelTlJpX1qGlpUZYm8PnO4DxG1qBomtJUdYJ6qR6xdIah10JLg==, tarball: https://registry.npmjs.org/@types/js-yaml/-/js-yaml-4.0.9.tgz}
 
   '@types/node@24.13.3':
     resolution: {integrity: sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q==, tarball: https://registry.npmjs.org/@types/node/-/node-24.13.3.tgz}
@@ -6365,6 +6382,8 @@ snapshots:
       react-dom: 18.3.1(react@18.3.1)
 
   '@tanstack/virtual-core@3.17.8': {}
+
+  '@types/js-yaml@4.0.9': {}
 
   '@types/node@24.13.3':
     dependencies:

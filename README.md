@@ -52,6 +52,6 @@ corepack pnpm@11.7.0 run check
 ```
 
 The combined check covers formatting, TypeScript validation, unit tests, all
-project-reference builds, and repository structure. Individual commands are
-also available as `format:check`, `typecheck`, `test`, `build`, and
-`repo:check` package scripts.
+project-reference builds, the built Harness adapter boundary, and repository
+structure. Individual commands are also available as `format:check`,
+`typecheck`, `test`, `build`, `adapter:check`, and `repo:check` package scripts.

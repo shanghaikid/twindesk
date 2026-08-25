@@ -87,6 +87,14 @@ completed frozen installation and the full workspace `check` command on
 2026-08-25. TD-050 will later extend this scaffold verification into the full
 TwinDesk compatibility smoke suite.
 
+TD-012 adds adapter-owned compatibility probes for
+`@deepseek-ai/cordis@4.0.1` and
+`@deepseek-ai/dsh-app-boot@0.1.1-rc.2`. Consuming the app-boot public
+declarations also requires `@types/js-yaml@4.0.9`, which the upstream package
+uses during development but does not declare for downstream TypeScript
+consumers. TwinDesk declares that type package explicitly instead of enabling
+`skipLibCheck`.
+
 ## Upgrade Procedure
 
 For each intentional Harness upgrade:
