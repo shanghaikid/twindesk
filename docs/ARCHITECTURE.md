@@ -84,6 +84,10 @@ The core Host-side service:
 - post-approval action dispatch;
 - audit writes.
 
+During TD-020 this package contains only a disposable Host lifecycle effect.
+The service behavior above remains later-stage work; the minimal plugin exists
+only to prove out-of-tree Profile installation and activation.
+
 ### `@twindesk/plugin-feishu`
 
 - Bot and User OAuth identities;
@@ -115,6 +119,11 @@ A dual-sided Host and Client plugin:
 ### `@twindesk/bundle-workbench`
 
 A Profile Bundle that composes the plugins above, default Agent Presets, model Tools, and configuration overlays.
+
+The Stage 0 bundle initially inserts only `@twindesk/plugin-work-hub` after the
+pinned Harness base and Web application bundles. Later compatibility tasks add
+Tools, settings, Client plugins, and Presets without moving TwinDesk business
+logic into Harness core.
 
 ## 4. Harness Capability Mapping
 

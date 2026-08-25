@@ -63,6 +63,11 @@ The source checkout is for compatibility investigation only. TwinDesk must
 consume published packages through its adapter boundary rather than copying
 Harness source into the repository.
 
+The conventional local inspection checkout is the sibling directory
+`../deepseek-harness`. It must remain detached at the pinned commit; TwinDesk
+builds and Profile launches continue to consume the frozen npm artifacts, so a
+missing source checkout does not change runtime resolution.
+
 ## Verification Record
 
 A clean shallow clone of `dsh-v0.1.1-rc.2` was performed on 2026-08-25. It
@@ -94,6 +99,12 @@ declarations also requires `@types/js-yaml@4.0.9`, which the upstream package
 uses during development but does not declare for downstream TypeScript
 consumers. TwinDesk declares that type package explicitly instead of enabling
 `skipLibCheck`.
+
+TD-020 validates the public Profile machinery against the same package pin.
+The generated `workbench` Profile composes `@deepseek-ai/dsh-base`,
+`@deepseek-ai/dsh-web-app`, and `@twindesk/bundle-workbench` in that order. Its
+smoke test verifies the effective configuration and starts the Web surface on
+an operating-system-assigned loopback port before requesting normal shutdown.
 
 ## Upgrade Procedure
 

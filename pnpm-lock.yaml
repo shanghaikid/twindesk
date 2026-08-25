@@ -27,7 +27,11 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
-  packages/bundle-workbench: {}
+  packages/bundle-workbench:
+    dependencies:
+      '@twindesk/plugin-work-hub':
+        specifier: workspace:*
+        version: link:../plugin-work-hub
 
   packages/domain: {}
 

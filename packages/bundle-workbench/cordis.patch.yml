@@ -1,0 +1,5 @@
+# TwinDesk's Stage 0 Host layer. The Harness base and Web application bundles
+# are composed before this patch by the generated `workbench` Profile.
+- insert:
+    - id: twindesk-work-hub
+      name: '@twindesk/plugin-work-hub'

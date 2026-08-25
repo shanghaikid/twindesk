@@ -57,11 +57,12 @@ Goal: prove that TwinDesk can be built primarily as out-of-tree DeepSeek Harness
 
 ### Server-Side Plugin Validation
 
-- [ ] **TD-020 — Create a minimal Profile Bundle**
+- [x] **TD-020 — Create a minimal Profile Bundle**
   - Compose the pinned Harness base and Web application bundles.
   - Add one TwinDesk Host plugin through the Profile rather than a core patch.
   - Document local launch and configuration inspection commands.
   - Depends on: TD-011.
+  - Verification record: a clean temporary copy installs the local Bundle and Host plugin through the Profile, dumps the expected entry, starts the Web surface on a temporary loopback port, and shuts down normally.
   - Completion check: the Profile starts from a clean checkout and appears in the dumped effective configuration.
 
 - [ ] **TD-021 — Register a read-only TwinDesk Tool**
