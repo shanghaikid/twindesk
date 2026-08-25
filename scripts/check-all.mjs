@@ -1,14 +1,6 @@
 import { spawnSync } from 'node:child_process'
 
-const checks = [
-  'format:check',
-  'typecheck',
-  'test',
-  'build',
-  'adapter:check',
-  'profile:check',
-  'repo:check',
-]
+const checks = ['format:check', 'typecheck', 'test', 'adapter:check', 'profile:check', 'repo:check']
 const pnpmCli = process.env.npm_execpath
 const packageManager = process.env.npm_config_user_agent
 

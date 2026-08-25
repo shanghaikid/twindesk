@@ -65,11 +65,12 @@ Goal: prove that TwinDesk can be built primarily as out-of-tree DeepSeek Harness
   - Verification record: a clean temporary copy installs the local Bundle and Host plugin through the Profile, dumps the expected entry, starts the Web surface on a temporary loopback port, and shuts down normally.
   - Completion check: the Profile starts from a clean checkout and appears in the dumped effective configuration.
 
-- [ ] **TD-021 — Register a read-only TwinDesk Tool**
+- [x] **TD-021 — Register a read-only TwinDesk Tool**
   - Implement a synthetic `twindesk_status` or equivalent Tool in an out-of-tree Host plugin.
   - Return structured, deterministic data with no network or filesystem writes.
   - Verify Tool registration, invocation, cancellation, and plugin disposal.
   - Depends on: TD-020.
+  - Verification record: a keyless scripted Agent receives `twindesk_status`, records a successful `tool/call` and `tool/result` pair in its Session, and the same composition verifies structured output, pre-dispatch cancellation, and registry cleanup on plugin disposal.
   - Completion check: an Agent invokes the Tool successfully and the invocation appears in the Session trace.
 
 - [ ] **TD-022 — Validate plugin-owned settings**

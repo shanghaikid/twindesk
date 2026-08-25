@@ -4,7 +4,13 @@ import { dirname, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { apply, name } from '../packages/plugin-work-hub/src/index.ts'
+import {
+  apply,
+  inject,
+  name,
+  TWIN_DESK_STATUS,
+  TWIN_DESK_STATUS_TOOL_NAME,
+} from '../packages/plugin-work-hub/src/index.ts'
 import { PROFILE_BUNDLES, resolveHarnessHome } from '../scripts/harness-profile.mjs'
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -44,19 +50,16 @@ test('the Workbench Bundle declares and mounts the TwinDesk Host plugin', async 
   assert.match(patch, /name: '@twindesk\/plugin-work-hub'/u)
 })
 
-test('the minimal Work Hub Host plugin owns a disposable lifecycle effect', () => {
-  let label
-  let disposed = false
-  apply({
-    effect(register, effectLabel) {
-      label = effectLabel
-      const dispose = register()
-      dispose()
-      disposed = true
-    },
-  })
-
+test('the Work Hub Host plugin declares the status Tool contract', () => {
+  assert.equal(typeof apply, 'function')
   assert.equal(name, 'twindesk-work-hub')
-  assert.equal(label, 'twindesk-work-hub.lifecycle()')
-  assert.equal(disposed, true)
+  assert.deepEqual(inject, ['tools'])
+  assert.equal(TWIN_DESK_STATUS_TOOL_NAME, 'twindesk_status')
+  assert.deepEqual(TWIN_DESK_STATUS, {
+    product: 'TwinDesk',
+    roadmapStage: 0,
+    autonomyMode: 'draft_only',
+    ready: true,
+  })
+  assert.equal(Object.isFrozen(TWIN_DESK_STATUS), true)
 })

@@ -18,7 +18,7 @@
     "profile:prepare": "node scripts/harness-profile.mjs prepare",
     "profile:start": "node scripts/harness-profile.mjs start",
     "typecheck": "tsc --project tsconfig.typecheck.json --noEmit",
-    "test": "node --test",
+    "test": "tsc -b && node --test",
     "repo:check": "node scripts/check-repository.mjs",
     "check": "node scripts/check-all.mjs"
   },

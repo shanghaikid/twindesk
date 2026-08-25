@@ -16,6 +16,7 @@ test('adapter validates the installed pinned Harness contracts', () => {
     contracts: {
       cordisLifecycle: true,
       profileBundles: true,
+      toolRegistry: true,
     },
   })
   assert.equal(Object.isFrozen(compatibility), true)

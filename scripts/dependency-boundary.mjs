@@ -12,7 +12,13 @@ const dependencyFields = [
 ]
 const expectedAdapterDependencies = new Map([
   ['@deepseek-ai/cordis', '4.0.1'],
+  ['@deepseek-ai/dsh-agent', '0.1.1-rc.2'],
+  ['@deepseek-ai/dsh-agent-loop', '0.1.1-rc.2'],
   ['@deepseek-ai/dsh-app-boot', '0.1.1-rc.2'],
+  ['@deepseek-ai/dsh-llm', '0.1.1-rc.2'],
+  ['@deepseek-ai/dsh-session', '0.1.1-rc.2'],
+  ['@deepseek-ai/dsh-system-prompt', '0.1.1-rc.2'],
+  ['@deepseek-ai/dsh-tools', '0.1.1-rc.2'],
 ])
 const sourceExtensions = new Set(['.cts', '.js', '.mjs', '.mts', '.ts', '.tsx'])
 
