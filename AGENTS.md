@@ -12,8 +12,10 @@ Before planning or changing product behavior, read:
 2. `docs/PRODUCT_GOALS.md`
 3. `docs/ARCHITECTURE.md`
 4. `docs/ROADMAP.md`
+5. `TODO.md`
 
 Treat `docs/PRODUCT_GOALS.md` as the product source of truth. If implementation ideas conflict with its safety boundaries, MVP scope, or non-goals, stop and make the conflict explicit instead of silently changing the product.
+Treat `TODO.md` as the current execution tracker. Update its task status in the same change that completes, defers, or materially re-scopes a tracked item.
 
 ## Product Invariants
 

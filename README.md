@@ -32,6 +32,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Product Goals](docs/PRODUCT_GOALS.md): vision, user journeys, scope, acceptance criteria, and non-goals.
 - [Architecture](docs/ARCHITECTURE.md): plugin boundaries, data boundaries, event flow, security model, and technical risks.
 - [Roadmap](docs/ROADMAP.md): delivery sequence from technical validation to a usable MVP.
+- [TODO](TODO.md): current execution checklist, dependencies, completion checks, and gated backlog.
 
 ## Current Status
 
