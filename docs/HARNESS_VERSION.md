@@ -106,6 +106,12 @@ upstream import and exports only TwinDesk-defined Tool and compatibility-test
 types; the built-declaration check rejects an upstream type leak from either
 adapter entry point.
 
+TD-022 adds the exact `0.1.1-rc.2` Settings and file-backed Settings provider
+packages plus their published `@deepseek-ai/schemastery@3.18.1` schema runtime.
+The adapter checks all three versions at runtime and owns schema construction,
+namespace branding, persistence-test composition, and upstream settings types.
+Its restart test writes only synthetic data in a temporary directory.
+
 TD-020 validates the public Profile machinery against the same package pin.
 The generated `workbench` Profile composes `@deepseek-ai/dsh-base`,
 `@deepseek-ai/dsh-web-app`, and `@twindesk/bundle-workbench` in that order. Its
@@ -113,6 +119,9 @@ smoke test verifies the effective configuration and starts the Web surface on
 an operating-system-assigned loopback port before requesting normal shutdown.
 The separate TD-021 keyless test drives `twindesk_status` through a scripted
 Agent and verifies its durable `tool/call` and `tool/result` Session events.
+TD-022 separately updates the Work Hub namespace through the supported
+Settings scope, reboots a file-backed provider over the same document, and
+verifies browser redaction, safe rejection diagnostics, and plugin disposal.
 
 ## Upgrade Procedure
 

@@ -73,11 +73,12 @@ Goal: prove that TwinDesk can be built primarily as out-of-tree DeepSeek Harness
   - Verification record: a keyless scripted Agent receives `twindesk_status`, records a successful `tool/call` and `tool/result` pair in its Session, and the same composition verifies structured output, pre-dispatch cancellation, and registry cleanup on plugin disposal.
   - Completion check: an Agent invokes the Tool successfully and the invocation appears in the Session trace.
 
-- [ ] **TD-022 — Validate plugin-owned settings**
+- [x] **TD-022 — Validate plugin-owned settings**
   - Register one non-secret settings namespace and schema.
   - Confirm values survive restart.
   - Confirm secret fields are excluded or redacted at every browser and diagnostic boundary.
   - Depends on: TD-020.
+  - Verification record: the `twindesk-work-hub` namespace updates `includeRoadmapStage` live, persists through the file-backed provider, and recovers in a fresh Context; an undeclared synthetic secret-like field is rejected before persistence and is absent from the redacted browser descriptor, rejection diagnostic, and stored YAML.
   - Completion check: settings can be read and updated through the supported plugin contract without modifying Harness core.
 
 ### Client Plugin and Inbox Extension Validation

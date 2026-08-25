@@ -5,6 +5,7 @@ import {
   inspectHarnessCompatibility,
   SUPPORTED_CORDIS_VERSION,
   SUPPORTED_HARNESS_VERSION,
+  SUPPORTED_SCHEMASTERY_VERSION,
 } from '../packages/harness-adapter/src/index.ts'
 
 test('adapter validates the installed pinned Harness contracts', () => {
@@ -13,9 +14,11 @@ test('adapter validates the installed pinned Harness contracts', () => {
   assert.deepEqual(compatibility, {
     cordisVersion: SUPPORTED_CORDIS_VERSION,
     harnessVersion: SUPPORTED_HARNESS_VERSION,
+    schemasteryVersion: SUPPORTED_SCHEMASTERY_VERSION,
     contracts: {
       cordisLifecycle: true,
       profileBundles: true,
+      settingsRegistry: true,
       toolRegistry: true,
     },
   })

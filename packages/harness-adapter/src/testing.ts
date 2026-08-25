@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises'
+
 import { Context, type Fiber, type Plugin } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
@@ -10,16 +12,21 @@ import LlmRuntime, {
   type StreamChunk,
 } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import SettingsProvider, {
+  settingsNamespace,
+  type SettingsNamespace,
+} from '@deepseek-ai/dsh-settings'
+import FileSettingsProvider from '@deepseek-ai/dsh-settings-file'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 
-import type { HarnessJsonValue, HarnessToolHostContext } from './index.js'
+import type { HarnessHostContext, HarnessJsonValue } from './index.js'
 
-/** Out-of-tree Host plugin shape accepted by the compatibility probe. */
-export interface HarnessToolPlugin {
+/** Out-of-tree Host plugin shape accepted by compatibility probes. */
+export interface HarnessHostPlugin {
   readonly name: string
   readonly inject: readonly string[]
-  apply(ctx: HarnessToolHostContext): void
+  apply(ctx: HarnessHostContext): void
 }
 
 /** One simplified Tool trace entry, projected from the Agent Session log. */
@@ -38,6 +45,55 @@ export interface HarnessToolProbeResult {
   readonly cancellationCode: string | undefined
   readonly trace: readonly HarnessToolTraceEntry[]
   readonly toolsAfterPluginDisposal: readonly string[]
+}
+
+/** Input for the file-backed boolean settings compatibility probe. */
+export interface HarnessBooleanSettingsProbeOptions {
+  readonly filePath: string
+  readonly namespace: string
+  readonly key: string
+  readonly updatedValue: boolean
+  readonly rejectedPatch: Readonly<Record<string, HarnessJsonValue>>
+  readonly toolName: string
+}
+
+/** Safe diagnostic projection of one rejected settings update. */
+export interface HarnessSettingsDiagnostic {
+  readonly name: string
+  readonly message: string
+}
+
+/** Observable result of a file-backed settings update and restart. */
+export interface HarnessBooleanSettingsProbeResult {
+  readonly initialValue: unknown
+  readonly updatedValue: unknown
+  readonly toolValueAfterUpdate: HarnessJsonValue
+  readonly browserDescriptorAfterRejection: unknown
+  readonly recoveredValue: unknown
+  readonly browserDescriptorAfterRestart: unknown
+  readonly rejectedDiagnostic: HarnessSettingsDiagnostic
+  readonly persistedDocument: string
+  readonly toolValueAfterRestart: HarnessJsonValue
+  readonly namespacesAfterPluginDisposal: readonly string[]
+  readonly toolsAfterPluginDisposal: readonly string[]
+}
+
+/** Small writable provider for tests that do not exercise persistence. */
+class MemorySettingsProvider extends SettingsProvider {
+  private storedDocument: Record<string, unknown> = {}
+
+  get writable(): boolean {
+    return true
+  }
+
+  protected load(): Promise<Record<string, unknown>> {
+    return Promise.resolve(structuredClone(this.storedDocument))
+  }
+
+  protected persist(ns: SettingsNamespace, section: Record<string, unknown>): Promise<void> {
+    this.storedDocument = { ...this.storedDocument, [ns]: structuredClone(section) }
+    return Promise.resolve()
+  }
 }
 
 function toolCallResponse(name: string): StreamChunk[] {
@@ -97,7 +153,7 @@ class DeterministicAdapter extends LlmAdapter {
  * Agent invocation, durable Session events, and Host plugin disposal.
  */
 export async function probeHarnessToolPlugin(
-  plugin: HarnessToolPlugin,
+  plugin: HarnessHostPlugin,
   toolName: string,
 ): Promise<HarnessToolProbeResult> {
   const ctx = new Context()
@@ -113,6 +169,7 @@ export async function probeHarnessToolPlugin(
   try {
     await mount(LlmRuntime)
     await mount(SessionStore)
+    await mount(MemorySettingsProvider)
     await mount(SystemPrompt, { persona: 'Use the requested TwinDesk Tool.' })
     await mount(ToolRuntime)
     await mount(AgentRegistry)
@@ -184,5 +241,148 @@ export async function probeHarnessToolPlugin(
   } finally {
     if (pluginFiber !== undefined) await pluginFiber.dispose()
     for (const fiber of serviceFibers.reverse()) await fiber.dispose()
+  }
+}
+
+async function executeToolValue(
+  ctx: Context,
+  toolName: string,
+  callId: string,
+): Promise<HarnessJsonValue> {
+  const result = await ctx.tools.execute({
+    signal: new AbortController().signal,
+    callId: CallId(callId),
+    name: toolName,
+    arguments: {},
+  })
+  if (result.isError || !('value' in result)) {
+    throw new Error(`Harness Tool execution failed for ${JSON.stringify(toolName)}`)
+  }
+  return result.value
+}
+
+async function bootFileSettingsPlugin(
+  plugin: HarnessHostPlugin,
+  filePath: string,
+): Promise<{ ctx: Context; pluginFiber: Fiber; serviceFibers: Fiber[] }> {
+  const ctx = new Context()
+  const serviceFibers: Fiber[] = []
+  try {
+    serviceFibers.push(await ctx.plugin(SystemPrompt, { persona: '' }))
+    serviceFibers.push(await ctx.plugin(ToolRuntime))
+    serviceFibers.push(await ctx.plugin(FileSettingsProvider, { path: filePath, watch: false }))
+    const pluginFiber = await ctx.plugin(plugin as Plugin)
+    return { ctx, pluginFiber, serviceFibers }
+  } catch (error) {
+    for (const fiber of serviceFibers.reverse()) await fiber.dispose()
+    throw error
+  }
+}
+
+async function disposeFileSettingsPlugin(
+  pluginFiber: Fiber | undefined,
+  serviceFibers: Fiber[],
+): Promise<void> {
+  if (pluginFiber !== undefined) await pluginFiber.dispose()
+  for (const fiber of serviceFibers.reverse()) await fiber.dispose()
+}
+
+/**
+ * Verify one boolean namespace through update, persistence, process-style
+ * restart, redacted browser description, rejection diagnostics, and disposal.
+ */
+export async function probeHarnessBooleanSettingPlugin(
+  plugin: HarnessHostPlugin,
+  options: HarnessBooleanSettingsProbeOptions,
+): Promise<HarnessBooleanSettingsProbeResult> {
+  const ns = settingsNamespace(options.namespace)
+  const first = await bootFileSettingsPlugin(plugin, options.filePath)
+  let firstPluginFiber: Fiber | undefined = first.pluginFiber
+  let initialValue: unknown
+  let updatedValue: unknown
+  let toolValueAfterUpdate: HarnessJsonValue
+  let browserDescriptorAfterRejection: unknown
+  let rejectedDiagnostic: HarnessSettingsDiagnostic
+
+  try {
+    initialValue = structuredClone(first.ctx.settings.get(ns))
+    await first.ctx.settings.update(ns, { [options.key]: options.updatedValue })
+    updatedValue = structuredClone(first.ctx.settings.get(ns))
+    toolValueAfterUpdate = await executeToolValue(
+      first.ctx,
+      options.toolName,
+      'twindesk-settings-live-call',
+    )
+
+    let rejected: unknown
+    try {
+      await first.ctx.settings.update(ns, options.rejectedPatch)
+    } catch (error) {
+      rejected = error
+    }
+    if (rejected === undefined) {
+      throw new Error(`Harness settings probe unexpectedly accepted undeclared fields`)
+    }
+    rejectedDiagnostic = {
+      name: rejected instanceof Error ? rejected.name : 'Error',
+      message: rejected instanceof Error ? rejected.message : String(rejected),
+    }
+    const descriptor = first.ctx.settings
+      .describe({ redactSecrets: true })
+      .find((candidate) => candidate.ns === ns)
+    if (descriptor === undefined) {
+      throw new Error(
+        `Harness settings probe could not describe ${JSON.stringify(options.namespace)} after rejection`,
+      )
+    }
+    browserDescriptorAfterRejection = structuredClone(descriptor)
+  } finally {
+    await disposeFileSettingsPlugin(firstPluginFiber, first.serviceFibers)
+    firstPluginFiber = undefined
+  }
+
+  const persistedDocument = await readFile(options.filePath, 'utf8')
+  const second = await bootFileSettingsPlugin(plugin, options.filePath)
+  let secondPluginFiber: Fiber | undefined = second.pluginFiber
+
+  try {
+    const recoveredValue = structuredClone(second.ctx.settings.get(ns))
+    const descriptor = second.ctx.settings
+      .describe({ redactSecrets: true })
+      .find((candidate) => candidate.ns === ns)
+    if (descriptor === undefined) {
+      throw new Error(
+        `Harness settings probe could not describe ${JSON.stringify(options.namespace)}`,
+      )
+    }
+    const browserDescriptorAfterRestart = structuredClone(descriptor)
+    const toolValueAfterRestart = await executeToolValue(
+      second.ctx,
+      options.toolName,
+      'twindesk-settings-restart-call',
+    )
+
+    await secondPluginFiber.dispose()
+    secondPluginFiber = undefined
+    const namespacesAfterPluginDisposal = second.ctx.settings
+      .describe({ redactSecrets: true })
+      .map((candidate) => String(candidate.ns))
+    const toolsAfterPluginDisposal = second.ctx.tools.schemas().map((schema) => schema.name)
+
+    return {
+      initialValue,
+      updatedValue,
+      toolValueAfterUpdate,
+      browserDescriptorAfterRejection,
+      recoveredValue,
+      browserDescriptorAfterRestart,
+      rejectedDiagnostic,
+      persistedDocument,
+      toolValueAfterRestart,
+      namespacesAfterPluginDisposal,
+      toolsAfterPluginDisposal,
+    }
+  } finally {
+    await disposeFileSettingsPlugin(secondPluginFiber, second.serviceFibers)
   }
 }

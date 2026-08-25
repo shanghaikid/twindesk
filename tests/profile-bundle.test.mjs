@@ -53,7 +53,7 @@ test('the Workbench Bundle declares and mounts the TwinDesk Host plugin', async 
 test('the Work Hub Host plugin declares the status Tool contract', () => {
   assert.equal(typeof apply, 'function')
   assert.equal(name, 'twindesk-work-hub')
-  assert.deepEqual(inject, ['tools'])
+  assert.deepEqual(inject, ['settings', 'tools'])
   assert.equal(TWIN_DESK_STATUS_TOOL_NAME, 'twindesk_status')
   assert.deepEqual(TWIN_DESK_STATUS, {
     product: 'TwinDesk',
