@@ -118,6 +118,7 @@ Every external write implementation requires an idempotency test. Every persiste
 
 ## Documentation
 
+- Write all repository documentation in English, including Markdown files, ADRs, package READMEs, and architecture notes.
 - Update product documents when behavior, scope, security boundaries, or milestones change.
 - Record material architecture decisions in `docs/decisions/` as short ADRs once that directory exists.
 - State assumptions and unresolved constraints; do not present a prototype limitation as a supported guarantee.

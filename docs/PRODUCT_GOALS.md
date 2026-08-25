@@ -1,239 +1,239 @@
-# TwinDesk 产品目标
+# TwinDesk Product Goals
 
-## 1. 文档目的
+## 1. Purpose of This Document
 
-本文定义 TwinDesk 要解决的问题、产品边界、核心能力和阶段性成功标准。具体框架、模型和实现语言可以变化，但本文件中的用户价值与安全边界应保持稳定。
+This document defines the problems TwinDesk will solve, its product boundaries, core capabilities, and staged success criteria. Frameworks, models, and implementation languages may change, but the user value and safety boundaries defined here should remain stable.
 
-## 2. 一句话愿景
+## 2. One-Sentence Vision
 
-让一个人拥有多个可信、可配置、可追溯的工作分身，在一个本地工作台中处理来自飞书、Jira 及未来其他系统的工作信息。
+Give one person multiple trusted, configurable, and traceable work personas that can process information from Feishu, Jira, and future systems in one local work console.
 
-## 3. 要解决的问题
+## 3. Problems to Solve
 
-知识工作者的信息和行动分散在聊天、文档、Issue、代码仓库及会议中。用户经常需要重复完成以下工作：
+Knowledge workers have information and actions spread across chat, documents, issues, code repositories, and meetings. They repeatedly need to:
 
-1. 找出真正需要自己处理的信息；
-2. 补齐消息背后的项目和历史上下文；
-3. 切换身份，以技术负责人、项目负责人或管理者的角度判断；
-4. 起草合适的回复或下一步行动；
-5. 在飞书和 Jira 之间同步进展；
-6. 记住自己为何做出某个决定，以及最终执行了什么。
+1. identify what truly requires their attention;
+2. recover the project and historical context behind a message;
+3. switch perspectives among technical lead, project owner, manager, and other roles;
+4. draft an appropriate reply or next action;
+5. synchronize progress between Feishu and Jira;
+6. remember why a decision was made and what was ultimately executed.
 
-通用聊天机器人通常缺少持续事件来源、明确身份、工具权限、长期记录和可审计执行边界。TwinDesk 的目标是补齐这条完整链路。
+General-purpose chatbots usually lack continuous event sources, explicit identities, tool permissions, durable records, and auditable execution boundaries. TwinDesk aims to complete this entire loop.
 
-## 4. 初始用户
+## 4. Initial User
 
-第一阶段只服务单个用户本人：
+The first stage serves a single user:
 
-- 日常使用飞书和 Jira；
-- 同时承担多个工作角色；
-- 愿意让 AI 阅读经授权的工作上下文；
-- 希望 AI 先准备草稿，而不是未经确认代表自己发言；
-- 要求数据主要保存在本地，并能检查每次处理过程。
+- uses Feishu and Jira daily;
+- holds multiple work roles at the same time;
+- is willing to let AI read explicitly authorized work context;
+- wants AI to prepare drafts instead of speaking on their behalf without confirmation;
+- requires data to remain primarily local and every processing run to be inspectable.
 
-第一阶段不做多人 SaaS、企业管理员后台或组织级知识平台。
+The first stage will not provide multi-user SaaS, an enterprise administration console, or an organization-wide knowledge platform.
 
-## 5. 产品原则
+## 5. Product Principles
 
-### 5.1 本地优先
+### 5.1 Local First
 
-业务数据库、索引、运行记录和生成物默认保存在本机。只有完成任务所需的最小上下文会发送给所选模型或外部 API。
+Business databases, indexes, run records, and artifacts are stored on the local machine by default. Only the minimum context required to complete a task is sent to the selected model or external API.
 
-### 5.2 草稿优先
+### 5.2 Draft First
 
-默认自治等级是 `draft_only`。读取可以自动进行，向飞书、Jira 或文件系统写入的动作必须经过策略检查；高风险动作必须由用户确认。
+The default autonomy level is `draft_only`. Reads may run automatically. Writes to Feishu, Jira, or the filesystem must pass policy checks, and high-risk actions require user confirmation.
 
-### 5.3 身份与能力分离
+### 5.3 Separate Identity from Capability
 
-Persona 定义“是谁、如何判断和表达”；Skill 定义“会做什么”；Policy 定义“允许做什么”；Workflow 和 Team 定义“如何协作”。任何一层都不应隐式授予另一层权限。
+A Persona defines who the agent is and how it judges and communicates. A Skill defines what it knows how to do. A Policy defines what it is allowed to do. Workflows and Teams define how work is coordinated. No layer implicitly grants the authority of another.
 
-### 5.4 可追溯而非黑盒
+### 5.4 Traceable, Not Opaque
 
-每项建议和动作都能回到来源事件、所用上下文、运行记录、审批结论和外部结果。系统不保存模型隐藏推理，但保存用户可理解的决策摘要与工具轨迹。
+Every suggestion and action can be traced to source events, supplied context, run records, approval decisions, and external results. The system does not persist hidden model reasoning, but it does preserve user-readable decision summaries and tool traces.
 
-### 5.5 可替换
+### 5.5 Replaceable Components
 
-飞书、Jira、模型供应商和 Agent Runtime 都通过适配边界接入。产品领域模型不依赖某一家服务的原始数据结构。
+Feishu, Jira, model providers, and the Agent Runtime connect through adapter boundaries. The product domain model does not depend on the raw data structures of any single service.
 
-### 5.6 单 Agent 默认，Team 按需
+### 5.6 Single Agent by Default, Team on Demand
 
-普通消息处理不启动团队。只有任务可明显拆分、需要不同专业视角，或用户明确要求时，才使用 Subagent、Workflow 或 Agent Team。
+Routine message handling does not start a Team. Subagents, Workflows, or Agent Teams are used only when a task can be meaningfully decomposed, requires distinct specialist perspectives, or is explicitly assigned to a Team by the user.
 
-## 6. 核心概念
+## 6. Core Concepts
 
-| 概念 | 定义 |
+| Concept | Definition |
 |---|---|
-| Work Item | 需要用户关注、判断或行动的统一工作项 |
-| External Event | 来自飞书、Jira 等系统的不可变来源事件 |
-| Thread | 围绕同一主题聚合的消息、Issue、文档和处理记录 |
-| Persona | 一个工作分身的使命、语气、偏好和默认能力配置 |
-| Skill | 可发现、可加载的知识或操作说明 |
-| Tool | 访问数据或执行动作的结构化能力 |
-| Policy | 数据访问、自治等级、审批和保留期限的规则 |
-| Run | 一次 Agent 或 Team 处理过程 |
-| Draft | 尚未写入外部系统的建议内容或操作计划 |
-| Approval | 用户对某个确定外部动作的一次性授权 |
-| Artifact | 报告、附件、补丁、导出文件等运行产物 |
+| Work Item | A normalized item that requires the user's attention, judgment, or action |
+| External Event | An immutable source event from Feishu, Jira, or another system |
+| Thread | Messages, issues, documents, and processing records grouped around one subject |
+| Persona | A work persona's mission, tone, preferences, and default capability configuration |
+| Skill | Discoverable and loadable knowledge or procedural instructions |
+| Tool | A structured capability that reads data or executes an action |
+| Policy | Rules for data access, autonomy, approval, and retention |
+| Run | One Agent or Team processing execution |
+| Draft | Suggested content or an action plan that has not been written to an external system |
+| Approval | One-time user authorization for a specific external action |
+| Artifact | A report, attachment, patch, export, or other generated output |
 
-## 7. 核心用户旅程
+## 7. Core User Journeys
 
-### 7.1 飞书消息回复
+### 7.1 Replying to a Feishu Message
 
-1. TwinDesk 感知群聊提及、机器人私信，或通过用户授权增量发现与本人相关的消息；
-2. Inbox 创建 Work Item，并关联会话上下文；
-3. 路由规则选择默认 Persona，用户可以覆盖；
-4. Persona 获取必要的飞书历史和相关 Jira 信息；
-5. 系统生成回复草稿和简短依据；
-6. 用户编辑或批准；
-7. Connector 使用明确身份发送回复；
-8. 来源、草稿、审批和发送结果写入本地审计记录。
+1. TwinDesk detects a group mention, a direct message to the Bot, or incrementally discovers a user-relevant message through user authorization.
+2. The Inbox creates a Work Item and associates conversation context.
+3. Routing rules select a default Persona, which the user may override.
+4. The Persona retrieves the necessary Feishu history and related Jira information.
+5. The system produces a reply draft and a short rationale.
+6. The user edits or approves the draft.
+7. The Connector sends the reply using an explicitly displayed identity.
+8. The source, draft, approval, and send result are written to the local audit trail.
 
-### 7.2 Jira 工作项处理
+### 7.2 Processing a Jira Work Item
 
-1. Connector 通过轮询或 Webhook 获取 Issue/Comment 变化；
-2. 规则判断是否与用户有关、是否需要行动；
-3. Persona 总结变化、风险、阻塞和建议动作；
-4. 用户批准后更新评论、状态或负责人；
-5. 结果可选择同步为飞书回复草稿。
+1. The Connector retrieves issue or comment changes through polling or Webhooks.
+2. Rules determine whether the change is relevant to the user and requires action.
+3. A Persona summarizes changes, risks, blockers, and recommended actions.
+4. After approval, TwinDesk updates the comment, status, or assignee.
+5. The result may optionally become a Feishu reply draft.
 
-### 7.3 多 Agent 复杂任务
+### 7.3 Complex Multi-Agent Work
 
-1. 主 Persona 判断任务适合拆分，或用户选择 Team Template；
-2. Coordinator 建立有预算和深度限制的任务图；
-3. Context Collector、Specialist、Drafter、Critic 等角色并行或串行工作；
-4. Coordinator 合并结果，不允许子 Agent 自行扩大权限；
-5. 所有外部写操作仍回到统一审批边界。
+1. The primary Persona determines that the task is suitable for decomposition, or the user selects a Team Template.
+2. A Coordinator creates a task graph with budget and depth limits.
+3. Roles such as Context Collector, Specialist, Drafter, and Critic work in parallel or sequence.
+4. The Coordinator merges the results; child Agents cannot expand their own authority.
+5. Every external write still passes through the shared approval boundary.
 
-## 8. Persona 能力
+## 8. Persona Capabilities
 
-用户可以创建多个 Persona，每个 Persona 至少支持：
+Users can create multiple Personas. Each Persona supports at least:
 
-- 名称、头像、简介和使命；
-- 系统指令、表达语气和输出偏好；
-- 默认模型与推理强度策略；
-- 可使用的 Skill 和 Tool；
-- 可访问的数据源、群聊、项目和工作区；
-- 记忆范围与保留期限；
-- 自治等级；
-- 最大工具调用、时间和模型预算；
-- 默认 Team Template 或禁用 Team；
-- 对 Codex 等专业 Subagent 的使用权限。
+- name, avatar, description, and mission;
+- system instructions, communication tone, and output preferences;
+- default model and reasoning-effort policy;
+- available Skills and Tools;
+- accessible data sources, chats, projects, and workspaces;
+- memory scope and retention period;
+- autonomy level;
+- maximum tool-call, time, and model budgets;
+- a default Team Template or a disabled Team setting;
+- permission to use specialist Subagents such as Codex.
 
-Persona 不是独立账号，也不能绕过当前用户在飞书或 Jira 中原有的权限。
+A Persona is not an independent account and cannot bypass the user's existing Feishu or Jira permissions.
 
-## 9. Skill 与插件目标
+## 9. Skill and Plugin Goals
 
-Skill 应支持：
+Skills should support:
 
-- 用户编写的纯 Prompt Skill；
-- 本地目录发现和热更新；
-- Persona、项目和全局多层覆盖；
-- 用户可调用、模型可调用两种独立策略；
-- 声明依赖的 Connector、Tool、权限和风险等级；
-- 导入、导出和版本固定。
+- user-authored prompt-only Skills;
+- local directory discovery and hot reload;
+- layered global, Persona, and project overrides;
+- independent user-invocable and model-invocable policies;
+- declared Connector, Tool, permission, and risk-level dependencies;
+- import, export, and version pinning.
 
-可执行插件属于更高信任级别，必须显式安装。运行时由 Agent 临时生成的插件不能自动获得凭证，也不能作为长期后台连接器。
+Executable plugins have a higher trust level and must be explicitly installed. Plugins generated temporarily by an Agent at runtime cannot automatically receive credentials or act as long-running background connectors.
 
-## 10. 自治与审批等级
+## 10. Autonomy and Approval Levels
 
-| 等级 | 行为 |
+| Level | Behavior |
 |---|---|
-| `observe_only` | 只读取、归档和总结 |
-| `draft_only` | 可以生成草稿，不执行外部写入；默认值 |
-| `approve_then_act` | 用户对确定动作批准一次后执行 |
-| `allowlisted_auto` | 仅对白名单低风险动作自动执行 |
+| `observe_only` | Read, archive, and summarize only |
+| `draft_only` | Produce drafts without external writes; the default |
+| `approve_then_act` | Execute a specific action after one-time user approval |
+| `allowlisted_auto` | Automatically execute only allowlisted, low-risk actions |
 
-删除、权限修改、批量操作、代用户公开发言和不可逆操作不能仅因 Persona 配置而自动获准。
+Deletion, permission changes, bulk operations, public communication on the user's behalf, and irreversible actions cannot be automatically authorized through Persona configuration alone.
 
-## 11. 飞书范围与限制
+## 11. Feishu Scope and Limitations
 
-第一版支持：
+The first version supports:
 
-- Bot 收到的私信和群聊中对 Bot 的提及；
-- 用户 OAuth 身份下可见消息的增量搜索与上下文读取；
-- 回复消息、发送草稿和读取关联附件；
-- 对已知文档的评论/提及上下文读取；
-- 记录消息是由 Bot 身份还是用户身份发送。
+- direct messages received by the Bot and group mentions of the Bot;
+- incremental search and context retrieval for messages visible under the user's OAuth identity;
+- message replies, draft sending, and related attachment access;
+- comment and mention context for known documents;
+- explicit recording of whether a message was sent using Bot or User identity.
 
-产品不得宣称飞书应用天然拥有“用户全部消息”。实际可见范围由应用权限、用户授权、Bot 所在会话和飞书 API 限制共同决定。文档提及无法可靠形成全局实时事件时，应明确标注为轮询或通知解析结果。
+The product must not claim that a Feishu application inherently has access to all user messages. Actual visibility depends on application scopes, user authorization, Bot membership, and Feishu API restrictions. When document mentions cannot be represented as a reliable global real-time event, the UI must identify them as polling or notification-parsing results.
 
-## 12. Jira 范围与限制
+## 12. Jira Scope and Limitations
 
-第一版支持：
+The first version supports:
 
-- 增量同步与用户相关的 Issue 和评论；
-- 获取 Issue 上下文、状态、负责人、优先级和链接；
-- 在审批后发表评论或执行状态转换；
-- 把 Jira Work Item 与飞书 Thread 关联；
-- 本地模式通过轮询工作，可选 Relay 模式通过 Webhook 提高实时性。
+- incremental synchronization of issues and comments relevant to the user;
+- retrieval of issue context, status, assignee, priority, and links;
+- approved comments and status transitions;
+- association between Jira Work Items and Feishu Threads;
+- polling in fully local mode and an optional Relay mode for more timely Webhook delivery.
 
-严格本地部署不能直接接收需要公网 HTTPS 地址的 Jira Webhook；产品必须在轮询和无状态 Relay 之间做显式选择。
+A strictly local deployment cannot directly receive Jira Webhooks that require a publicly reachable HTTPS endpoint. The product must make the choice between polling and a stateless Relay explicit.
 
-## 13. 记录与数据保留
+## 13. Records and Data Retention
 
-每次 Run 至少记录：
+Each Run records at least:
 
-- 触发来源与外部对象 ID；
-- 选中的 Persona、Skill、Tool 和模型；
-- 提供给模型的上下文引用与脱敏结果；
-- 草稿、用户编辑和最终输出；
-- 工具调用、审批请求、审批结果和外部 API 结果；
-- 时间、耗时、Token、错误与重试；
-- 生成的 Artifact。
+- the trigger source and external object ID;
+- selected Persona, Skills, Tools, and model;
+- context references supplied to the model and the applied redaction result;
+- drafts, user edits, and final output;
+- tool calls, approval requests, approval outcomes, and external API results;
+- timestamps, duration, token usage, errors, and retries;
+- generated Artifacts.
 
-记录需要可搜索、可导出、可按来源和时间删除。凭证、隐藏推理、环境变量和不必要的原始敏感数据不得进入普通日志。
+Records must be searchable, exportable, and deletable by source and time range. Credentials, hidden reasoning, environment variables, and unnecessary raw sensitive data must not enter ordinary logs.
 
-## 14. MVP 范围
+## 14. MVP Scope
 
-MVP 只承诺一条端到端闭环：
+The MVP commits to one end-to-end loop:
 
-> 飞书事件或增量消息进入 Inbox → 选择 Persona → 读取必要上下文 → 生成草稿 → 用户确认 → 回复飞书 → 本地完整留痕。
+> A Feishu event or incrementally discovered message enters the Inbox → a Persona is selected → necessary context is retrieved → a draft is generated → the user confirms → TwinDesk replies in Feishu → the complete trace is stored locally.
 
-MVP 同时包含：
+The MVP also includes:
 
-- 本地 Web UI；
-- 至少两个 Persona；
-- 本地 Skill；
-- 一个飞书账号；
-- 一个 Jira 站点的只读关联查询；
-- Session 日志与业务审计；
-- 草稿和一次性审批；
-- 基础搜索和同步状态诊断。
+- a local Web UI;
+- at least two Personas;
+- local Skills;
+- one Feishu account;
+- read-only related queries against one Jira site;
+- Session logs and a business audit trail;
+- drafts and one-time approvals;
+- basic search and synchronization diagnostics.
 
-## 15. MVP 非目标
+## 15. MVP Non-Goals
 
-- 未经确认自动代表用户回复；
-- 读取用户在飞书中的所有消息；
-- 多用户、组织后台或云端协作；
-- 插件市场；
-- 移动端；
-- 复杂向量数据库与全量企业知识索引；
-- 让 Agent 任意安装或执行第三方代码；
-- 把实验性 Agent Team 作为关键路径；
-- 完整复制飞书或 Jira 的客户端体验。
+- replying on the user's behalf without confirmation;
+- reading every message belonging to the user in Feishu;
+- multi-user operation, an organization administration console, or cloud collaboration;
+- a plugin marketplace;
+- a mobile application;
+- a complex vector database or comprehensive enterprise knowledge index;
+- allowing Agents to install or execute arbitrary third-party code;
+- making experimental Agent Teams a critical dependency;
+- recreating the complete Feishu or Jira client experience.
 
-## 16. MVP 验收标准
+## 16. MVP Acceptance Criteria
 
-满足以下条件才能称为 MVP：
+The product qualifies as an MVP only when:
 
-1. 新飞书 Work Item 能稳定进入 Inbox，并且重启后不重复或丢失已提交记录；
-2. 用户可以为 Work Item 选择至少两个不同 Persona，并看到明显不同且符合配置的草稿；
-3. 草稿发送前必须展示目标会话、发送身份和最终内容；
-4. 未经批准无法执行配置为需审批的外部写操作；
-5. 每条已发送回复可以回溯到来源消息、草稿、审批和 API 结果；
-6. Jira 查询失败不会阻断飞书草稿，界面会显示上下文不完整；
-7. OAuth Token 不以明文出现在业务数据库、Session 日志或诊断导出中；
-8. Connector 重启后可从持久同步游标继续；
-9. 用户可以删除指定 Thread 及其 TwinDesk 本地派生数据；
-10. DeepSeek Harness 升级失败时，兼容层测试能在发布前发现问题。
+1. A new Feishu Work Item enters the Inbox reliably, without duplicating or losing committed records after restart.
+2. The user can select at least two distinct Personas for a Work Item and receive drafts that are visibly different and consistent with their configurations.
+3. Before a draft is sent, TwinDesk displays the target conversation, sending identity, and final content.
+4. An external write configured to require approval cannot execute without that approval.
+5. Every sent reply can be traced to its source message, draft, approval, and API result.
+6. A failed Jira query does not block a Feishu draft, and the UI displays that context is incomplete.
+7. OAuth tokens never appear in plaintext in the business database, Session logs, or diagnostic exports.
+8. A Connector can resume from a durable synchronization cursor after restart.
+9. The user can delete a selected Thread and the local TwinDesk data derived from it.
+10. Compatibility tests detect a breaking DeepSeek Harness upgrade before release.
 
-## 17. 后续方向
+## 17. Future Directions
 
-- Jira 双向操作与自动关联；
-- 飞书文档评论提及增强；
-- Team Template 与动态工作流；
-- Codex 代码与仓库专家；
-- 本地模型和多模型路由；
-- 桌面托盘、系统通知和快捷操作；
-- 可选的无状态 Webhook Relay；
-- 企业策略包与团队共享 Skill，但仍保持个人数据边界。
+- bidirectional Jira operations and automatic association;
+- enhanced Feishu document comment and mention support;
+- Team Templates and dynamic Workflows;
+- Codex as a code and repository specialist;
+- local models and multi-model routing;
+- desktop tray, system notifications, and quick actions;
+- an optional stateless Webhook Relay;
+- enterprise policy packs and shared team Skills while preserving personal data boundaries.
