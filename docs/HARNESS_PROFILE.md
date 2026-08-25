@@ -103,6 +103,6 @@ The smoke test checks both dumped entries, starts the Profile on port `0` so the
 - The TwinDesk packages remain private Stage 0 workspaces and are linked from the generated Profile rather than published to a registry.
 - The status Tool is a compatibility probe, not a live health check; it does not inspect connectors, storage, models, or external services.
 - The Work Hub namespace, Client card, and empty Inbox are compatibility diagnostics; they are not product settings or a data-backed Inbox.
-- Harness exposes no public Router or primary sidebar navigation list. The plugin owns `#/inbox` and mounts its supported additive entry in the sidebar footer; TD-032 owns the long-term policy decision.
+- Harness exposes no public Router or primary sidebar navigation list. The plugin owns `#/inbox` and mounts its supported additive entry in the sidebar footer; [ADR 0001](decisions/0001-upstream-generic-inbox-extension-points.md) limits this path to Stage 0 and selects a generic upstream contract for the product Inbox.
 - The external Client builder covers one source module and the shared React runtime only because the upstream preset is not published.
 - Profile state under `.twindesk/` is disposable compatibility-test data, not a supported user-data location.

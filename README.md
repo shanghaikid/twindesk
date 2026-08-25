@@ -36,6 +36,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Harness Version](docs/HARNESS_VERSION.md): current exact upstream pin, toolchain requirements, and upgrade procedure.
 - [Harness Profile](docs/HARNESS_PROFILE.md): Stage 0 Profile composition, local launch, and configuration inspection.
 - [Inbox Extension Spike](docs/INBOX_EXTENSION_SPIKE.md): out-of-tree route and sidebar findings, limitations, and compatibility seams.
+- [ADR 0001](docs/decisions/0001-upstream-generic-inbox-extension-points.md): Inbox core-patch policy, upstream ownership, and upgrade consequences.
 
 ## Current Status
 

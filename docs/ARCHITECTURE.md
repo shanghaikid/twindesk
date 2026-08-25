@@ -2,7 +2,7 @@
 
 ## 1. Architecture Decision
 
-The first TwinDesk version uses DeepSeek Harness as its Agent Runtime and extends business capabilities through formally installed Cordis plugins. TwinDesk will not initially fork Harness. If the product-level Inbox cannot be implemented through existing client extension points, the project will add only the smallest generic UI Slot while keeping all TwinDesk domain logic outside the Harness repository.
+The first TwinDesk version uses DeepSeek Harness as its Agent Runtime and extends business capabilities through formally installed Cordis plugins. TwinDesk will not fork Harness for the Inbox. [ADR 0001](decisions/0001-upstream-generic-inbox-extension-points.md) selects a product-neutral upstream primary-navigation and keyed-page contract for the product UI; the Stage 0 hash route and conversation shadow remain compatibility diagnostics only. All TwinDesk domain logic stays outside the Harness repository.
 
 DeepSeek Harness is replaceable infrastructure, not the TwinDesk domain model.
 
@@ -281,7 +281,7 @@ Because Harness is in developer preview:
 
 ## 11. Open Validation Questions
 
-- Should the Inbox keep the current plugin-owned hash route, footer action, and temporary conversation shadow, or should TwinDesk propose generic primary-navigation and page-registry extension points upstream? See [`INBOX_EXTENSION_SPIKE.md`](INBOX_EXTENSION_SPIKE.md).
+- Will upstream publish the generic primary-navigation and keyed-page contract selected by [ADR 0001](decisions/0001-upstream-generic-inbox-extension-points.md) in time for the Stage 0 exit review?
 - Has the client bundle preset required to build external plugins been formally published?
 - What is the complete installation, upgrade, and version-pinning experience for third-party Profile plugins?
 - What latency results from running Session SQLite and business SQLite concurrently in one process?

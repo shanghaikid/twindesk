@@ -99,10 +99,11 @@ Goal: prove that TwinDesk can be built primarily as out-of-tree DeepSeek Harness
   - Verification record: the external Client plugin owns a `#/inbox` deep link, contributes a `sidebar.footer.action`, and temporarily shadows the top-level `conversation` slot with a static empty page; the pinned SlotCore probe and production bundle lifecycle test verify shadow, restore, direct-route load, listener cleanup, disposal, and reload behavior, while `docs/INBOX_EXTENSION_SPIKE.md` records the absence of a public Router and primary navigation list.
   - Completion check: either the route works entirely out of tree, or a written gap report identifies the smallest generic Harness UI Slot required.
 
-- [ ] **TD-032 — Decide the core-patch policy for the Inbox**
+- [x] **TD-032 — Decide the core-patch policy for the Inbox**
   - Choose one of: no core change, upstream a generic extension point, or maintain a minimal temporary patch.
   - Record the decision as an ADR with upgrade and ownership consequences.
   - Depends on: TD-031.
+  - Verification record: ADR 0001 selects a product-neutral upstream primary-navigation and keyed-page contract, rejects a TwinDesk Harness fork or temporary patch, assigns generic lifecycle and routing ownership to Harness and all Inbox behavior to the external TwinDesk plugin, and defines upgrade gates and a superseding-decision requirement if upstream support is unavailable.
   - Completion check: the chosen path keeps TwinDesk domain logic outside Harness core.
 
 ### Personas, Persistence, and Delegation

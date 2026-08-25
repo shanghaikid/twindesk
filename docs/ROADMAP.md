@@ -14,7 +14,7 @@ Goal: prove that key capabilities can be implemented through out-of-tree plugins
 - Verify installation of `subagent-codex` and one delegation run.
 - Record the minimum list of required Harness core changes.
 
-Exit criterion: the product experience can be built without a fork, or with only one generic UI Slot added to Harness.
+Exit criterion: the product experience can be built without a fork, using at most one minimal, product-neutral Client navigation and page extension accepted upstream.
 
 ## Stage 1: Local Work Hub
 
