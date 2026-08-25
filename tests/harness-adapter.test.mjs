@@ -7,6 +7,7 @@ import {
   SUPPORTED_HARNESS_VERSION,
   SUPPORTED_SCHEMASTERY_VERSION,
 } from '../packages/harness-adapter/src/index.ts'
+import { probeHarnessClientInboxSlots } from '../packages/harness-adapter/src/testing.ts'
 
 test('adapter validates the installed pinned Harness contracts', () => {
   const compatibility = inspectHarnessCompatibility()
@@ -20,8 +21,18 @@ test('adapter validates the installed pinned Harness contracts', () => {
       profileBundles: true,
       settingsRegistry: true,
       toolRegistry: true,
+      clientSlotRegistry: true,
     },
   })
   assert.equal(Object.isFrozen(compatibility), true)
   assert.equal(Object.isFrozen(compatibility.contracts), true)
+})
+
+test('adapter validates the pinned Client slot shadow and restore contract', () => {
+  assert.deepEqual(probeHarnessClientInboxSlots(), {
+    inboxShadowsConversation: true,
+    conversationRestored: true,
+    footerActionMounted: true,
+    footerActionRemoved: true,
+  })
 })

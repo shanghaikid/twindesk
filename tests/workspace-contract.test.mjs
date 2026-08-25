@@ -44,7 +44,12 @@ test('dependency boundaries reject upstream and UI dependencies in domain', asyn
   await writeFile(join(pluginRoot, 'package.json'), JSON.stringify({ name: '@twindesk/plugin-ui' }))
   await writeFile(
     join(pluginRoot, 'src', 'index.ts'),
-    '/// <reference types="@deepseek-ai/dsh-app-boot" />\n',
+    [
+      '/// <reference types="@deepseek-ai/dsh-app-boot" />',
+      "const agent = require('@deepseek-ai/dsh-agent')",
+      'void agent',
+      '',
+    ].join('\n'),
   )
 
   const errors = await validateDependencyBoundaries(root)
@@ -58,6 +63,10 @@ test('dependency boundaries reject upstream and UI dependencies in domain', asyn
   )
   assert.equal(
     errors.some((error) => error.includes('must import @deepseek-ai/dsh-app-boot through')),
+    true,
+  )
+  assert.equal(
+    errors.some((error) => error.includes('must import @deepseek-ai/dsh-agent through')),
     true,
   )
   assert.equal(errors.filter((error) => error.includes('@deepseek-ai/cordis')).length, 1)

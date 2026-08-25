@@ -129,6 +129,14 @@ checks execute the generated factory, preserve an embedded-source map, verify
 actionable missing-artifact diagnostics, fetch both artifacts from the live
 Profile, and confirm an unchanged graph across a full-page reload.
 
+TD-031 adds the exact `@deepseek-ai/dsh-client-ui-slots@0.1.1-rc.2` package to
+the adapter boundary and pins the single-slot priority behavior used by the
+external Inbox page. The probe verifies that the Inbox entry shadows and then
+restores the shipped conversation entry, while an additive sidebar footer
+entry mounts and disposes independently. The production Client test also
+covers the plugin-owned `#/inbox` deep link and hash-listener cleanup. The
+upstream slot declarations remain developer-preview compatibility seams.
+
 ## Upgrade Procedure
 
 For each intentional Harness upgrade:

@@ -123,8 +123,9 @@ A Profile Bundle that composes the plugins above, default Agent Presets, model T
 The Stage 0 bundle inserts `@twindesk/plugin-work-hub` and
 `@twindesk/plugin-ui` after the pinned Harness base and Web application
 bundles. They currently expose only a synthetic Tool, one non-secret setting,
-and a Client diagnostic card. Later compatibility tasks add Presets and other
-probes without moving TwinDesk business logic into Harness core.
+a Client diagnostic card, and a static out-of-tree Inbox extension spike.
+Later compatibility tasks add Presets and other probes without moving
+TwinDesk business logic into Harness core.
 
 ## 4. Harness Capability Mapping
 
@@ -280,7 +281,7 @@ Because Harness is in developer preview:
 
 ## 11. Open Validation Questions
 
-- Can a Client Plugin reliably add a top-level Inbox route and sidebar entry?
+- Should the Inbox keep the current plugin-owned hash route, footer action, and temporary conversation shadow, or should TwinDesk propose generic primary-navigation and page-registry extension points upstream? See [`INBOX_EXTENSION_SPIKE.md`](INBOX_EXTENSION_SPIKE.md).
 - Has the client bundle preset required to build external plugins been formally published?
 - What is the complete installation, upgrade, and version-pinning experience for third-party Profile plugins?
 - What latency results from running Session SQLite and business SQLite concurrently in one process?

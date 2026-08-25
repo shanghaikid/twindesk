@@ -2,6 +2,7 @@ import cordisManifest from '@deepseek-ai/cordis/package.json' with { type: 'json
 import agentManifest from '@deepseek-ai/dsh-agent/package.json' with { type: 'json' }
 import agentLoopManifest from '@deepseek-ai/dsh-agent-loop/package.json' with { type: 'json' }
 import appBootManifest from '@deepseek-ai/dsh-app-boot/package.json' with { type: 'json' }
+import clientUiSlotsManifest from '@deepseek-ai/dsh-client-ui-slots/package.json' with { type: 'json' }
 import llmManifest from '@deepseek-ai/dsh-llm/package.json' with { type: 'json' }
 import sessionManifest from '@deepseek-ai/dsh-session/package.json' with { type: 'json' }
 import settingsManifest from '@deepseek-ai/dsh-settings/package.json' with { type: 'json' }
@@ -32,6 +33,7 @@ const harnessPackageManifests = Object.freeze([
   ['@deepseek-ai/dsh-agent', agentManifest],
   ['@deepseek-ai/dsh-agent-loop', agentLoopManifest],
   ['@deepseek-ai/dsh-app-boot', appBootManifest],
+  ['@deepseek-ai/dsh-client-ui-slots', clientUiSlotsManifest],
   ['@deepseek-ai/dsh-llm', llmManifest],
   ['@deepseek-ai/dsh-session', sessionManifest],
   ['@deepseek-ai/dsh-settings', settingsManifest],
@@ -49,10 +51,25 @@ export interface HarnessHostContext {
   effect(effect: () => () => void, label: string): void
 }
 
+/** Registration fields used by TwinDesk against public Harness Client slots. */
+export interface HarnessClientSlotRegistration {
+  readonly name: string
+  readonly key?: string
+  readonly id?: string
+  readonly order?: number
+  readonly priority?: number
+}
+
+/** TwinDesk-owned projection of a component mounted through the Client slot registry. */
+export type HarnessClientSlotComponent = (props: Readonly<Record<string, unknown>>) => unknown
+
 /** TwinDesk-owned projection of the browser slot registry used by Client plugins. */
 export interface HarnessClientSlots {
   inject(name: string, register: () => () => void): () => void
-  register(options: Readonly<{ name: string; key?: string }>, component: () => unknown): () => void
+  register(
+    options: Readonly<HarnessClientSlotRegistration>,
+    component: HarnessClientSlotComponent,
+  ): () => void
 }
 
 /** Narrow browser context required by the Stage 0 TwinDesk diagnostic card. */
@@ -91,6 +108,7 @@ export interface HarnessCompatibility {
     readonly profileBundles: true
     readonly settingsRegistry: true
     readonly toolRegistry: true
+    readonly clientSlotRegistry: true
   }
 }
 
@@ -135,6 +153,7 @@ export function inspectHarnessCompatibility(): HarnessCompatibility {
       profileBundles: hasProfileBundles,
       settingsRegistry: hasSettingsRegistry,
       toolRegistry: hasToolRegistry,
+      clientSlotRegistry: true,
     }),
   })
 }

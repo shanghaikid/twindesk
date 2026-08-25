@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The Stage 0 `workbench` Profile proves that TwinDesk can compose the pinned DeepSeek Harness runtime and activate TwinDesk Host and Client plugins without changing Harness core. The plugins contribute one synthetic read-only Tool, one non-secret setting, and one browser diagnostic card for compatibility testing. They do not add external connectors, filesystem tools, or external writes.
+The Stage 0 `workbench` Profile proves that TwinDesk can compose the pinned DeepSeek Harness runtime and activate TwinDesk Host and Client plugins without changing Harness core. The plugins contribute one synthetic read-only Tool, one non-secret setting, one browser diagnostic card, and one static Inbox extension spike for compatibility testing. They do not add external connectors, filesystem tools, persistence, or external writes.
 
 ## Composition
 
@@ -45,9 +45,13 @@ Schemastery preserves unknown object fields by default. The adapter therefore ad
 
 ## Client Diagnostic Card
 
-`@twindesk/plugin-ui` declares a Web `dsh.client` entry with an explicit graph edge to Harness's plugin-settings surface. Its browser half registers a small read-only card under the `twindesk-work-hub` namespace. The card says that the Client plugin loaded and performs no reads or writes; its purpose is to prove external component delivery before the Inbox extension spike.
+`@twindesk/plugin-ui` declares a Web `dsh.client` entry with explicit graph edges to Harness's conversation, plugin-settings, and sidebar surfaces. Its browser half registers a small read-only card under the `twindesk-work-hub` namespace. The card says that the Client plugin loaded and performs no reads or writes.
 
 Harness `0.1.1-rc.2` does not publish its internal Client build preset. TwinDesk therefore owns a deliberately narrow builder that emits the required lazy-CJS `window.__ModuleLoader__.load(...)` factory, leaves React on Harness's shared module table, rejects unsupported runtime imports, and emits a source map with embedded TypeScript source. Missing or malformed artifacts fail before Profile launch with the instruction to run `pnpm run build`; Harness also retains its own fail-loud bundle-composition diagnostics.
+
+## Inbox Extension Spike
+
+The same external Client package adds an Inbox footer action and a static empty page. The action owns the `#/inbox` browser hash because Harness exposes no public Router. While that route is active, the plugin uses the public single-slot priority contract to shadow `conversation`; leaving the route or disposing the plugin removes that registration and restores the shipped conversation surface. The exact extension contracts and remaining primary-navigation gap are recorded in [`INBOX_EXTENSION_SPIKE.md`](INBOX_EXTENSION_SPIKE.md).
 
 The Profile is generated under `.twindesk/harness` and is ignored by Git. Set `TWINDESK_HARNESS_HOME` to an absolute or repository-relative path to isolate another generated Harness home. Do not point this variable at a Profile containing user data unless replacing its generated `workbench` Profile is intended.
 
@@ -92,12 +96,13 @@ Run the automated composition and startup smoke test with:
 corepack pnpm@11.7.0 run profile:check
 ```
 
-The smoke test checks both dumped entries, starts the Profile on port `0` so the operating system selects an available loopback port, and waits for the Harness URL readiness line. It then loads the production index twice, verifies a stable TwinDesk row in `__DSH_BOOT__`, fetches the bundle and source map through Harness's plugin routes, and requests normal shutdown. A separate bundle execution test materializes the factory twice and verifies card registration, rendering, disposal, and reload isolation. The checks do not open a browser or invoke an Agent. Sandboxed development environments must permit loopback binding for this check.
+The smoke test checks both dumped entries, starts the Profile on port `0` so the operating system selects an available loopback port, and waits for the Harness URL readiness line. It then loads the production index twice, verifies a stable TwinDesk row in `__DSH_BOOT__`, fetches the bundle and source map through Harness's plugin routes, and requests normal shutdown. A separate bundle execution test materializes the factory across clean and direct-Inbox routes and verifies card and sidebar registration, page switching, restoration, disposal, listener cleanup, and reload isolation. The checks do not open a browser or invoke an Agent. Sandboxed development environments must permit loopback binding for this check.
 
 ## Current Limitations
 
 - The TwinDesk packages remain private Stage 0 workspaces and are linked from the generated Profile rather than published to a registry.
 - The status Tool is a compatibility probe, not a live health check; it does not inspect connectors, storage, models, or external services.
-- The Work Hub namespace and Client card remain compatibility diagnostics; they are not product settings or an Inbox surface.
-- The external Client builder covers one source module and the shared React runtime only because the upstream preset is not published. TD-031 owns the decision about the larger Inbox surface and any additional extension requirements.
+- The Work Hub namespace, Client card, and empty Inbox are compatibility diagnostics; they are not product settings or a data-backed Inbox.
+- Harness exposes no public Router or primary sidebar navigation list. The plugin owns `#/inbox` and mounts its supported additive entry in the sidebar footer; TD-032 owns the long-term policy decision.
+- The external Client builder covers one source module and the shared React runtime only because the upstream preset is not published.
 - Profile state under `.twindesk/` is disposable compatibility-test data, not a supported user-data location.

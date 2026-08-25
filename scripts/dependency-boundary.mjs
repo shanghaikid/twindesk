@@ -15,6 +15,7 @@ const expectedAdapterDependencies = new Map([
   ['@deepseek-ai/dsh-agent', '0.1.1-rc.2'],
   ['@deepseek-ai/dsh-agent-loop', '0.1.1-rc.2'],
   ['@deepseek-ai/dsh-app-boot', '0.1.1-rc.2'],
+  ['@deepseek-ai/dsh-client-ui-slots', '0.1.1-rc.2'],
   ['@deepseek-ai/dsh-llm', '0.1.1-rc.2'],
   ['@deepseek-ai/dsh-session', '0.1.1-rc.2'],
   ['@deepseek-ai/dsh-settings', '0.1.1-rc.2'],
@@ -72,14 +73,36 @@ async function listSourceFiles(directory) {
 
 /**
  * @param {string} source
+ * @param {string} filename
  * @returns {string[]}
  */
-function referencedSpecifiers(source) {
+function referencedSpecifiers(source, filename) {
   const preprocessed = ts.preProcessFile(source, true, true)
-  return [
+  const specifiers = new Set([
     ...preprocessed.importedFiles.map(({ fileName }) => fileName),
     ...preprocessed.typeReferenceDirectives.map(({ fileName }) => fileName),
-  ]
+  ])
+  const sourceFile = ts.createSourceFile(filename, source, ts.ScriptTarget.Latest, true)
+
+  /** @param {import('typescript').Node} node */
+  function visit(node) {
+    const argument = ts.isCallExpression(node) ? node.arguments[0] : undefined
+    if (
+      ts.isCallExpression(node) &&
+      node.arguments.length === 1 &&
+      argument !== undefined &&
+      ts.isStringLiteralLike(argument) &&
+      ((ts.isIdentifier(node.expression) && node.expression.text === 'require') ||
+        node.expression.kind === ts.SyntaxKind.ImportKeyword)
+    ) {
+      specifiers.add(argument.text)
+    }
+
+    ts.forEachChild(node, visit)
+  }
+
+  visit(sourceFile)
+  return [...specifiers]
 }
 
 /**
@@ -185,7 +208,7 @@ export async function validateDependencyBoundaries(root) {
         continue
       }
 
-      for (const specifier of referencedSpecifiers(source)) {
+      for (const specifier of referencedSpecifiers(source, sourceFile)) {
         if (packageDirectory !== adapterDirectory && specifier.startsWith('@deepseek-ai/')) {
           errors.push(
             `${relative(root, sourceFile)} must import ${specifier} through @twindesk/harness-adapter`,

@@ -12,9 +12,11 @@ import {
 } from '../scripts/build-client-plugin.mjs'
 
 /** @typedef {{ type: unknown, props: Record<string, unknown> }} ElementLike */
-/** @typedef {{ apply(context: ClientContext): void, inject: string[], TWIN_DESK_CLIENT_PLUGIN_ID: string }} ClientModule */
-/** @typedef {{ slots: { inject(name: string, register: () => () => void): () => void, register(options: { name: string, key?: string }, component: () => ElementLike): () => void } }} ClientContext */
+/** @typedef {{ apply(context: ClientContext): void, inject: string[], TWIN_DESK_CLIENT_PLUGIN_ID: string, TWIN_DESK_INBOX_ROUTE: string }} ClientModule */
+/** @typedef {{ name: string, key?: string, id?: string, order?: number, priority?: number }} SlotOptions */
+/** @typedef {{ slots: { inject(name: string, register: () => () => void): () => void, register(options: SlotOptions, component: (props: Record<string, unknown>) => ElementLike): () => void } }} ClientContext */
 /** @typedef {{ id: string, factory(load: (specifier: string) => { createElement: typeof createElement }): ClientModule }} ClientRegistration */
+/** @typedef {{ options: SlotOptions, component: (props: Record<string, unknown>) => ElementLike, disposed: boolean }} SlotRegistration */
 
 /**
  * @param {string} type
@@ -26,19 +28,75 @@ function createElement(type, props, ...children) {
   return { type, props: { ...props, children } }
 }
 
-/** @param {string} bundle */
-function loadProductionBundle(bundle) {
+/**
+ * @param {ElementLike | unknown} value
+ * @param {(element: ElementLike) => boolean} predicate
+ * @returns {ElementLike | undefined}
+ */
+function findElement(value, predicate) {
+  if (value === null || typeof value !== 'object' || !('type' in value) || !('props' in value)) {
+    return undefined
+  }
+  const element = /** @type {ElementLike} */ (value)
+  if (predicate(element)) return element
+  const children = element.props.children
+  if (!Array.isArray(children)) return undefined
+  for (const child of children) {
+    const found = /** @type {ElementLike | undefined} */ (findElement(child, predicate))
+    if (found !== undefined) return found
+  }
+  return undefined
+}
+
+/** @param {string} initialHash */
+function createBrowserWindow(initialHash) {
+  /** @type {Map<string, Set<() => void>>} */
+  const listeners = new Map()
+  let hash = initialHash
+  const location = {}
+  Object.defineProperty(location, 'hash', {
+    get: () => hash,
+    set: (next) => {
+      if (next === hash) return
+      hash = String(next)
+      for (const listener of listeners.get('hashchange') ?? []) listener()
+    },
+  })
+  return {
+    location,
+    /** @param {string} name @param {() => void} listener */
+    addEventListener(name, listener) {
+      const bucket = listeners.get(name) ?? new Set()
+      bucket.add(listener)
+      listeners.set(name, bucket)
+    },
+    /** @param {string} name @param {() => void} listener */
+    removeEventListener(name, listener) {
+      listeners.get(name)?.delete(listener)
+    },
+    /** @param {string} name */
+    listenerCount(name) {
+      return listeners.get(name)?.size ?? 0
+    },
+  }
+}
+
+/** @param {string} bundle @param {string} [initialHash] */
+function loadProductionBundle(bundle, initialHash = '') {
   /** @type {ClientRegistration | undefined} */
   let registration
-  vm.runInNewContext(bundle, {
-    window: {
-      __ModuleLoader__: {
-        /** @param {ClientRegistration} candidate */
-        load(candidate) {
-          registration = candidate
-        },
+  const browserWindow = createBrowserWindow(initialHash)
+  const moduleWindow = {
+    ...browserWindow,
+    __ModuleLoader__: {
+      /** @param {ClientRegistration} candidate */
+      load(candidate) {
+        registration = candidate
       },
     },
+  }
+  vm.runInNewContext(bundle, {
+    window: moduleWindow,
   })
   const loadedRegistration = /** @type {ClientRegistration | undefined} */ (registration)
   assert.equal(loadedRegistration?.id, CLIENT_PLUGIN_ID)
@@ -52,57 +110,59 @@ function loadProductionBundle(bundle) {
   assert.equal(typeof module.apply, 'function')
   assert.deepEqual(Array.from(module.inject), ['slots'])
   assert.equal(module.TWIN_DESK_CLIENT_PLUGIN_ID, CLIENT_PLUGIN_ID)
+  assert.equal(module.TWIN_DESK_INBOX_ROUTE, '#/inbox')
 
-  let injectedSlot
-  /** @type {{ name: string, key?: string } | undefined} */
-  let registrationOptions
-  /** @type {(() => ElementLike) | undefined} */
-  let component
-  let disposed = false
-  /** @type {(() => void) | undefined} */
-  let slotDisposer
+  /** @type {string[]} */
+  const injectedSlots = []
+  /** @type {SlotRegistration[]} */
+  const slotRegistrations = []
+  /** @type {(() => void)[]} */
+  const injectionDisposers = []
   module.apply({
     slots: {
       /** @param {string} name @param {() => () => void} register */
       inject(name, register) {
-        injectedSlot = name
+        injectedSlots.push(name)
         const dispose = register()
         assert.equal(typeof dispose, 'function')
-        slotDisposer = dispose
-        return () => {
-          slotDisposer?.()
-          slotDisposer = undefined
+        let active = true
+        const controller = () => {
+          if (!active) return
+          active = false
+          dispose()
         }
+        injectionDisposers.push(controller)
+        return controller
       },
-      /** @param {{ name: string, key?: string }} options @param {() => ElementLike} candidate */
+      /** @param {SlotOptions} options @param {(props: Record<string, unknown>) => ElementLike} candidate */
       register(options, candidate) {
-        registrationOptions = options
-        component = candidate
+        const record = { options, component: candidate, disposed: false }
+        slotRegistrations.push(record)
         return () => {
-          disposed = true
+          record.disposed = true
         }
       },
     },
   })
 
-  assert.equal(injectedSlot, 'settings.plugin.item')
-  const registeredOptions = /** @type {{ name: string, key?: string } | undefined} */ (
-    registrationOptions
-  )
-  assert.equal(registeredOptions?.name, 'settings.plugin.item')
-  assert.equal(registeredOptions?.key, 'twindesk-work-hub')
-  assert.equal(typeof component, 'function')
-  if (component === undefined) throw new Error('Client plugin did not register its card')
-  const registeredComponent = /** @type {() => ElementLike} */ (component)
-  const element = registeredComponent()
-  assert.equal(element.type, 'section')
-  assert.equal(element.props['data-twindesk-client-plugin'], 'ready')
-  assert.match(JSON.stringify(element), /Client plugin loaded/u)
-
-  return { dispose: () => slotDisposer?.(), module, wasDisposed: () => disposed }
+  return {
+    browserWindow,
+    injectedSlots,
+    module,
+    slotRegistrations,
+    /** @param {string} name */
+    activeRegistration(name) {
+      return slotRegistrations.findLast(
+        (candidate) => candidate.options.name === name && !candidate.disposed,
+      )
+    },
+    dispose() {
+      for (const dispose of injectionDisposers.reverse()) dispose()
+    },
+  }
 }
 
-test('the production Client artifact registers and reloads the TwinDesk settings card', async () => {
+test('the production Client artifact loads the settings card and navigable Inbox surface', async () => {
   const artifact = await inspectClientPluginArtifacts()
   assert.equal(artifact.sourceMap.file, 'client.js')
   assert.deepEqual(artifact.sourceMap.sources, ['../src/client/index.ts'])
@@ -110,12 +170,53 @@ test('the production Client artifact registers and reloads the TwinDesk settings
   assert.match(artifact.sourceMap.mappings, /^;;/u)
 
   const first = loadProductionBundle(artifact.bundle)
-  const second = loadProductionBundle(artifact.bundle)
+  assert.deepEqual(first.injectedSlots, [
+    'settings.plugin.item',
+    'sidebar.footer.action',
+    'conversation',
+  ])
+  const card = first.activeRegistration('settings.plugin.item')
+  assert.equal(card?.options.key, 'twindesk-work-hub')
+  const cardElement = card?.component({})
+  assert.equal(cardElement?.type, 'section')
+  assert.equal(cardElement?.props['data-twindesk-client-plugin'], 'ready')
+  assert.match(JSON.stringify(cardElement), /Client plugin loaded/u)
+
+  const navigation = first.activeRegistration('sidebar.footer.action')
+  assert.equal(navigation?.options.id, 'twindesk-inbox')
+  assert.equal(navigation?.options.order, -100)
+  const navigationElement = navigation?.component({ wide: true })
+  assert.equal(navigationElement?.props['data-twindesk-inbox-navigation'], 'ready')
+  const openInbox = navigationElement?.props.onClick
+  assert.equal(typeof openInbox, 'function')
+  if (typeof openInbox === 'function') openInbox()
+
+  const inbox = first.activeRegistration('conversation')
+  assert.equal(inbox?.options.priority, -100)
+  const inboxElement = inbox?.component({})
+  assert.equal(inboxElement?.type, 'main')
+  assert.equal(inboxElement?.props['data-twindesk-inbox-page'], 'empty')
+  assert.match(JSON.stringify(inboxElement), /No work items yet/u)
+  const close = findElement(
+    inboxElement,
+    (element) => element.props['aria-label'] === 'Return to conversations',
+  )
+  const closeInbox = close?.props.onClick
+  assert.equal(typeof closeInbox, 'function')
+  if (typeof closeInbox === 'function') closeInbox()
+  assert.equal(inbox?.disposed, true)
+  assert.equal(first.activeRegistration('conversation'), undefined)
+
+  const second = loadProductionBundle(artifact.bundle, '#/inbox')
   assert.notEqual(first.module, second.module)
+  assert.equal(second.activeRegistration('conversation')?.options.priority, -100)
   first.dispose()
   second.dispose()
-  assert.equal(first.wasDisposed(), true)
-  assert.equal(second.wasDisposed(), true)
+  assert.equal(first.browserWindow.listenerCount('hashchange'), 0)
+  assert.equal(second.browserWindow.listenerCount('hashchange'), 0)
+  assert.equal(first.activeRegistration('settings.plugin.item'), undefined)
+  assert.equal(first.activeRegistration('sidebar.footer.action'), undefined)
+  assert.equal(second.activeRegistration('conversation'), undefined)
 })
 
 test('Client artifact diagnostics reject an invalid lazy-CJS bundle', () => {
@@ -145,7 +246,11 @@ test('Client artifact preflight reports a missing production bundle', async () =
         dsh: {
           client: {
             platform: 'web',
-            inject: ['@deepseek-ai/dsh-client-ui-settings-plugins'],
+            inject: [
+              '@deepseek-ai/dsh-client-ui-conversation',
+              '@deepseek-ai/dsh-client-ui-settings-plugins',
+              '@deepseek-ai/dsh-client-ui-sidebar',
+            ],
           },
         },
       }),

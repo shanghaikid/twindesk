@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 
 import { Context, type Fiber, type Plugin } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
@@ -21,6 +22,11 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 
 import type { HarnessHostContext, HarnessJsonValue } from './index.js'
+
+const require = createRequire(import.meta.url)
+const { SlotCore } = require('@deepseek-ai/dsh-client-ui-slots') as {
+  readonly SlotCore: new () => unknown
+}
 
 /** Out-of-tree Host plugin shape accepted by compatibility probes. */
 export interface HarnessHostPlugin {
@@ -76,6 +82,78 @@ export interface HarnessBooleanSettingsProbeResult {
   readonly toolValueAfterRestart: HarnessJsonValue
   readonly namespacesAfterPluginDisposal: readonly string[]
   readonly toolsAfterPluginDisposal: readonly string[]
+}
+
+/** Observable result of the public Client slot seam used by the Inbox spike. */
+export interface HarnessClientSlotProbeResult {
+  readonly inboxShadowsConversation: boolean
+  readonly conversationRestored: boolean
+  readonly footerActionMounted: boolean
+  readonly footerActionRemoved: boolean
+}
+
+interface ErasedClientSlotEntry {
+  readonly component: unknown
+}
+
+interface ErasedClientSlotRegistry {
+  register(
+    options: Readonly<{
+      name: string
+      id?: string
+      order?: number
+      priority?: number
+      children?: Readonly<Record<string, Readonly<{ kind: string; scope: string }>>>
+    }>,
+    component: unknown,
+  ): () => void
+  entriesOfSlot(name: string): readonly ErasedClientSlotEntry[]
+}
+
+/**
+ * Exercise the exact pinned SlotCore behavior required by TD-031 without
+ * exposing upstream types outside the adapter boundary.
+ */
+export function probeHarnessClientInboxSlots(): HarnessClientSlotProbeResult {
+  const slots = new SlotCore() as unknown as ErasedClientSlotRegistry
+  const shell = () => null
+  const conversation = () => null
+  const inbox = () => null
+  const footerAction = () => null
+  const disposeShell = slots.register(
+    {
+      name: 'root',
+      children: {
+        conversation: { kind: 'single', scope: 'session-maybe' },
+        'sidebar.footer.action': { kind: 'list', scope: 'root' },
+      },
+    },
+    shell,
+  )
+  const disposeConversation = slots.register({ name: 'conversation' }, conversation)
+  const disposeInbox = slots.register({ name: 'conversation', priority: -100 }, inbox)
+  const disposeFooter = slots.register(
+    { name: 'sidebar.footer.action', id: 'twindesk-inbox', order: -100 },
+    footerAction,
+  )
+
+  const inboxShadowsConversation = slots.entriesOfSlot('conversation')[0]?.component === inbox
+  const footerActionMounted =
+    slots.entriesOfSlot('sidebar.footer.action')[0]?.component === footerAction
+
+  disposeInbox()
+  const conversationRestored = slots.entriesOfSlot('conversation')[0]?.component === conversation
+  disposeFooter()
+  const footerActionRemoved = slots.entriesOfSlot('sidebar.footer.action').length === 0
+  disposeConversation()
+  disposeShell()
+
+  return Object.freeze({
+    inboxShadowsConversation,
+    conversationRestored,
+    footerActionMounted,
+    footerActionRemoved,
+  })
 }
 
 /** Small writable provider for tests that do not exercise persistence. */

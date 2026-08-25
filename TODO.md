@@ -91,11 +91,12 @@ Goal: prove that TwinDesk can be built primarily as out-of-tree DeepSeek Harness
   - Verification record: the installed `@twindesk/plugin-ui` package registers a Work Hub diagnostic card from an external lazy-CJS bundle; tests execute and dispose the production factory across reload, reject missing or malformed artifacts with actionable diagnostics, and fetch a stable boot-graph row plus the bundle and embedded-source map from a live Profile.
   - Completion check: the component loads from the installed Profile in a clean production build.
 
-- [ ] **TD-031 — Spike a top-level Inbox surface**
+- [x] **TD-031 — Spike a top-level Inbox surface**
   - Attempt to add an Inbox route, sidebar entry, and empty-state page using supported Client extension points.
   - Do not add Work Hub business logic during this spike.
   - Record every internal or unstable API required.
   - Depends on: TD-030.
+  - Verification record: the external Client plugin owns a `#/inbox` deep link, contributes a `sidebar.footer.action`, and temporarily shadows the top-level `conversation` slot with a static empty page; the pinned SlotCore probe and production bundle lifecycle test verify shadow, restore, direct-route load, listener cleanup, disposal, and reload behavior, while `docs/INBOX_EXTENSION_SPIKE.md` records the absence of a public Router and primary navigation list.
   - Completion check: either the route works entirely out of tree, or a written gap report identifies the smallest generic Harness UI Slot required.
 
 - [ ] **TD-032 — Decide the core-patch policy for the Inbox**

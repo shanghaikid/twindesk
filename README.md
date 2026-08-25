@@ -35,13 +35,14 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [TODO](TODO.md): current execution checklist, dependencies, completion checks, and gated backlog.
 - [Harness Version](docs/HARNESS_VERSION.md): current exact upstream pin, toolchain requirements, and upgrade procedure.
 - [Harness Profile](docs/HARNESS_PROFILE.md): Stage 0 Profile composition, local launch, and configuration inspection.
+- [Inbox Extension Spike](docs/INBOX_EXTENSION_SPIKE.md): out-of-tree route and sidebar findings, limitations, and compatibility seams.
 
 ## Current Status
 
 The project is in Roadmap Stage 0, validating DeepSeek Harness compatibility.
-The reproducible monorepo scaffold, Host compatibility probes, and an external
-Client diagnostic card are available, but product behavior has not been
-implemented.
+The reproducible monorepo scaffold, Host compatibility probes, an external
+Client diagnostic card, and a static `#/inbox` extension spike are available,
+but Work Hub product behavior has not been implemented.
 
 ## Development
 

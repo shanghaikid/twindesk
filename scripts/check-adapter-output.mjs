@@ -26,7 +26,8 @@ if (
 
 if (
   typeof adapterTesting.probeHarnessToolPlugin !== 'function' ||
-  typeof adapterTesting.probeHarnessBooleanSettingPlugin !== 'function'
+  typeof adapterTesting.probeHarnessBooleanSettingPlugin !== 'function' ||
+  typeof adapterTesting.probeHarnessClientInboxSlots !== 'function'
 ) {
   throw new Error('Built Harness adapter is missing its public testing contract.')
 }

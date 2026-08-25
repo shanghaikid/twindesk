@@ -14,6 +14,11 @@ const sourcePath = join(pluginRoot, 'src', 'client', 'index.ts')
 const outputPath = join(pluginRoot, 'dist', 'client.js')
 const sourceMapPath = `${outputPath}.map`
 const buildInstruction = 'run `pnpm run build` before launching the Harness Profile'
+const requiredClientEdges = Object.freeze([
+  '@deepseek-ai/dsh-client-ui-conversation',
+  '@deepseek-ai/dsh-client-ui-settings-plugins',
+  '@deepseek-ai/dsh-client-ui-sidebar',
+])
 
 /** @param {string} source */
 export function inspectClientBundle(source) {
@@ -68,10 +73,10 @@ export async function inspectClientPluginArtifacts(root = pluginRoot) {
   if (
     clientDeclaration?.platform !== 'web' ||
     !Array.isArray(clientDeclaration.inject) ||
-    !clientDeclaration.inject.includes('@deepseek-ai/dsh-client-ui-settings-plugins')
+    !requiredClientEdges.every((edge) => clientDeclaration.inject.includes(edge))
   ) {
     throw new Error(
-      'TwinDesk Client plugin manifest must declare the web platform and its settings-slot graph edge.',
+      'TwinDesk Client plugin manifest must declare the web platform and every required settings, sidebar, and conversation graph edge.',
     )
   }
   const bundlePath = resolve(root, relativeBundle)
