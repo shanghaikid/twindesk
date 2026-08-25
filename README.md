@@ -33,6 +33,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Architecture](docs/ARCHITECTURE.md): plugin boundaries, data boundaries, event flow, security model, and technical risks.
 - [Roadmap](docs/ROADMAP.md): delivery sequence from technical validation to a usable MVP.
 - [TODO](TODO.md): current execution checklist, dependencies, completion checks, and gated backlog.
+- [Harness Version](docs/HARNESS_VERSION.md): current exact upstream pin, toolchain requirements, and upgrade procedure.
 
 ## Current Status
 

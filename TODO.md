@@ -30,10 +30,12 @@ Goal: prove that TwinDesk can be built primarily as out-of-tree DeepSeek Harness
 
 ### Baseline and Workspace
 
-- [ ] **TD-010 — Select and pin the Harness baseline**
+- [x] **TD-010 — Select and pin the current latest Harness release**
   - Record the exact release or commit and its license.
   - Record the required Node and package-manager versions.
   - Document how the dependency is obtained locally and in CI.
+  - Resolve `latest` only during an intentional upgrade, then commit an exact package version and Git revision.
+  - Verification record: `docs/HARNESS_VERSION.md` pins `@deepseek-ai/dsh@0.1.1-rc.2` and commit `b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`.
   - Completion check: a clean environment resolves the same Harness revision without following a floating branch.
 
 - [ ] **TD-011 — Scaffold the TwinDesk monorepo**
