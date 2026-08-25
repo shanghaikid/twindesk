@@ -37,4 +37,21 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 
 ## Current Status
 
-The project is in product-definition and technical-validation stage. Production implementation has not started.
+The project is in Roadmap Stage 0, validating DeepSeek Harness compatibility.
+The reproducible monorepo scaffold is available, but product behavior has not
+been implemented.
+
+## Development
+
+TwinDesk uses Node.js 24 and pnpm 11.7.0. From a clean checkout, install the
+exact dependency graph and run every scaffold check with:
+
+```sh
+corepack pnpm@11.7.0 install --frozen-lockfile
+corepack pnpm@11.7.0 run check
+```
+
+The combined check covers formatting, TypeScript validation, unit tests, all
+project-reference builds, and repository structure. Individual commands are
+also available as `format:check`, `typecheck`, `test`, `build`, and
+`repo:check` package scripts.

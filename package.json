@@ -1,0 +1,28 @@
+{
+  "name": "twindesk",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": "^24.0.0"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --project tsconfig.typecheck.json --noEmit",
+    "test": "node --test",
+    "repo:check": "node scripts/check-repository.mjs",
+    "check": "node scripts/check-all.mjs"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh": "0.1.1-rc.2",
+    "@types/node": "24.13.3",
+    "prettier": "3.9.6",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "typescript": "6.0.3"
+  }
+}

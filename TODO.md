@@ -38,12 +38,13 @@ Goal: prove that TwinDesk can be built primarily as out-of-tree DeepSeek Harness
   - Verification record: `docs/HARNESS_VERSION.md` pins `@deepseek-ai/dsh@0.1.1-rc.2` and commit `b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`.
   - Completion check: a clean environment resolves the same Harness revision without following a floating branch.
 
-- [ ] **TD-011 — Scaffold the TwinDesk monorepo**
+- [x] **TD-011 — Scaffold the TwinDesk monorepo**
   - Create a pnpm workspace and TypeScript project references.
   - Add initial package directories without implementing product behavior.
   - Add formatting, type-check, unit-test, and repository-check commands.
   - Add an `.env.example` containing names only, never real credentials.
   - Depends on: TD-010.
+  - Verification record: the frozen install and combined `pnpm run check` pass from a clean temporary copy.
   - Completion check: install, type-check, test, and build commands pass from a clean checkout.
 
 - [ ] **TD-012 — Define the Harness adapter boundary**

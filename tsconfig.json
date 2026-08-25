@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/domain" },
+    { "path": "./packages/harness-adapter" },
+    { "path": "./packages/storage-sqlite" },
+    { "path": "./packages/plugin-work-hub" },
+    { "path": "./packages/plugin-feishu" },
+    { "path": "./packages/plugin-jira" },
+    { "path": "./packages/plugin-ui" },
+    { "path": "./packages/bundle-workbench" }
+  ]
+}

@@ -1,0 +1,11 @@
+packages:
+  - packages/*
+
+allowBuilds:
+  '@deepseek-ai/dsh-subprocess-local@0.1.1-rc.2': true
+  esbuild: true
+  koffi: true
+  node-pty: true
+  '@google/genai': false
+  node-addon-require-builtin: false
+  protobufjs: false

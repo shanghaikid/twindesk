@@ -37,8 +37,8 @@ and [MIT license](https://github.com/deepseek-ai/deepseek-harness/blob/b150a551b
 
 ## Dependency Acquisition
 
-TD-011 must add the exact package version to the TwinDesk workspace manifest
-and commit the resulting `pnpm-lock.yaml`. A manifest entry must use
+The TwinDesk workspace manifest and `pnpm-lock.yaml` record the exact package
+version. The manifest entry uses
 `0.1.1-rc.2`, not `latest`, `next`, a caret range, or a tilde range. The
 lockfile is the dependency source for both local development and CI.
 
@@ -46,9 +46,7 @@ Local development and CI must use Node 24 and pnpm 11.7.0. CI must install
 with the frozen lockfile:
 
 ```sh
-corepack enable
-corepack prepare pnpm@11.7.0 --activate
-pnpm install --frozen-lockfile
+corepack pnpm@11.7.0 install --frozen-lockfile
 ```
 
 When source inspection or source-based compatibility testing is required, use
@@ -72,10 +70,11 @@ resolved to the pinned commit, reported the expected version and MIT license,
 and declared pnpm 11.7.0 with the upstream Node.js range shown above.
 
 A separate clean `pnpm@11.7.0 dlx` resolution of the exact npm package
-completed successfully and the CLI reported `0.1.1-rc.2`. pnpm also reported
-non-fatal peer-dependency and deprecated-transitive-dependency warnings. TD-011
-must review those warnings in the real workspace before its clean-install check
-can pass.
+completed successfully and the CLI reported `0.1.1-rc.2`. The TD-011 workspace
+install pins React and React DOM to 18.3.1, matching the pinned Harness source,
+and `pnpm peers check` reports no peer-dependency issues. pnpm still reports
+the upstream deprecated transitive dependency `node-domexception@1.0.0`; this
+does not run an install script or block the Stage 0 scaffold checks.
 
 The selected npm artifact reported this integrity value:
 
@@ -83,9 +82,10 @@ The selected npm artifact reported this integrity value:
 sha512-UP1UIh6q3Gme/yXRn/QL2P8IsVlv8Shpg22TRJIZPsCRWLm4CBiA1MUvXmJAfsOEETBMLAl+xWPtFw6ICsN3wg==
 ```
 
-TD-011 must preserve this resolution in `pnpm-lock.yaml`. TD-050 will later
-replace this metadata-only verification with the full TwinDesk compatibility
-smoke suite.
+TD-011 preserves this resolution in `pnpm-lock.yaml`. A clean temporary copy
+completed frozen installation and the full workspace `check` command on
+2026-08-25. TD-050 will later extend this scaffold verification into the full
+TwinDesk compatibility smoke suite.
 
 ## Upgrade Procedure
 

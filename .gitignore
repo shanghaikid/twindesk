@@ -13,3 +13,4 @@ coverage/
 *.sqlite-wal
 logs/
 artifacts/
+*.tsbuildinfo
