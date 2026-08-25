@@ -49,6 +49,17 @@ export interface HarnessHostContext {
   effect(effect: () => () => void, label: string): void
 }
 
+/** TwinDesk-owned projection of the browser slot registry used by Client plugins. */
+export interface HarnessClientSlots {
+  inject(name: string, register: () => () => void): () => void
+  register(options: Readonly<{ name: string; key?: string }>, component: () => unknown): () => void
+}
+
+/** Narrow browser context required by the Stage 0 TwinDesk diagnostic card. */
+export interface HarnessClientContext {
+  readonly slots: HarnessClientSlots
+}
+
 /** A no-argument, read-only Tool owned outside Harness core. */
 export interface ReadonlyHarnessTool<TValue extends HarnessJsonValue> {
   readonly name: string

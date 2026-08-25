@@ -83,11 +83,12 @@ Goal: prove that TwinDesk can be built primarily as out-of-tree DeepSeek Harness
 
 ### Client Plugin and Inbox Extension Validation
 
-- [ ] **TD-030 — Build and load a Client plugin**
+- [x] **TD-030 — Build and load a Client plugin**
   - Produce the required `dsh.client` bundle format outside the Harness repository.
   - Mount a small TwinDesk settings card or diagnostic component.
   - Verify production build, source maps, loading failure diagnostics, and reload behavior.
   - Depends on: TD-020.
+  - Verification record: the installed `@twindesk/plugin-ui` package registers a Work Hub diagnostic card from an external lazy-CJS bundle; tests execute and dispose the production factory across reload, reject missing or malformed artifacts with actionable diagnostics, and fetch a stable boot-graph row plus the bundle and embedded-source map from a live Profile.
   - Completion check: the component loads from the installed Profile in a clean production build.
 
 - [ ] **TD-031 — Spike a top-level Inbox surface**

@@ -3,10 +3,37 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "default": "./dist/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/index.js",
+    "dist/client.js",
+    "dist/client.js.map",
+    "dist/**/*.d.ts"
+  ],
+  "dsh": {
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings-plugins"
+      ]
     }
+  },
+  "devDependencies": {
+    "@twindesk/harness-adapter": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "18.3.1"
   }
 }

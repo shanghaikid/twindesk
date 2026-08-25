@@ -20,6 +20,7 @@
     }
   },
   "dependencies": {
+    "@twindesk/plugin-ui": "workspace:*",
     "@twindesk/plugin-work-hub": "workspace:*"
   }
 }

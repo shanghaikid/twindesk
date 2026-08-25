@@ -11,7 +11,12 @@ import {
   TWIN_DESK_STATUS,
   TWIN_DESK_STATUS_TOOL_NAME,
 } from '../packages/plugin-work-hub/src/index.ts'
-import { PROFILE_BUNDLES, resolveHarnessHome } from '../scripts/harness-profile.mjs'
+import {
+  apply as applyUiHost,
+  inject as uiHostInject,
+  name as uiHostName,
+} from '../packages/plugin-ui/src/index.ts'
+import { PROFILE_BUNDLES, readBootGraph, resolveHarnessHome } from '../scripts/harness-profile.mjs'
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -35,7 +40,7 @@ test('a relative Harness home override is anchored to the repository', () => {
   }
 })
 
-test('the Workbench Bundle declares and mounts the TwinDesk Host plugin', async () => {
+test('the Workbench Bundle declares and mounts the TwinDesk Host and Client plugins', async () => {
   const manifest = JSON.parse(
     await readFile(new URL('../packages/bundle-workbench/package.json', import.meta.url), 'utf8'),
   )
@@ -46,8 +51,27 @@ test('the Workbench Bundle declares and mounts the TwinDesk Host plugin', async 
 
   assert.equal(manifest.dsh.bundle.patch, './cordis.patch.yml')
   assert.equal(manifest.dependencies['@twindesk/plugin-work-hub'], 'workspace:*')
+  assert.equal(manifest.dependencies['@twindesk/plugin-ui'], 'workspace:*')
   assert.match(patch, /id: twindesk-work-hub/u)
   assert.match(patch, /name: '@twindesk\/plugin-work-hub'/u)
+  assert.match(patch, /id: twindesk-ui/u)
+  assert.match(patch, /name: '@twindesk\/plugin-ui'/u)
+})
+
+test('the UI Host entry enrolls an external Client plugin', () => {
+  assert.equal(typeof applyUiHost, 'function')
+  assert.equal(uiHostName, 'twindesk-ui')
+  assert.deepEqual(uiHostInject, [])
+})
+
+test('the Profile parser reads the Harness Client boot graph fail-loudly', () => {
+  assert.deepEqual(
+    readBootGraph(
+      '<head><script>globalThis["__DSH_BOOT__"] = {"rev":"one","entries":[]}</script></head>',
+    ),
+    { rev: 'one', entries: [] },
+  )
+  assert.throws(() => readBootGraph('<head></head>'), /did not publish the __DSH_BOOT__/u)
 })
 
 test('the Work Hub Host plugin declares the status Tool contract', () => {

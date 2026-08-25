@@ -39,8 +39,9 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 ## Current Status
 
 The project is in Roadmap Stage 0, validating DeepSeek Harness compatibility.
-The reproducible monorepo scaffold is available, but product behavior has not
-been implemented.
+The reproducible monorepo scaffold, Host compatibility probes, and an external
+Client diagnostic card are available, but product behavior has not been
+implemented.
 
 ## Development
 
@@ -53,9 +54,10 @@ corepack pnpm@11.7.0 run check
 ```
 
 The combined check covers formatting, TypeScript validation, unit tests, all
-project-reference builds, the built Harness adapter boundary, a real Harness
-Profile startup, and repository structure. The Profile smoke test binds only a
-temporary loopback port and does not call a model or external service.
+project-reference builds, the built Harness adapter boundary, production
+Client bundle and source-map delivery, a real Harness Profile startup, and
+repository structure. The Profile smoke test binds only a temporary loopback
+port and does not call a model or external service.
 
 Prepare and inspect the generated local Profile with:
 

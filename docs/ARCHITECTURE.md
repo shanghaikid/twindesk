@@ -120,10 +120,11 @@ A dual-sided Host and Client plugin:
 
 A Profile Bundle that composes the plugins above, default Agent Presets, model Tools, and configuration overlays.
 
-The Stage 0 bundle initially inserts only `@twindesk/plugin-work-hub` after the
-pinned Harness base and Web application bundles. Later compatibility tasks add
-Tools, settings, Client plugins, and Presets without moving TwinDesk business
-logic into Harness core.
+The Stage 0 bundle inserts `@twindesk/plugin-work-hub` and
+`@twindesk/plugin-ui` after the pinned Harness base and Web application
+bundles. They currently expose only a synthetic Tool, one non-secret setting,
+and a Client diagnostic card. Later compatibility tasks add Presets and other
+probes without moving TwinDesk business logic into Harness core.
 
 ## 4. Harness Capability Mapping
 

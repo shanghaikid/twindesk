@@ -122,6 +122,12 @@ Agent and verifies its durable `tool/call` and `tool/result` Session events.
 TD-022 separately updates the Work Hub namespace through the supported
 Settings scope, reboots a file-backed provider over the same document, and
 verifies browser redaction, safe rejection diagnostics, and plugin disposal.
+TD-030 adds an out-of-tree `dsh.client` package to the same Profile. Because
+the pinned release does not publish its Client bundle preset, TwinDesk owns a
+narrow TypeScript-to-lazy-CJS builder for the diagnostic card. Compatibility
+checks execute the generated factory, preserve an embedded-source map, verify
+actionable missing-artifact diagnostics, fetch both artifacts from the live
+Profile, and confirm an unchanged graph across a full-page reload.
 
 ## Upgrade Procedure
 

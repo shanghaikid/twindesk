@@ -3,3 +3,5 @@
 - insert:
     - id: twindesk-work-hub
       name: '@twindesk/plugin-work-hub'
+    - id: twindesk-ui
+      name: '@twindesk/plugin-ui'

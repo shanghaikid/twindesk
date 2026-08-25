@@ -4,6 +4,8 @@ import { delimiter, dirname, join, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
+import { CLIENT_PLUGIN_ID, inspectClientPluginArtifacts } from './build-client-plugin.mjs'
+
 export const PROFILE_NAME = 'workbench'
 export const PROFILE_BUNDLES = Object.freeze([
   '@deepseek-ai/dsh-base',
@@ -14,10 +16,13 @@ export const PROFILE_BUNDLES = Object.freeze([
 const scriptRoot = dirname(fileURLToPath(import.meta.url))
 const repositoryRoot = resolve(scriptRoot, '..')
 const defaultHarnessHome = join(repositoryRoot, '.twindesk', 'harness')
+const profilePnpmStore = join(repositoryRoot, '.pnpm-store')
 const bundleRoot = join(repositoryRoot, 'packages', 'bundle-workbench')
-const pluginRoot = join(repositoryRoot, 'packages', 'plugin-work-hub')
+const workHubPluginRoot = join(repositoryRoot, 'packages', 'plugin-work-hub')
+const uiPluginRoot = join(repositoryRoot, 'packages', 'plugin-ui')
 const dshBin = join(repositoryRoot, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
 const startupTimeoutMs = 30_000
+const clientVerificationTimeoutMs = 10_000
 const shutdownTimeoutMs = 5_000
 const maxDiagnosticOutput = 64 * 1024
 
@@ -106,6 +111,8 @@ function isRecord(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/** @typedef {{ rev: string, entries: unknown[] }} ParsedBootGraph */
+
 /**
  * @param {string} manifestPath
  * @param {boolean} allowMissing
@@ -141,29 +148,43 @@ export async function prepareProfile(harnessHome = resolveHarnessHome()) {
   const profileRoot = profileDirectory(harnessHome)
   const manifestPath = join(profileRoot, 'package.json')
   const installedBundle = join(profileRoot, 'node_modules', '@twindesk', 'bundle-workbench')
-  const installedPlugin = join(profileRoot, 'node_modules', '@twindesk', 'plugin-work-hub')
+  const installedWorkHubPlugin = join(profileRoot, 'node_modules', '@twindesk', 'plugin-work-hub')
+  const installedUiPlugin = join(profileRoot, 'node_modules', '@twindesk', 'plugin-ui')
   await mkdir(harnessHome, { recursive: true })
   await ensurePinnedPnpm(harnessHome)
+  await inspectClientPluginArtifacts(uiPluginRoot)
 
-  const [bundleTarget, pluginTarget] = await Promise.all([
+  const [bundleTarget, workHubPluginTarget, uiPluginTarget] = await Promise.all([
     realpathOrUndefined(installedBundle),
-    realpathOrUndefined(installedPlugin),
+    realpathOrUndefined(installedWorkHubPlugin),
+    realpathOrUndefined(installedUiPlugin),
   ])
-  const [expectedBundleTarget, expectedPluginTarget] = await Promise.all([
-    realpath(bundleRoot),
-    realpath(pluginRoot),
-  ])
+  const [expectedBundleTarget, expectedWorkHubPluginTarget, expectedUiPluginTarget] =
+    await Promise.all([realpath(bundleRoot), realpath(workHubPluginRoot), realpath(uiPluginRoot)])
   let manifest = await readProfileManifest(manifestPath, true)
   const dependencies = manifest && isRecord(manifest.dependencies) ? manifest.dependencies : {}
 
   if (
     bundleTarget !== expectedBundleTarget ||
-    pluginTarget !== expectedPluginTarget ||
+    workHubPluginTarget !== expectedWorkHubPluginTarget ||
+    uiPluginTarget !== expectedUiPluginTarget ||
     dependencies['@twindesk/bundle-workbench'] === undefined ||
-    dependencies['@twindesk/plugin-work-hub'] === undefined
+    dependencies['@twindesk/plugin-work-hub'] === undefined ||
+    dependencies['@twindesk/plugin-ui'] === undefined
   ) {
     runDshSync(
-      ['plugin', '--profile', PROFILE_NAME, 'add', '--save-exact', bundleRoot, pluginRoot],
+      [
+        'plugin',
+        '--profile',
+        PROFILE_NAME,
+        'add',
+        '--store-dir',
+        profilePnpmStore,
+        '--save-exact',
+        bundleRoot,
+        workHubPluginRoot,
+        uiPluginRoot,
+      ],
       harnessHome,
     )
     manifest = await readProfileManifest(manifestPath)
@@ -194,7 +215,80 @@ export async function dumpProfile(harnessHome = resolveHarnessHome()) {
 }
 
 /**
- * Start the Web Profile and shut it down after Harness reports its bound URL.
+ * @param {string} html
+ * @returns {ParsedBootGraph}
+ */
+export function readBootGraph(html) {
+  const marker = 'globalThis["__DSH_BOOT__"] = '
+  const start = html.indexOf(marker)
+  if (start < 0) throw new Error('Harness index did not publish the __DSH_BOOT__ Client graph.')
+  const valueStart = start + marker.length
+  const valueEnd = html.indexOf('</script>', valueStart)
+  if (valueEnd < 0) throw new Error('Harness index contains an unterminated __DSH_BOOT__ graph.')
+  let graph
+  try {
+    graph = JSON.parse(html.slice(valueStart, valueEnd))
+  } catch (error) {
+    throw new Error('Harness index published an invalid __DSH_BOOT__ Client graph.', {
+      cause: error,
+    })
+  }
+  if (!isRecord(graph) || typeof graph.rev !== 'string' || !Array.isArray(graph.entries)) {
+    throw new Error('Harness index published a malformed __DSH_BOOT__ Client graph.')
+  }
+  return /** @type {ParsedBootGraph} */ (graph)
+}
+
+/** @param {string} baseUrl */
+async function verifyServedClientPlugin(baseUrl) {
+  const signal = AbortSignal.timeout(clientVerificationTimeoutMs)
+  /** @type {{ graphRev: string, entry: { url: string, rev: string } }[]} */
+  const snapshots = []
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const response = await fetch(baseUrl, { cache: 'no-store', signal })
+    if (!response.ok) {
+      throw new Error(`Harness index reload returned HTTP ${String(response.status)}.`)
+    }
+    const graph = readBootGraph(await response.text())
+    const entry = graph.entries.find(
+      (candidate) => isRecord(candidate) && candidate.id === CLIENT_PLUGIN_ID,
+    )
+    if (!isRecord(entry) || typeof entry.url !== 'string' || typeof entry.rev !== 'string') {
+      throw new Error(`Harness Client graph does not contain ${CLIENT_PLUGIN_ID}.`)
+    }
+    snapshots.push({ graphRev: graph.rev, entry: { url: entry.url, rev: entry.rev } })
+  }
+  if (
+    snapshots[0]?.graphRev !== snapshots[1]?.graphRev ||
+    snapshots[0]?.entry.rev !== snapshots[1]?.entry.rev
+  ) {
+    throw new Error('Harness Client graph changed across an unchanged full-page reload.')
+  }
+
+  const entry = snapshots[0]?.entry
+  if (entry === undefined) throw new Error('Harness Client entry disappeared before fetch.')
+  const bundleUrl = new URL(entry.url, baseUrl)
+  const [bundleResponse, sourceMapResponse] = await Promise.all([
+    fetch(bundleUrl, { cache: 'no-store', signal }),
+    fetch(new URL(`${bundleUrl.pathname}.map`, baseUrl), { cache: 'no-store', signal }),
+  ])
+  if (!bundleResponse.ok || !sourceMapResponse.ok) {
+    throw new Error(
+      `Harness did not serve the TwinDesk Client artifacts (bundle ${String(bundleResponse.status)}, source map ${String(sourceMapResponse.status)}).`,
+    )
+  }
+  const bundle = await bundleResponse.text()
+  if (!bundle.includes(`window.__ModuleLoader__.load({ id: ${JSON.stringify(CLIENT_PLUGIN_ID)}`)) {
+    throw new Error('Harness served a TwinDesk Client bundle with an invalid loader registration.')
+  }
+  const sourceMap = JSON.parse(await sourceMapResponse.text())
+  if (sourceMap?.file !== 'client.js') {
+    throw new Error('Harness served an invalid TwinDesk Client source map.')
+  }
+}
+
+/**
+ * Start the Web Profile, verify its served Client graph, and shut it down.
  * @param {string} harnessHome
  */
 export async function smokeProfile(harnessHome = resolveHarnessHome()) {
@@ -212,6 +306,8 @@ export async function smokeProfile(harnessHome = resolveHarnessHome()) {
     )
     let output = ''
     let ready = false
+    /** @type {unknown} */
+    let verificationFailure
     let timedOut = false
     let shutdownTimedOut = false
     /** @type {NodeJS.Timeout | undefined} */
@@ -229,14 +325,21 @@ export async function smokeProfile(harnessHome = resolveHarnessHome()) {
     const consume = (chunk) => {
       output += String(chunk)
       if (output.length > maxDiagnosticOutput) output = output.slice(-maxDiagnosticOutput)
-      if (!ready && /dsh web: http:\/\//u.test(output)) {
+      const match = /dsh web: (http:\/\/[^\s]+)/u.exec(output)
+      if (!ready && match?.[1] !== undefined) {
         ready = true
         clearTimeout(timeout)
-        child.kill('SIGTERM')
-        forcedShutdown = setTimeout(() => {
-          shutdownTimedOut = true
-          child.kill('SIGKILL')
-        }, shutdownTimeoutMs)
+        void verifyServedClientPlugin(match[1])
+          .catch((error) => {
+            verificationFailure = error
+          })
+          .finally(() => {
+            child.kill('SIGTERM')
+            forcedShutdown = setTimeout(() => {
+              shutdownTimedOut = true
+              child.kill('SIGKILL')
+            }, shutdownTimeoutMs)
+          })
       }
     }
     child.stdout.on('data', consume)
@@ -258,6 +361,14 @@ export async function smokeProfile(harnessHome = resolveHarnessHome()) {
           new Error(
             `TwinDesk Profile did not shut down within ${shutdownTimeoutMs} ms.\n${output}`,
           ),
+        )
+        return
+      }
+      if (verificationFailure !== undefined) {
+        reject(
+          new Error(`TwinDesk Client plugin production verification failed.\n${output}`, {
+            cause: verificationFailure,
+          }),
         )
         return
       }
@@ -299,10 +410,12 @@ async function main(args) {
     const config = await dumpProfile(harnessHome)
     if (
       !config.includes('id: twindesk-work-hub') ||
-      !config.includes("name: '@twindesk/plugin-work-hub'")
+      !config.includes("name: '@twindesk/plugin-work-hub'") ||
+      !config.includes('id: twindesk-ui') ||
+      !config.includes("name: '@twindesk/plugin-ui'")
     ) {
       throw new Error(
-        'The effective Harness configuration does not contain the TwinDesk Host plugin.',
+        'The effective Harness configuration does not contain the required TwinDesk plugins.',
       )
     }
     await smokeProfile(harnessHome)
