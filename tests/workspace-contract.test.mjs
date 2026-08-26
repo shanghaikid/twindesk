@@ -7,7 +7,7 @@ import test from 'node:test'
 import { validateDependencyBoundaries } from '../scripts/dependency-boundary.mjs'
 import { packageNamesByDirectory, validateWorkspace } from '../scripts/workspace-contract.mjs'
 
-test('the Stage 0 workspace exposes every planned package scaffold', () => {
+test('the workspace exposes every planned package scaffold', () => {
   assert.deepEqual([...packageNamesByDirectory.keys()].sort(), [
     'bundle-workbench',
     'domain',
@@ -17,6 +17,7 @@ test('the Stage 0 workspace exposes every planned package scaffold', () => {
     'plugin-ui',
     'plugin-work-hub',
     'storage-sqlite',
+    'web',
   ])
 })
 

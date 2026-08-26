@@ -10,6 +10,7 @@ export const packageNamesByDirectory = new Map([
   ['plugin-ui', '@twindesk/plugin-ui'],
   ['plugin-work-hub', '@twindesk/plugin-work-hub'],
   ['storage-sqlite', '@twindesk/storage-sqlite'],
+  ['web', '@twindesk/web'],
 ])
 
 const harnessIntegrity =

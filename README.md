@@ -17,10 +17,15 @@ TwinDesk is not an auto-reply bot or another general-purpose chat window. It is 
 
 ## Current Technical Direction
 
-The first version will be built on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) using a plugin-first strategy:
+The first version uses a TwinDesk-owned local Web shell and
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) as a
+replaceable Agent Runtime:
 
-- DeepSeek Harness provides the Agent Loop, Sessions, Skills, Subagents, Workflows, approvals, and Web UI;
-- TwinDesk provides the Work Inbox, external event model, Persona experience, business audit trail, and retention policies;
+- TwinDesk owns product navigation, the Work Inbox, external event model,
+  Persona experience, approvals, business audit trail, and retention policies;
+- DeepSeek Harness provides the Agent Loop, Sessions, Skills, Tools, Presets,
+  Subagents, and Workflows behind an explicit adapter;
+- Harness Web UI is a diagnostic surface, not the TwinDesk product shell;
 - Feishu and Jira are implemented as independent Connector plugins;
 - Agent Session logs and TwinDesk business data are stored separately;
 - the product domain model is not coupled to DeepSeek, Codex, or any single model provider.
@@ -39,24 +44,22 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Codex Subagent Spike](docs/CODEX_SUBAGENT_SPIKE.md): read-only specialist configuration, cancellation, attribution, and capability limits.
 - [Harness Compatibility Suite](docs/HARNESS_COMPATIBILITY_SUITE.md): one-command Stage 0 contract coverage and failure diagnostics.
 - [Stage 0 Compatibility Report](docs/STAGE_0_COMPATIBILITY_REPORT.md): validated extension points, gaps, upgrade risks, and the Stage 1 gate recommendation.
-- [Stage 0 Exit Gate](docs/STAGE_0_EXIT_GATE.md): the formal TD-052 decision, criterion evidence, blocker, and re-evaluation requirements.
+- [Stage 0 Exit Gate](docs/STAGE_0_EXIT_GATE.md): the formal TD-052 decision, criterion evidence, selected UI boundary, and remaining limitations.
+- [Harness Upstream Navigation Proposal](docs/HARNESS_UPSTREAM_NAVIGATION_PROPOSAL.md): an optional ecosystem reference for generic Harness Client extensibility.
 - [Inbox Extension Spike](docs/INBOX_EXTENSION_SPIKE.md): out-of-tree route and sidebar findings, limitations, and compatibility seams.
-- [ADR 0001](docs/decisions/0001-upstream-generic-inbox-extension-points.md): Inbox core-patch policy, upstream ownership, and upgrade consequences.
+- [ADR 0001](docs/decisions/0001-upstream-generic-inbox-extension-points.md): historical Harness Client investigation and upstream path.
+- [ADR 0002](docs/decisions/0002-twindesk-owned-product-web-shell.md): accepted standalone product UI boundary.
 
 ## Current Status
 
-The project is in Roadmap Stage 0, validating DeepSeek Harness compatibility.
-The reproducible monorepo scaffold, Host compatibility probes, an external
-Client diagnostic card, a static `#/inbox` extension spike, and distinct
-technical-lead and communication Agent Presets are available. A JSONL Session
-probe also verifies Persona-aware, duplicate-free cold restart recovery. A
-foreground Codex specialist spike now proves bounded read-only repository
-delegation, cancellation, and traceable results. The complete selected Harness
-surface is available through one compatibility command. The Stage 0 report
-recommends NO-GO, and the formal TD-052 audit is **NOT PASSED**, because the
-pinned Harness release does not expose the accepted generic navigation,
-keyed-page, and route lifecycle contract. Stage 1 remains gated and Work Hub
-product behavior has not been implemented.
+Stage 0 is complete and the project is in Roadmap Stage 1. The standalone
+`@twindesk/web` shell owns Inbox, Personas, Connectors, Audit, and Settings
+routes and runs only on loopback. It shows truthful empty states: Work Hub
+business persistence, fixture ingestion, drafts, approvals, audit records, and
+real Connectors are not implemented yet. The pinned Harness Profile, two
+draft-only Personas, JSONL restart recovery, and bounded Codex specialist remain
+available as runtime compatibility evidence. The Harness Client Inbox spike is
+diagnostic only.
 
 ## Development
 
@@ -74,6 +77,16 @@ Run only the pinned Harness compatibility surface with:
 corepack pnpm@11.7.0 run compat:check
 ```
 
+Build and start the TwinDesk product UI on loopback with:
+
+```sh
+corepack pnpm@11.7.0 run web:build
+corepack pnpm@11.7.0 run web:start -- --port 4173
+```
+
+Open `http://127.0.0.1:4173/inbox`. The product shell is separate from the
+Harness diagnostic Profile described below.
+
 The combined check covers formatting, TypeScript validation, unit tests, all
 project-reference builds, the built Harness adapter boundary, production
 Client bundle and source-map delivery, the dedicated compatibility suite, a
@@ -89,7 +102,8 @@ corepack pnpm@11.7.0 run profile:prepare
 corepack pnpm@11.7.0 run profile:config
 ```
 
-Start the Web Profile without automatically opening a browser:
+Start the Harness diagnostic Web Profile without automatically opening a
+browser:
 
 ```sh
 corepack pnpm@11.7.0 run profile:start -- --port 3080

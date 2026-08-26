@@ -4,7 +4,7 @@
 
 TD-031 proves that an empty top-level TwinDesk Inbox can be added to DeepSeek Harness `0.1.1-rc.2` entirely from the external `@twindesk/plugin-ui` package. The spike adds a `#/inbox` deep link, an additive sidebar entry, and a static empty-state page. It does not patch Harness, import an unexported source path, or add Work Hub data and actions.
 
-The implementation is sufficient for Stage 0 compatibility validation. [ADR 0001](decisions/0001-upstream-generic-inbox-extension-points.md) rejects these seams as the long-term product contract, selects a product-neutral upstream primary-navigation and keyed-page contract, and rejects a TwinDesk Harness fork or temporary patch.
+The implementation is sufficient for Stage 0 compatibility validation. [ADR 0002](decisions/0002-twindesk-owned-product-web-shell.md) retains these seams as diagnostics only and assigns the long-term product routes to a standalone TwinDesk-owned Web shell without a Harness fork or patch.
 
 ## Extension Path
 
@@ -38,7 +38,7 @@ No internal Harness API is required. In particular, TwinDesk does not import fro
 - Replacing `conversation` is safe only while the route is active and only because the disposer restores the shipped entry. A leaked registration would hide the conversation surface, so reload and disposal tests are mandatory.
 - The narrow external builder still supports one TypeScript source module and shared React only. A product Inbox with stylesheets and multiple modules needs either a deliberate builder expansion or a published upstream Client preset.
 
-ADR 0001 rejects these constraints for the product path. The selected generic upstream addition is an additive primary-navigation slot paired with a keyed top-level page registry and route service. The extension must remain product-neutral; TwinDesk Inbox logic stays entirely outside Harness core. Until a released, pinned Harness version exposes that contract, this spike remains a compatibility diagnostic rather than the Stage 1 Inbox architecture.
+ADR 0002 rejects these constraints for the product path. `@twindesk/web` owns the Inbox route and navigation, while this spike remains a compatibility diagnostic. The optional upstream proposal stays product-neutral and no TwinDesk Inbox logic enters Harness core.
 
 ## Verification
 

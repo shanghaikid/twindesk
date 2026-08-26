@@ -2,36 +2,63 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-test('the TD-052 audit keeps Stage 1 gated while its product criterion fails', async () => {
-  const [gate, tracker, report, roadmap, decision, manifest] = await Promise.all([
-    readFile(new URL('../docs/STAGE_0_EXIT_GATE.md', import.meta.url), 'utf8'),
-    readFile(new URL('../TODO.md', import.meta.url), 'utf8'),
-    readFile(new URL('../docs/STAGE_0_COMPATIBILITY_REPORT.md', import.meta.url), 'utf8'),
-    readFile(new URL('../docs/ROADMAP.md', import.meta.url), 'utf8'),
-    readFile(
-      new URL('../docs/decisions/0001-upstream-generic-inbox-extension-points.md', import.meta.url),
-      'utf8',
-    ),
-    readFile(new URL('../package.json', import.meta.url), 'utf8').then(JSON.parse),
-  ])
+test('the TD-052 audit advances Stage 1 through the product-owned Web shell', async () => {
+  const [gate, proposal, tracker, report, roadmap, oldDecision, decision, manifest] =
+    await Promise.all([
+      readFile(new URL('../docs/STAGE_0_EXIT_GATE.md', import.meta.url), 'utf8'),
+      readFile(new URL('../docs/HARNESS_UPSTREAM_NAVIGATION_PROPOSAL.md', import.meta.url), 'utf8'),
+      readFile(new URL('../TODO.md', import.meta.url), 'utf8'),
+      readFile(new URL('../docs/STAGE_0_COMPATIBILITY_REPORT.md', import.meta.url), 'utf8'),
+      readFile(new URL('../docs/ROADMAP.md', import.meta.url), 'utf8'),
+      readFile(
+        new URL(
+          '../docs/decisions/0001-upstream-generic-inbox-extension-points.md',
+          import.meta.url,
+        ),
+        'utf8',
+      ),
+      readFile(
+        new URL('../docs/decisions/0002-twindesk-owned-product-web-shell.md', import.meta.url),
+        'utf8',
+      ),
+      readFile(new URL('../package.json', import.meta.url), 'utf8').then(JSON.parse),
+    ])
 
-  assert.match(gate, /\*\*NOT PASSED\. Stage 1 remains gated\.\*\*/u)
+  assert.match(gate, /\*\*PASSED\. Stage 1 may begin\.\*\*/u)
   assert.equal(
     gate.includes(
       `Harness package: \`@deepseek-ai/dsh@${manifest.devDependencies['@deepseek-ai/dsh']}\``,
     ),
     true,
   )
-  assert.equal([...gate.matchAll(/\| \*\*Fail\*\* \|/gu)].length, 1)
-  assert.equal([...gate.matchAll(/\| \*\*Pass\*\* \|/gu)].length, 3)
-  assert.match(gate, /no Stage 1 backlog item may start/u)
+  assert.equal([...gate.matchAll(/\| \*\*Fail\*\* \|/gu)].length, 0)
+  assert.equal([...gate.matchAll(/\| \*\*Pass\*\* \|/gu)].length, 4)
+  assert.match(gate, /Harness Web UI -> runtime and Client compatibility diagnostics only/u)
+  assert.match(gate, /no Work Hub API/u)
 
-  assert.match(tracker, /- \[ \] \*\*TD-052 — Pass the Stage 0 exit gate\*\*/u)
-  assert.match(tracker, /Latest gate audit \(2026-08-26\): \*\*NOT PASSED\*\*/u)
-  assert.match(tracker, /Do not start Stage 1 implementation before TD-052 is complete\./u)
+  assert.match(
+    proposal,
+    /Status: Reference draft — not submitted and not a TwinDesk product blocker/u,
+  )
+  assert.match(proposal, /optional ecosystem input/u)
+  assert.equal(
+    proposal.includes(
+      `Evidence revision: \`dsh-v${manifest.devDependencies['@deepseek-ai/dsh']}\``,
+    ),
+    true,
+  )
 
-  assert.match(report, /\*\*NO-GO for the Stage 1 gate on the validated Harness revision\.\*\*/u)
-  assert.match(roadmap, /Current gate status \(2026-08-26\): \*\*NOT PASSED\*\*/u)
+  assert.match(tracker, /- \[x\] \*\*TD-052 — Pass the Stage 0 exit gate\*\*/u)
+  assert.match(tracker, /Gate audit \(2026-08-26\): \*\*PASSED\*\*/u)
+  assert.match(tracker, /## Current Milestone: Stage 1 — Local Work Hub/u)
+
+  assert.match(
+    report,
+    /\*\*GO for Stage 1 with Harness retained as a replaceable Agent Runtime\.\*\*/u,
+  )
+  assert.match(roadmap, /Current gate status \(2026-08-26\): \*\*PASSED\*\*/u)
+  assert.match(oldDecision, /Status: Superseded by \[ADR 0002\]/u)
   assert.match(decision, /- Status: Accepted/u)
-  assert.match(decision, /will not maintain a Harness fork or a temporary core patch/u)
+  assert.match(decision, /TwinDesk will own a standalone, local Web application/u)
+  assert.match(decision, /No Harness fork or core patch is required/u)
 })

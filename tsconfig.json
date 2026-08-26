@@ -8,6 +8,7 @@
     { "path": "./packages/plugin-feishu" },
     { "path": "./packages/plugin-jira" },
     { "path": "./packages/plugin-ui" },
+    { "path": "./packages/web" },
     { "path": "./packages/bundle-workbench" }
   ]
 }

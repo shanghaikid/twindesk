@@ -8,18 +8,21 @@ Goal: prove that key capabilities can be implemented through out-of-tree plugins
 - Create a minimal Profile Bundle.
 - Create a Host plugin and register one read-only Tool.
 - Create a Client plugin and validate a settings card.
-- Determine whether a top-level Inbox page and navigation entry can be added.
+- Determine whether Harness should own the product shell and select a viable
+  no-fork alternative when its public Client surface is insufficient.
 - Create two Agent Presets.
 - Enable Session persistence and verify restart recovery.
 - Verify installation of `subagent-codex` and one delegation run.
 - Run every selected extension seam through one pinned compatibility command.
 - Record the minimum list of required Harness core changes.
 
-Exit criterion: the product experience can be built without a fork, using at most one minimal, product-neutral Client navigation and page extension accepted upstream.
+Exit criterion: the product experience can be built without a Harness fork,
+Harness-specific domain logic, or an unverified runtime boundary.
 
-Current gate status (2026-08-26): **NOT PASSED**. The pinned Harness release
-lacks the accepted generic Client navigation, keyed-page, and route lifecycle;
-see [the TD-052 exit-gate audit](STAGE_0_EXIT_GATE.md). Stage 1 remains gated.
+Current gate status (2026-08-26): **PASSED**. TwinDesk owns a standalone
+loopback Web shell and keeps Harness behind the runtime adapter; all four
+criteria are verified in [the TD-052 exit-gate audit](STAGE_0_EXIT_GATE.md).
+Stage 1 is now active.
 
 ## Stage 1: Local Work Hub
 

@@ -55,6 +55,7 @@ Use the package direction defined in `docs/ARCHITECTURE.md`:
 - `@twindesk/plugin-feishu`
 - `@twindesk/plugin-jira`
 - `@twindesk/plugin-ui`
+- `@twindesk/web`
 - `@twindesk/bundle-workbench`
 
 Long-lived Feishu and Jira integrations must be formally installed Host plugins. Do not implement them as model-generated dynamic plugins. Dynamic plugins are high-trust, temporary capabilities and must not automatically receive credentials or restart persistence.
@@ -137,7 +138,12 @@ Every external write implementation requires an idempotency test. Every persiste
 
 ## Current Phase
 
-The repository is currently in Roadmap Stage 0. Prioritize proving external plugin viability, Client UI extension points, Agent Presets, Session persistence, and Codex Subagent composition before building the full product. Replace this section when the project advances to the next stage.
+The repository is currently in Roadmap Stage 1. Prioritize the versioned domain
+model, forward-only TwinDesk SQLite migrations, idempotent fixture ingestion,
+durable cursors, rebuildable Inbox projections, product-owned local API, draft
+state transitions, Audit Timeline, redaction, retention, export, deletion, and
+restart recovery. Keep real Connectors and every external write out of this
+stage. Harness Web UI is diagnostic only; `@twindesk/web` owns product routes.
 
 ## Completion Checklist
 

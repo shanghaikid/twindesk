@@ -24,7 +24,7 @@ Update this file in the same change that completes, defers, or materially re-sco
   - Root `AGENTS.md` defines safety, architecture, testing, documentation, and Git rules.
   - Repository documentation is required to be written in English.
 
-## Current Milestone: Stage 0 — Harness Compatibility Validation
+## Completed Milestone: Stage 0 — Harness Compatibility Validation
 
 Goal: prove that TwinDesk can be built primarily as out-of-tree DeepSeek Harness plugins before product implementation begins.
 
@@ -103,7 +103,7 @@ Goal: prove that TwinDesk can be built primarily as out-of-tree DeepSeek Harness
   - Choose one of: no core change, upstream a generic extension point, or maintain a minimal temporary patch.
   - Record the decision as an ADR with upgrade and ownership consequences.
   - Depends on: TD-031.
-  - Verification record: ADR 0001 selects a product-neutral upstream primary-navigation and keyed-page contract, rejects a TwinDesk Harness fork or temporary patch, assigns generic lifecycle and routing ownership to Harness and all Inbox behavior to the external TwinDesk plugin, and defines upgrade gates and a superseding-decision requirement if upstream support is unavailable.
+  - Verification record: ADR 0001 recorded the product-neutral upstream option and rejected a Harness fork or temporary patch. ADR 0002 later followed its explicit reassessment path, selected a standalone TwinDesk-owned product shell, and retained the Harness Client spike as diagnostics only.
   - Completion check: the chosen path keeps TwinDesk domain logic outside Harness core.
 
 ### Personas, Persistence, and Delegation
@@ -146,22 +146,25 @@ Goal: prove that TwinDesk can be built primarily as out-of-tree DeepSeek Harness
   - List gaps, unstable APIs, required patches, and upgrade risks.
   - Estimate only the implementation surface, not speculative delivery dates.
   - Depends on: TD-032, TD-050.
-  - Verification record: `docs/STAGE_0_COMPATIBILITY_REPORT.md` records the exact Harness tag and commit, published package and toolchain pins, validated public extension points, compatibility-only seams, gaps, required generic upstream work, Stage 1 and later implementation surfaces, upgrade risks, and security boundaries. A suite-owned consistency test keeps the report aligned with the pinned version record and asserts the gate decision. The report recommends **NO-GO** for Stage 1 on Harness `0.1.1-rc.2` because the accepted product path still lacks a released public primary-navigation, keyed-page, and route lifecycle contract; it approves no local Harness fork or TwinDesk-specific core patch.
+  - Verification record: `docs/STAGE_0_COMPATIBILITY_REPORT.md` records the exact Harness tag and commit, published package and toolchain pins, validated public extension points, compatibility-only seams, gaps, Stage 1 and later implementation surfaces, upgrade risks, and security boundaries. After ADR 0002 removed Harness Client navigation from the product path, the report recommends **GO** for fixture-driven Stage 1 while approving no Harness fork, TwinDesk-specific core patch, real Connector write, or weakened safety boundary.
   - Completion check: the report makes a clear go/no-go recommendation for Stage 1.
 
-- [ ] **TD-052 — Pass the Stage 0 exit gate**
+- [x] **TD-052 — Pass the Stage 0 exit gate**
   - Product experience is viable without a fork, or with only a minimal generic UI extension point.
   - No TwinDesk domain logic is placed in Harness core.
   - Compatibility tests cover every selected unstable boundary.
   - All Stage 0 security and restart checks pass.
   - Depends on: TD-051.
-  - Latest gate audit (2026-08-26): **NOT PASSED**. Three criteria pass, but the product-experience criterion fails because Harness `0.1.1-rc.2` has no released generic primary-navigation, keyed-page, and route lifecycle contract. `docs/STAGE_0_EXIT_GATE.md` records the evidence and re-evaluation requirements. Stage 1 remains gated.
+  - Verification record: [ADR 0002](docs/decisions/0002-twindesk-owned-product-web-shell.md) selects a TwinDesk-owned local Web shell and keeps Harness as a replaceable runtime and diagnostic UI. `@twindesk/web` owns deterministic Inbox, Personas, Connectors, Audit, and Settings routes, rejects non-loopback binding, serves restrictive security headers, shuts down explicitly, and restarts on the same port. The full repository and compatibility checks pass with no Harness fork, core patch, or TwinDesk domain logic in Harness.
+  - Gate audit (2026-08-26): **PASSED**. All four criteria pass in `docs/STAGE_0_EXIT_GATE.md`. The optional upstream navigation proposal is retained as ecosystem reference and no longer blocks product delivery.
 
-## Stage 1 Backlog — Local Work Hub
+## Current Milestone: Stage 1 — Local Work Hub
 
-Do not start Stage 1 implementation before TD-052 is complete.
+TD-052 is complete. Stage 1 may now build the fixture-driven local loop before
+connecting a real account or enabling external writes.
 
-- [ ] **TD-100 — Define versioned domain types** for ExternalEvent, WorkItem, ExternalThread, Draft, ActionProposal, ApprovalRecord, ConnectorCursor, and AuditRecord.
+- [x] **TD-100 — Define versioned domain types** for ExternalEvent, WorkItem, ExternalThread, Draft, ActionProposal, ApprovalRecord, ConnectorCursor, and AuditRecord.
+  - Verification record: `@twindesk/domain` exports schema-versioned, discriminated, deeply immutable records and fail-closed parsers for all eight types. Boundary tests cover unsupported versions and fields, stable and duplicate references, event chronology, explicit partial context, finite normalized JSON, Persona selection, action identity/target matching, content digests, idempotency keys, approval expiry and one-time consumption, attributable audit actors, accessor rejection, and diagnostics that do not echo rejected values. Domain isolation remains intact.
 - [ ] **TD-101 — Define the Connector contract** with lifecycle, synchronization, context, proposal, execution, and health semantics.
 - [ ] **TD-102 — Design the TwinDesk SQLite schema and forward migrations** without using Harness Session tables.
 - [ ] **TD-103 — Implement idempotent event ingestion** for duplicates, out-of-order events, and replay.

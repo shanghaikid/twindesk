@@ -17,10 +17,17 @@ test('the Stage 0 report stays aligned with the pinned compatibility baseline', 
     ),
     true,
   )
-  assert.match(report, /\*\*NO-GO for the Stage 1 gate on the validated Harness revision\.\*\*/u)
+  assert.match(
+    report,
+    /\*\*GO for Stage 1 with Harness retained as a replaceable Agent Runtime\.\*\*/u,
+  )
   assert.match(report, /No TwinDesk-specific Harness core patch or fork is approved\./u)
-  assert.match(report, /No public primary navigation, keyed page registry, or route service/u)
+  assert.match(
+    report,
+    /No public Harness primary navigation, keyed page registry, or route service/u,
+  )
+  assert.match(report, /TwinDesk product delivery does not depend on it/u)
   assert.match(report, /compat:check/u)
   assert.match(report, /## Implementation Surface Estimate/u)
-  assert.match(report, /## Gate Re-evaluation Checklist/u)
+  assert.match(report, /## Gate Completion Record/u)
 })

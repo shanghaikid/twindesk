@@ -71,4 +71,5 @@ result.
 Passing this suite proves compatibility with the selected developer-preview
 interfaces. It does not by itself approve Stage 1. The
 [`Stage 0 Compatibility Report`](STAGE_0_COMPATIBILITY_REPORT.md) interprets
-the evidence and recommends NO-GO until the product-shell blocker is resolved.
+the evidence. ADR 0002 resolved the product-shell dependency with a standalone
+TwinDesk Web application; Harness Client coverage remains diagnostic.

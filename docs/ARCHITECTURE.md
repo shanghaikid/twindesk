@@ -2,7 +2,13 @@
 
 ## 1. Architecture Decision
 
-The first TwinDesk version uses DeepSeek Harness as its Agent Runtime and extends business capabilities through formally installed Cordis plugins. TwinDesk will not fork Harness for the Inbox. [ADR 0001](decisions/0001-upstream-generic-inbox-extension-points.md) selects a product-neutral upstream primary-navigation and keyed-page contract for the product UI; the Stage 0 hash route and conversation shadow remain compatibility diagnostics only. All TwinDesk domain logic stays outside the Harness repository.
+The first TwinDesk version uses DeepSeek Harness as its replaceable Agent
+Runtime and extends Host capabilities through formally installed Cordis
+plugins. TwinDesk owns a standalone local Web product shell; Harness Web UI and
+the Stage 0 Client plugin remain diagnostic surfaces only. [ADR 0002](decisions/0002-twindesk-owned-product-web-shell.md)
+supersedes the earlier upstream-dependent UI path. TwinDesk will not fork or
+patch Harness for product navigation, and all domain logic stays outside the
+Harness repository.
 
 DeepSeek Harness is replaceable infrastructure, not the TwinDesk domain model.
 
@@ -25,7 +31,10 @@ Feishu API / Events       Jira API / Webhooks
           │                     │
           └──────────┬──────────┘
                      ▼
-               TwinDesk Web UI
+           TwinDesk Work Hub API
+                     │
+                     ▼
+          TwinDesk-owned Web UI
           inbox / drafts / approvals / traces
 ```
 
@@ -44,6 +53,15 @@ or model SDK dependency:
 - ApprovalRecord
 - ConnectorCursor
 - AuditRecord
+
+Every persisted business record starts with `kind` and `schemaVersion: 1`.
+`@twindesk/domain` exposes boundary parsers that reject unknown fields,
+unsupported versions, invalid UTC timestamps, duplicate stable references,
+non-finite JSON values, accessor properties, and internally inconsistent
+identity, target, approval, or partial-context data. Parsed records are deeply
+immutable. Validation errors identify only the rejected field path and
+expectation; they do not serialize the input value. State transition functions
+remain TD-108 work rather than being implied by these record shapes.
 
 ### `@twindesk/harness-adapter`
 
@@ -109,13 +127,21 @@ only to prove out-of-tree Profile installation and activation.
 
 ### `@twindesk/plugin-ui`
 
-A dual-sided Host and Client plugin:
+A Harness diagnostic Client plugin:
 
-- Inbox page;
-- Persona and Skill settings;
-- draft editing and approvals;
-- Connector status;
-- Run, Tool, and Audit timelines.
+- proves external Client loading and lifecycle compatibility;
+- exposes a static diagnostic Inbox spike and settings card;
+- does not own product navigation or render product business data.
+
+### `@twindesk/web`
+
+The local product presentation boundary:
+
+- owns Inbox, Personas, Connectors, Audit, and Settings routes;
+- serves only on loopback and applies restrictive browser security headers;
+- consumes a future Work Hub API rather than Harness or database internals;
+- presents drafts, approvals, execution receipts, and partial context without
+  implying authority from Persona or page visibility.
 
 ### `@twindesk/bundle-workbench`
 
@@ -137,7 +163,8 @@ All selected Stage 0 seams run through the ordered
 [`Harness Compatibility Suite`](HARNESS_COMPATIBILITY_SUITE.md); its manifest
 and built adapter checks fail loudly on an unsupported upstream change.
 The resulting [Stage 0 report](STAGE_0_COMPATIBILITY_REPORT.md) records the
-validated seams and the unresolved product-shell gate.
+validated runtime seams. The standalone Web shell removes the upstream
+product-shell dependency without weakening the Harness compatibility gate.
 
 ## 4. Harness Capability Mapping
 
@@ -298,7 +325,8 @@ Because Harness is in developer preview:
 
 ## 11. Open Validation Questions
 
-- Will upstream publish the generic primary-navigation and keyed-page contract selected by [ADR 0001](decisions/0001-upstream-generic-inbox-extension-points.md) in time for the Stage 0 exit review?
+- Will a future public Harness page contract materially improve the diagnostic
+  UI enough to adopt it without coupling the TwinDesk product shell to Harness?
 - Has the client bundle preset required to build external plugins been formally published?
 - What is the complete installation, upgrade, and version-pinning experience for third-party Profile plugins?
 - What latency and backup behavior results from running append-only Session JSONL alongside the TwinDesk business SQLite database?

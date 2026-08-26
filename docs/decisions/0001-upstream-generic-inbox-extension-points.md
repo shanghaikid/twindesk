@@ -1,11 +1,16 @@
 # ADR 0001: Upstream Generic Inbox Extension Points
 
-- Status: Accepted
+- Status: Superseded by [ADR 0002](0002-twindesk-owned-product-web-shell.md)
 - Date: 2026-08-25
 - Decision owner: TwinDesk maintainers
 - Tracker: TD-032
 
 ## Context
+
+> This decision remains the record of the Stage 0 Harness Client investigation.
+> ADR 0002 supersedes it for the product UI after TwinDesk selected a standalone,
+> product-owned Web shell. The generic upstream proposal is now optional
+> ecosystem work and is not a product gate.
 
 TD-031 proved that DeepSeek Harness `0.1.1-rc.2` can display an external Inbox without a core patch. The TwinDesk Client plugin owns `#/inbox`, contributes a `sidebar.footer.action`, and temporarily shadows the top-level `conversation` slot.
 

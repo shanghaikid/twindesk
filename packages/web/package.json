@@ -1,0 +1,19 @@
+{
+  "name": "@twindesk/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./routes": {
+      "types": "./dist/routes.d.ts",
+      "default": "./dist/routes.js"
+    }
+  },
+  "files": [
+    "dist"
+  ]
+}

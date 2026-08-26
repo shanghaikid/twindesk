@@ -9,10 +9,11 @@
 
 ## Recommendation
 
-**NO-GO for the Stage 1 gate on the validated Harness revision.**
+**GO for Stage 1 with Harness retained as a replaceable Agent Runtime.**
 
 The formal [TD-052 exit-gate audit](STAGE_0_EXIT_GATE.md) records this as
-**NOT PASSED**: three criteria pass and the product-experience criterion fails.
+**PASSED** after [ADR 0002](decisions/0002-twindesk-owned-product-web-shell.md)
+selected a standalone TwinDesk-owned product shell.
 
 The runtime and Host extension model are viable without a fork. TwinDesk can
 formally install out-of-tree Host and Client plugins, register read-only Tools
@@ -20,18 +21,16 @@ and Settings, compose distinct Agent Presets, recover Sessions, and run a
 traceable read-only Codex specialist. No TwinDesk domain logic or local Harness
 core patch is required for those capabilities.
 
-The blocking condition is the product Inbox shell. Harness `0.1.1-rc.2` exposes
+Harness `0.1.1-rc.2` exposes
 no public primary-navigation registration, keyed top-level page registry, or
 route lifecycle. The Stage 0 plugin can display a diagnostic Inbox only by
 owning a browser hash, placing its entry in the sidebar footer, and shadowing
-the `conversation` slot. ADR 0001 explicitly rejects that technique as the
-Stage 1 product architecture. Proceeding would either violate the accepted ADR
-or silently create a private routing contract.
+the `conversation` slot. That remains a diagnostic-only limitation, not a
+product blocker: `@twindesk/web` now owns product navigation and browser routes.
 
-This recommendation does not authorize starting the Stage 1 backlog. Re-run the
-gate only after a released, exactly pinned Harness version provides the generic
-navigation and page contract selected by ADR 0001, or after a superseding ADR
-explicitly accepts another product path and its maintenance cost.
+This recommendation authorizes the fixture-driven Stage 1 backlog only. It does
+not authorize real Connector writes or weaken the draft, approval, identity,
+idempotency, redaction, retention, and restart requirements.
 
 ## Validated Baseline
 
@@ -75,25 +74,27 @@ Cordis, Client frameworks, Connectors, or model SDKs.
 
 | Gap | Severity | Required action |
 |---|---|---|
-| No public primary navigation, keyed page registry, or route service | **Stage 1 blocker** | Add the product-neutral upstream contract defined by ADR 0001, release it, pin it, and cover registration, deep links, history, collisions, disposal, and reload |
-| No published external Client build preset | Material implementation gap | Either publish a supported upstream preset or deliberately expand TwinDesk's narrow builder for multiple modules, styles, assets, shared dependencies, and diagnostics |
+| No public Harness primary navigation, keyed page registry, or route service | Diagnostic Client limitation | Keep the Harness Client spike diagnostic-only; use the TwinDesk-owned shell for product routes |
+| No published external Harness Client build preset | Diagnostic implementation gap | Preserve the narrow Stage 0 builder only for selected compatibility diagnostics |
 | External Bundle cannot append a system Preset root | Material implementation gap | Replace the Stage 0 user-root copy workaround with product-owned Persona/Preset storage, versioning, conflict handling, and safe reconciliation |
 | Codex provider lacks Harness `depthLimit` and `toolFilter` capabilities | Stage 4 blocker, not Stage 1 | Add native child-runtime limits for depth, tools, concurrency, duration, tokens, and calls before TD-404 production use |
 | JSONL product retention and export policy is unresolved | Stage 1 implementation requirement | Define retention, redacted export, deletion, backup, encryption-at-rest expectations, and format migration without moving business tables into Session storage |
 | Harness remains developer preview | Cross-cutting upgrade risk | Preserve exact pins, adapter isolation, fail-loud capability checks, and the compatibility suite for every upgrade |
 
-No TwinDesk-specific Harness core patch or fork is approved. The only required
-upstream change for the product shell must be generic and independently useful
-to other Client plugins. A local patch would require a superseding ADR that
-records merge, release, security-review, support, and migration ownership.
+No TwinDesk-specific Harness core patch or fork is approved. The optional
+generic upstream proposal remains independently useful to Client plugins, but
+TwinDesk product delivery does not depend on it.
 
 ## Implementation Surface Estimate
 
 The estimates below describe code and contract surfaces only. They are not
 delivery dates.
 
-### Blocking upstream surface
+### Optional upstream surface
 
+- the product-neutral
+  [upstream navigation and keyed-page proposal](HARNESS_UPSTREAM_NAVIGATION_PROPOSAL.md),
+  prepared as a GitHub Discussion draft for upstream review;
 - one root-scoped route and keyed-page registry with collision and disposal
   semantics;
 - one additive primary-navigation contribution point;
@@ -101,19 +102,18 @@ delivery dates.
   behavior;
 - public Client declarations, package exports, documentation, and upstream
   lifecycle tests;
-- TwinDesk Client migration from hash ownership and `conversation` shadowing to
-  the released contract, followed by removal of the diagnostic workaround.
+- optional migration of the Harness diagnostic plugin if such a contract is
+  released; this does not change the standalone product shell.
 
-### Stage 1 TwinDesk surface after the gate
+### Stage 1 TwinDesk surface
 
 - product-owned Persona and Preset persistence, validation, versioning, and
   reconciliation with the Harness user-facing composition boundary;
-- a multi-module Client build path or adoption of an upstream external build
-  preset;
+- a product-owned local API connecting `@twindesk/web` to Work Hub behavior;
 - Work Hub business SQLite migrations, Inbox API and projection, Audit
   Timeline, retention, redaction, export, and deletion;
-- compatibility additions for the released navigation/page APIs and persisted
-  product behavior.
+- repository coverage for the local API contract, Web projections, and
+  persisted product behavior.
 
 ### Deferred surfaces
 
@@ -153,22 +153,19 @@ matching exact source revision and extend tests before adopting a new seam.
 - Hidden chain-of-thought and raw child protocol traffic are not persisted by
   TwinDesk compatibility probes.
 
-These findings support the technical viability of the selected runtime seams,
-but they do not remove the product-shell blocker or substitute for later
-Connector, approval, retention, migration, and recovery tests.
+These findings support the technical viability of the selected runtime seams
+and the standalone product shell. They do not substitute for later Connector,
+approval, retention, migration, and recovery tests.
 
-## Gate Re-evaluation Checklist
+## Gate Completion Record
 
-The Stage 1 recommendation can change to GO only when all of the following are
-true:
+The Stage 1 recommendation changed to GO when all of the following became true:
 
-1. a released, exactly pinned Harness version exposes the accepted generic
-   navigation and keyed-page contract, or a superseding ADR approves an
-   alternative;
-2. the external TwinDesk Client uses that product path without a private route,
-   footer-only primary entry, or priority-based conversation replacement;
-3. the compatibility suite covers direct links, browser history, collisions,
-   disposal, reload, and migration away from the Stage 0 workaround;
+1. ADR 0002 approved the standalone TwinDesk-owned Web shell;
+2. the product route lifecycle no longer uses the Harness Client's private
+   hash, footer-only entry, or priority-based conversation replacement;
+3. Web shell tests cover direct routes, unknown routes, security headers,
+   disposal, restart, and loopback-only binding;
 4. the full repository and compatibility checks pass with no Harness core fork
    and no TwinDesk domain logic in upstream packages;
 5. TD-052 re-runs the Stage 0 exit gate and records the evidence.

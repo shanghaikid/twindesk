@@ -154,6 +154,8 @@ importers:
 
   packages/storage-sqlite: {}
 
+  packages/web: {}
+
 packages:
 
   '@anthropic-ai/sdk@0.91.1':
