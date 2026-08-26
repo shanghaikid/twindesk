@@ -9,6 +9,8 @@ import {
 } from '@twindesk/domain'
 import { openTwinDeskDatabase, type TwinDeskDatabase } from '@twindesk/storage-sqlite'
 
+import { findBuiltInPersonaConfiguration } from './persona-presets.ts'
+
 export const FIXTURE_INBOX_STATES = Object.freeze([
   'needs_reply',
   'needs_review',
@@ -203,6 +205,10 @@ function counts(items: readonly WorkItem[]): Readonly<Record<InboxState, number>
 function projectItem(item: WorkItem): FixtureInboxItem {
   const definition = DEFINITIONS.find(({ suffix }) => item.id === `fixture-work-item-${suffix}`)
   const context = definition?.context ?? { status: 'partial', missing: ['Fixture metadata'] }
+  const persona =
+    item.selectedPersonaId === undefined
+      ? undefined
+      : findBuiltInPersonaConfiguration(item.selectedPersonaId)
   return Object.freeze({
     id: item.id,
     inboxState: item.inboxState,
@@ -210,11 +216,7 @@ function projectItem(item: WorkItem): FixtureInboxItem {
     summary: item.summary,
     attentionReason: item.attentionReason,
     ...(item.selectedPersonaId === undefined ? {} : { personaId: item.selectedPersonaId }),
-    ...(item.selectedPersonaId === 'technical-lead'
-      ? { personaLabel: 'Technical Lead' }
-      : item.selectedPersonaId === 'communication'
-        ? { personaLabel: 'Communication' }
-        : {}),
+    ...(persona === undefined ? {} : { personaLabel: persona.name }),
     source: Object.freeze({ label: 'Synthetic fixture', objectType: 'message' }),
     context: Object.freeze({
       status: context.status,

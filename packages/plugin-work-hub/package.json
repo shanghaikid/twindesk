@@ -15,6 +15,10 @@
     "./fixture-inbox": {
       "types": "./dist/fixture-inbox.d.ts",
       "default": "./dist/fixture-inbox.js"
+    },
+    "./persona-presets": {
+      "types": "./dist/persona-presets.d.ts",
+      "default": "./dist/persona-presets.js"
     }
   },
   "dependencies": {

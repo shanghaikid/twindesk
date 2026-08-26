@@ -104,6 +104,7 @@ The core Host-side service:
 - Work Item routing;
 - Stage 1 fixture ingestion and presentation-safe Inbox reads;
 - Persona selection;
+- fail-closed mapping of versioned built-in Persona configuration to installed Presets;
 - association between Runs and external objects;
 - post-approval action dispatch;
 - audit writes.
@@ -111,8 +112,11 @@ The core Host-side service:
 The Stage 0 Host lifecycle effect remains as compatibility evidence. TD-106
 adds a product-owned fixture Inbox service that seeds normalized synthetic
 records through `@twindesk/storage-sqlite` and exposes a narrow read model to
-the local Web server. Connector registry, real event routing, Run association,
-and action dispatch remain later-stage work.
+the local Web server. TD-107 maps the exact two installed Persona
+configurations to TwinDesk-owned Preset identifiers and observable composition
+metadata without importing Harness types or producing authority. Connector
+registry, real event routing, Run association, dynamic Personas, and action
+dispatch remain later-stage work.
 
 ### `@twindesk/plugin-feishu`
 
