@@ -82,6 +82,7 @@ their runtime or types directly.
 The TwinDesk business database:
 
 - schema and migrations;
+- a distinct SQLite application ID, schema version, and checksummed migration history;
 - Inbox and Thread queries;
 - idempotent external event writes;
 - synchronization cursors;
@@ -89,7 +90,9 @@ The TwinDesk business database:
 - data deletion and export.
 
 It never writes directly into Harness Session artifacts or derived Session
-query indexes.
+query indexes. Opening an unowned or Harness-shaped SQLite file fails closed;
+forward migrations are transactional and never rely on deleting a user's
+database. See [TwinDesk SQLite Storage](STORAGE_SQLITE.md).
 
 ### `@twindesk/plugin-work-hub`
 
