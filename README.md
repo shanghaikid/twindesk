@@ -36,6 +36,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Harness Version](docs/HARNESS_VERSION.md): current exact upstream pin, toolchain requirements, and upgrade procedure.
 - [Harness Profile](docs/HARNESS_PROFILE.md): Stage 0 Profile composition, local launch, and configuration inspection.
 - [Session Persistence Spike](docs/SESSION_PERSISTENCE_SPIKE.md): JSONL selection, restart recovery evidence, data boundaries, and limitations.
+- [Codex Subagent Spike](docs/CODEX_SUBAGENT_SPIKE.md): read-only specialist configuration, cancellation, attribution, and capability limits.
 - [Inbox Extension Spike](docs/INBOX_EXTENSION_SPIKE.md): out-of-tree route and sidebar findings, limitations, and compatibility seams.
 - [ADR 0001](docs/decisions/0001-upstream-generic-inbox-extension-points.md): Inbox core-patch policy, upstream ownership, and upgrade consequences.
 
@@ -45,8 +46,10 @@ The project is in Roadmap Stage 0, validating DeepSeek Harness compatibility.
 The reproducible monorepo scaffold, Host compatibility probes, an external
 Client diagnostic card, a static `#/inbox` extension spike, and distinct
 technical-lead and communication Agent Presets are available. A JSONL Session
-probe also verifies Persona-aware, duplicate-free cold restart recovery. Work
-Hub product behavior has not been implemented.
+probe also verifies Persona-aware, duplicate-free cold restart recovery. A
+foreground Codex specialist spike now proves bounded read-only repository
+delegation, cancellation, and traceable results. Work Hub product behavior has
+not been implemented.
 
 ## Development
 

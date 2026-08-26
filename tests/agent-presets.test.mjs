@@ -28,6 +28,7 @@ test('two Agent Presets produce distinct scoped behavior from the same fixture',
   assert.match(result.communication.systemPrompt, /TwinDesk Communication Persona/u)
   assert.deepEqual(result.technical.advertisedTools, [
     'skill',
+    'subagent_codex',
     TWIN_DESK_STATUS_TOOL_NAME,
     TWIN_DESK_TECHNICAL_CONTEXT_TOOL_NAME,
   ])

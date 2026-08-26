@@ -18,6 +18,7 @@ import LlmRuntime, {
   type StreamChunk,
 } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
+import SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import { scopeOf } from '@deepseek-ai/dsh-scope'
 import SettingsProvider, {
@@ -396,6 +397,24 @@ class ForbiddenGenerationAdapter extends LlmAdapter {
   }
 }
 
+function registerPresetProbeCodexProvider(ctx: Context): void {
+  ctx.effect(
+    () =>
+      ctx.subagents.registerProvider({
+        name: 'twindesk-codex-readonly',
+        capabilities: {
+          outputSchema: false,
+          depthLimit: false,
+          toolFilter: false,
+          persona: false,
+        },
+        inheritsParentContext: false,
+        start: () => Promise.reject(new Error('Preset composition probe must not delegate')),
+      }),
+    'twindesk-preset-probe-codex-provider',
+  )
+}
+
 /**
  * Compose both TwinDesk Stage 0 Agent Presets through the pinned public
  * Harness services and run the same fixture through a deterministic model.
@@ -473,6 +492,8 @@ export async function probeHarnessAgentPresets(
     await mount(MemorySettingsProvider)
     await mount(SystemPrompt, { persona: '' })
     await mount(ToolRuntime)
+    await mount(SubagentRuntime)
+    registerPresetProbeCodexProvider(ctx)
     await mount(SkillRegistry)
     await mount(AgentRegistry)
     await mount(AgentLoop, { agents: [] })
@@ -550,6 +571,8 @@ async function bootPersistentPresetProbeRuntime(
     await mount(MemorySettingsProvider)
     await mount(SystemPrompt, { persona: '' })
     await mount(ToolRuntime)
+    await mount(SubagentRuntime)
+    registerPresetProbeCodexProvider(ctx)
     await mount(SkillRegistry)
     await mount(AgentRegistry)
     await mount(AgentLoop, { agents: [] })

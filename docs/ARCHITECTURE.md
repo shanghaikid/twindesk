@@ -126,11 +126,13 @@ The Stage 0 bundle inserts `@twindesk/plugin-work-hub` and
 bundles. They currently expose only a synthetic Tool, one non-secret setting,
 a Client diagnostic card, a static out-of-tree Inbox extension spike, and two
 versioned draft-only Agent Presets with different scoped Skills and read-only
-Tool exposure. Preset identity controls behavior and composition only; it does
+Tool exposure. The technical Preset alone receives a foreground Codex
+specialist Tool backed by an isolated native read-only sandbox; the child does
+not inherit parent Harness context or Tools. Preset identity controls behavior and composition only; it does
 not grant policy authority. The Stage 0 persistence probe keeps the pinned
 base Bundle's append-only JSONL Session backend; SQLite remains a disposable
-search projection, not an authoritative store. Later compatibility tasks add
-delegation probes without moving TwinDesk business logic into Harness core.
+search projection, not an authoritative store. The Codex compatibility probe
+stays behind the adapter and moves no TwinDesk business logic into Harness core.
 
 ## 4. Harness Capability Mapping
 

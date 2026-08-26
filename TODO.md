@@ -124,11 +124,12 @@ Goal: prove that TwinDesk can be built primarily as out-of-tree DeepSeek Harness
   - Verification record: the pinned JSONL backend durably stores a synthetic technical-lead Session and preserves it across two cold Host restarts using the Profile's default Zstandard encoding and chunk packing; a separate raw-encoding case repairs an injected incomplete tail. Both restore the recorded Preset before mounting its scoped Persona, Skill, and Tools, preserve identical messages and Tool trace, and use contiguous event projections to prove the first resume adds only its required `session/end-seed` while the second adds nothing.
   - Completion check: the resumed Session preserves history, Persona identity, and Tool trace without duplicate events.
 
-- [ ] **TD-042 — Validate Codex as a specialist Subagent**
+- [x] **TD-042 — Validate Codex as a specialist Subagent**
   - Install and configure `subagent-codex` through the Profile.
   - Delegate one bounded, read-only repository task.
   - Verify cancellation, depth limits, Tool filtering, and result attribution.
   - Depends on: TD-020.
+  - Verification record: the Profile installs the exact Harness Codex provider and binds only the technical Preset to a foreground `subagent_codex` Tool backed by an isolated native `approval_policy = "never"`, `sandbox_mode = "read-only"` Codex home. An adapter-owned loopback fixture drives the real package-local Codex 0.147.0 process through a repository read, a sandbox-denied write with no file effect, and cancellation to quiescence. Paired lifecycle events and the Lead Session Tool trace attribute the result. This provider advertises no Harness depth-limit or Tool-filter capability, so numeric depth, per-run Tool filters, and a numerically capped Tool mount are tested to fail before any child request; `provider-managed` depth is recorded as a Stage 4 limitation rather than a silent guarantee.
   - Completion check: the Lead receives a traceable result while the child cannot exceed the delegated authority.
 
 ### Compatibility and Stage Exit

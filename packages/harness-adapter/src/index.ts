@@ -14,7 +14,11 @@ import scopeManifest from '@deepseek-ai/dsh-scope/package.json' with { type: 'js
 import settingsManifest from '@deepseek-ai/dsh-settings/package.json' with { type: 'json' }
 import settingsFileManifest from '@deepseek-ai/dsh-settings-file/package.json' with { type: 'json' }
 import skillManifest from '@deepseek-ai/dsh-skill/package.json' with { type: 'json' }
+import subagentManifest from '@deepseek-ai/dsh-subagent/package.json' with { type: 'json' }
+import codexSubagentManifest from '@deepseek-ai/dsh-subagent-codex/package.json' with { type: 'json' }
+import localSubprocessManifest from '@deepseek-ai/dsh-subprocess-local/package.json' with { type: 'json' }
 import systemPromptManifest from '@deepseek-ai/dsh-system-prompt/package.json' with { type: 'json' }
+import subagentToolManifest from '@deepseek-ai/dsh-tool-subagent/package.json' with { type: 'json' }
 import toolsManifest from '@deepseek-ai/dsh-tools/package.json' with { type: 'json' }
 import schemasteryManifest from '@deepseek-ai/schemastery/package.json' with { type: 'json' }
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
@@ -22,6 +26,7 @@ import type {} from '@deepseek-ai/dsh-agent-presets'
 import type { DshProfileManifest as UpstreamProfileManifest } from '@deepseek-ai/dsh-app-boot'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import type {} from '@deepseek-ai/dsh-skill'
+import type {} from '@deepseek-ai/dsh-subagent'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import z from '@deepseek-ai/schemastery'
@@ -39,6 +44,7 @@ type HasToolRegistry = 'tools' extends keyof CordisContext ? true : never
 type HasAgentPresetRegistry = 'agentPresets' extends keyof CordisContext ? true : never
 type HasSkillRegistry = 'skills' extends keyof CordisContext ? true : never
 type HasSessionPersistence = 'sessionPersistence' extends keyof CordisContext ? true : never
+type HasSubagentRegistry = 'subagents' extends keyof CordisContext ? true : never
 
 const hasCordisLifecycle: HasCordisLifecycle = true
 const hasProfileBundles: HasProfileBundles = true
@@ -47,6 +53,7 @@ const hasToolRegistry: HasToolRegistry = true
 const hasAgentPresetRegistry: HasAgentPresetRegistry = true
 const hasSkillRegistry: HasSkillRegistry = true
 const hasSessionPersistence: HasSessionPersistence = true
+const hasSubagentRegistry: HasSubagentRegistry = true
 const harnessPackageManifests = Object.freeze([
   ['@deepseek-ai/dsh-agent', agentManifest],
   ['@deepseek-ai/dsh-agent-loop', agentLoopManifest],
@@ -61,7 +68,11 @@ const harnessPackageManifests = Object.freeze([
   ['@deepseek-ai/dsh-settings', settingsManifest],
   ['@deepseek-ai/dsh-settings-file', settingsFileManifest],
   ['@deepseek-ai/dsh-skill', skillManifest],
+  ['@deepseek-ai/dsh-subagent', subagentManifest],
+  ['@deepseek-ai/dsh-subagent-codex', codexSubagentManifest],
+  ['@deepseek-ai/dsh-subprocess-local', localSubprocessManifest],
   ['@deepseek-ai/dsh-system-prompt', systemPromptManifest],
+  ['@deepseek-ai/dsh-tool-subagent', subagentToolManifest],
   ['@deepseek-ai/dsh-tools', toolsManifest],
 ] as const)
 
@@ -139,6 +150,10 @@ export interface HarnessCompatibility {
     readonly scopedRegistries: true
     readonly sessionPersistence: true
     readonly jsonlSessionPersistence: true
+    readonly subagentRegistry: true
+    readonly codexSubagentProvider: true
+    readonly localSubprocess: true
+    readonly subagentTool: true
   }
 }
 
@@ -201,6 +216,10 @@ export function inspectHarnessCompatibility(): HarnessCompatibility {
       scopedRegistries: true,
       sessionPersistence: hasSessionPersistence,
       jsonlSessionPersistence: true,
+      subagentRegistry: hasSubagentRegistry,
+      codexSubagentProvider: true,
+      localSubprocess: true,
+      subagentTool: true,
     }),
   })
 }

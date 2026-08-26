@@ -1,6 +1,13 @@
 # TwinDesk's Stage 0 Host layer. The Harness base and Web application bundles
 # are composed before this patch by the generated `workbench` Profile.
 - insert:
+    - id: twindesk-subagent-codex-readonly
+      name: '@deepseek-ai/dsh-subagent-codex'
+      config:
+        providerName: twindesk-codex-readonly
+        permissionMode: never
+        env:
+          CODEX_HOME: !!js dshHomePath('twindesk-codex-readonly')
     - id: twindesk-work-hub
       name: '@twindesk/plugin-work-hub'
     - id: twindesk-ui

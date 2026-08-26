@@ -71,6 +71,7 @@ function assertDuplicateFreeRecovery(result) {
   assert.deepEqual(result.resumeSources, ['resume', 'resume'])
   assert.deepEqual(result.toolsAfterRestart, [
     'skill',
+    'subagent_codex',
     TWIN_DESK_STATUS_TOOL_NAME,
     TWIN_DESK_TECHNICAL_CONTEXT_TOOL_NAME,
   ])

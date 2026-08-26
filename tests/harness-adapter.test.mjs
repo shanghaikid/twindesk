@@ -31,6 +31,10 @@ test('adapter validates the installed pinned Harness contracts', () => {
       scopedRegistries: true,
       sessionPersistence: true,
       jsonlSessionPersistence: true,
+      subagentRegistry: true,
+      codexSubagentProvider: true,
+      localSubprocess: true,
+      subagentTool: true,
     },
   })
   assert.equal(Object.isFrozen(compatibility), true)

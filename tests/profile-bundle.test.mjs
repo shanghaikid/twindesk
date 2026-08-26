@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -26,6 +26,7 @@ import {
 } from '../packages/plugin-ui/src/index.ts'
 import {
   prepareTwinDeskAgentPresets,
+  prepareTwinDeskCodexSafetyConfig,
   PROFILE_BUNDLES,
   readBootGraph,
   resolveHarnessHome,
@@ -69,7 +70,12 @@ test('the Workbench Bundle declares and mounts the TwinDesk Host and Client plug
   assert.deepEqual(manifest.files, ['agent-presets', 'cordis.patch.yml', 'dist'])
   assert.equal(manifest.dependencies['@deepseek-ai/dsh-persona'], '0.1.1-rc.2')
   assert.equal(manifest.dependencies['@deepseek-ai/dsh-skill-filesystem'], '0.1.1-rc.2')
+  assert.equal(manifest.dependencies['@deepseek-ai/dsh-subagent-codex'], '0.1.1-rc.2')
+  assert.equal(manifest.dependencies['@deepseek-ai/dsh-tool-subagent'], '0.1.1-rc.2')
   assert.equal(manifest.dependencies['@deepseek-ai/dsh-tool-skill'], '0.1.1-rc.2')
+  assert.match(patch, /id: twindesk-subagent-codex-readonly/u)
+  assert.match(patch, /permissionMode: never/u)
+  assert.match(patch, /CODEX_HOME: !!js dshHomePath\('twindesk-codex-readonly'\)/u)
   assert.match(patch, /id: twindesk-work-hub/u)
   assert.match(patch, /name: '@twindesk\/plugin-work-hub'/u)
   assert.match(patch, /id: twindesk-ui/u)
@@ -97,11 +103,53 @@ test('the Workbench Bundle owns two distinct draft-only Agent Presets', async ()
   assert.match(technical, /@twindesk\/plugin-work-hub\/technical-context/u)
   assert.match(technical, /includeDefaultRoots: false/u)
   assert.match(technical, /never claim that a message was sent/u)
+  assert.match(technical, /name: '@deepseek-ai\/dsh-tool-subagent'/u)
+  assert.match(technical, /provider: twindesk-codex-readonly/u)
+  assert.match(technical, /enableRunInBackground: false/u)
+  assert.match(technical, /maxDepth: provider-managed/u)
   assert.match(communication, /TwinDesk Communication Persona/u)
   assert.match(communication, /includeDefaultRoots: false/u)
   assert.match(communication, /never claim that a message was sent/u)
   assert.doesNotMatch(communication, /technical-context/u)
+  assert.doesNotMatch(communication, /dsh-tool-subagent/u)
   assert.doesNotMatch(`${technical}\n${communication}`, /dsh-tool-(?:bash|filesystem)/u)
+})
+
+test('Profile preparation creates a fail-closed native Codex safety config', async () => {
+  const harnessHome = await mkdtemp(join(tmpdir(), 'twindesk-profile-codex-'))
+  try {
+    const configPath = await prepareTwinDeskCodexSafetyConfig(harnessHome)
+    assert.equal(await prepareTwinDeskCodexSafetyConfig(harnessHome), configPath)
+    assert.equal(
+      await readFile(configPath, 'utf8'),
+      [
+        'approval_policy = "never"',
+        'sandbox_mode = "read-only"',
+        'disable_response_storage = true',
+        'check_for_update_on_startup = false',
+        '',
+      ].join('\n'),
+    )
+    assert.equal((await lstat(dirname(configPath))).mode & 0o777, 0o700)
+    assert.equal((await lstat(configPath)).mode & 0o777, 0o600)
+
+    await writeFile(configPath, '# synthetic divergent config\n')
+    await assert.rejects(
+      prepareTwinDeskCodexSafetyConfig(harnessHome),
+      /Refusing to overwrite divergent TwinDesk Codex safety config/u,
+    )
+
+    await rm(configPath)
+    const linkedTarget = join(harnessHome, 'synthetic-target.toml')
+    await writeFile(linkedTarget, '# synthetic link target\n')
+    await symlink(linkedTarget, configPath)
+    await assert.rejects(
+      prepareTwinDeskCodexSafetyConfig(harnessHome),
+      /Refusing to use non-file TwinDesk Codex safety config/u,
+    )
+  } finally {
+    await rm(harnessHome, { recursive: true, force: true })
+  }
 })
 
 test('Profile preparation materializes presets idempotently and refuses divergent content', async () => {

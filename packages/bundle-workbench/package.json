@@ -23,6 +23,8 @@
   "dependencies": {
     "@deepseek-ai/dsh-persona": "0.1.1-rc.2",
     "@deepseek-ai/dsh-skill-filesystem": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-subagent-codex": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-tool-subagent": "0.1.1-rc.2",
     "@deepseek-ai/dsh-tool-skill": "0.1.1-rc.2",
     "@twindesk/plugin-ui": "workspace:*",
     "@twindesk/plugin-work-hub": "workspace:*"

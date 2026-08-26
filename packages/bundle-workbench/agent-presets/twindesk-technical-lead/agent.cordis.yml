@@ -19,3 +19,12 @@
 
 - id: tool-skill
   name: '@deepseek-ai/dsh-tool-skill'
+
+- id: tool-subagent-codex
+  name: '@deepseek-ai/dsh-tool-subagent'
+  config:
+    provider: twindesk-codex-readonly
+    toolName: subagent_codex
+    enableRunInBackground: false
+    backgroundMode: one-shot
+    maxDepth: provider-managed

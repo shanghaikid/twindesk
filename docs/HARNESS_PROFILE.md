@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The Stage 0 `workbench` Profile proves that TwinDesk can compose the pinned DeepSeek Harness runtime and activate TwinDesk Host and Client plugins without changing Harness core. The Bundle contributes two Agent Presets; the plugins contribute synthetic read-only Tools, one non-secret setting, one browser diagnostic card, and one static Inbox extension spike for compatibility testing. They do not add external connectors, filesystem mutation Tools, product persistence, or external writes.
+The Stage 0 `workbench` Profile proves that TwinDesk can compose the pinned DeepSeek Harness runtime and activate TwinDesk Host and Client plugins without changing Harness core. The Bundle contributes two Agent Presets and a read-only Codex specialist provider; the plugins contribute synthetic read-only Tools, one non-secret setting, one browser diagnostic card, and one static Inbox extension spike for compatibility testing. They do not add external connectors, filesystem mutation Tools, product persistence, or external writes.
 
 ## Composition
 
@@ -12,7 +12,7 @@ The generated Profile applies these Bundle layers in order:
 2. `@deepseek-ai/dsh-web-app`
 3. `@twindesk/bundle-workbench`
 
-The TwinDesk Bundle declares `dsh.bundle.patch` in its package manifest. Its patch inserts `twindesk-work-hub` and `twindesk-ui`, which load `@twindesk/plugin-work-hub` and `@twindesk/plugin-ui` as formally installed Profile dependencies. The Work Hub Host plugin waits for the Harness settings and Tool registries, and both contributions are owned by its disposable lifecycle. The UI Host entry is intentionally empty; its installed package metadata enrolls the browser half through Harness's `dsh.client` discovery contract.
+The TwinDesk Bundle declares `dsh.bundle.patch` in its package manifest. Its patch inserts the dedicated `twindesk-codex-readonly` provider, `twindesk-work-hub`, and `twindesk-ui`. `@deepseek-ai/dsh-subagent-codex`, `@twindesk/plugin-work-hub`, and `@twindesk/plugin-ui` are formally installed Profile dependencies. The upstream Codex Bundle patch is deliberately not composed, so it cannot add a second default provider outside the TwinDesk safety configuration. The Work Hub Host plugin waits for the Harness settings and Tool registries, and both contributions are owned by its disposable lifecycle. The UI Host entry is intentionally empty; its installed package metadata enrolls the browser half through Harness's `dsh.client` discovery contract.
 
 ## Read-Only Status Tool
 
@@ -49,14 +49,26 @@ The Bundle owns two versioned Preset compositions:
 
 | Preset ID | Persona behavior | Preset-scoped Skill | Additional Preset-scoped Tool |
 |---|---|---|---|
-| `twindesk-technical-lead` | Evidence, compatibility risk, reversibility, and a recommended decision | `technical-risk-review` | `twindesk_technical_context` |
+| `twindesk-technical-lead` | Evidence, compatibility risk, reversibility, and a recommended decision | `technical-risk-review` | `twindesk_technical_context`, foreground `subagent_codex` |
 | `twindesk-communication` | Concise stakeholder draft that preserves uncertainty and states the next update | `stakeholder-update` | None |
 
-Both Presets also see the Host-level read-only `twindesk_status` Tool and the Harness `skill` Tool. Their Skill providers disable default roots, so the compatibility result is not affected by machine-local Skills. Neither composition includes shell, filesystem mutation, connector, approval, or external-write Tools. Persona instructions require draft-only output and prohibit claiming that a message was sent or an action was executed. These identity and behavior instructions do not grant authority; future Policy and approval layers remain separate.
+Both Presets also see the Host-level read-only `twindesk_status` Tool and the Harness `skill` Tool. Their Skill providers disable default roots, so the compatibility result is not affected by machine-local Skills. Neither composition includes a Harness shell, filesystem mutation, connector, approval, or external-write Tool. The technical Preset's Codex child uses a separate native read-only sandbox and does not inherit the parent Tool registry. Persona instructions require draft-only output and prohibit claiming that a message was sent or an action was executed. These identity and behavior instructions do not grant authority; future Policy and approval layers remain separate.
 
 The compatibility test mounts the published Loader, Agent Preset, scoped registry, Persona, Skill filesystem, and Skill Tool packages against the exact Harness pin. A deterministic keyless adapter gives both Presets the same synthetic release-delay request. It verifies distinct system prompts, exact Tool and Skill visibility, distinct draft responses, correct preset identity, and independent Agent disposal. The test performs no model, network, filesystem mutation, or external-service call.
 
 Harness `0.1.1-rc.2` lets its CLI configure only the shipped system Preset root plus the Harness-home user root; an external Bundle cannot append its own system root through the current Profile patch. Profile preparation therefore copies these versioned compositions into `$DSH_HOME/.agent-presets`, which is the supported discoverable root. It copies only a missing directory, validates an existing copy byte-for-byte, rejects links and special files, and refuses to overwrite divergent content. This is a Stage 0 deployment workaround, not a product Persona storage design.
+
+## Codex Specialist
+
+Profile preparation installs the exact Codex provider dependency and creates
+an isolated `$DSH_HOME/twindesk-codex-readonly/config.toml` containing native
+`approval_policy = "never"` and `sandbox_mode = "read-only"`. The technical
+Preset exposes only a foreground one-shot delegation Tool. The communication
+Preset exposes none. Harness rejects unsupported numeric depth and Tool-filter
+options before starting this out-of-process provider; the Profile records the
+remaining limit honestly as `maxDepth: provider-managed`. See
+[`CODEX_SUBAGENT_SPIKE.md`](CODEX_SUBAGENT_SPIKE.md) for the real-process test,
+authority analysis, cancellation behavior, and production gaps.
 
 ## Session Persistence
 
@@ -112,7 +124,7 @@ Prepare the local Profile through Harness's supported plugin-management command:
 corepack pnpm@11.7.0 run profile:prepare
 ```
 
-The preparation command pins the child plugin installation to pnpm 11.7.0 and the repository-local `.pnpm-store`, verifies the Client artifacts, installs local links for the Bundle and both plugins, materializes matching Agent Presets without overwriting local divergence, and writes the ordered Bundle list. Re-running it is idempotent for the same repository and Harness home.
+The preparation command pins the child plugin installation to pnpm 11.7.0 and the repository-local `.pnpm-store`, verifies the Client artifacts, installs the exact Codex provider plus local links for the Bundle and both plugins, materializes matching Agent Presets without overwriting local divergence, creates the fail-closed native Codex safety configuration, and writes the ordered Bundle list. Re-running it is idempotent for the same repository and Harness home.
 
 Dump the effective configuration without booting the Profile:
 
@@ -120,7 +132,11 @@ Dump the effective configuration without booting the Profile:
 corepack pnpm@11.7.0 run profile:config
 ```
 
-The dump must contain a final `@twindesk/bundle-workbench` layer with the `twindesk-work-hub` and `twindesk-ui` entries. Harness produces this dump with the same patch composition algorithm used during boot.
+The dump must contain a final `@twindesk/bundle-workbench` layer with the single
+`twindesk-codex-readonly` provider plus the `twindesk-work-hub` and `twindesk-ui`
+entries. It must not contain the optional upstream Bundle's default `codex`
+provider. Harness produces this dump with the same patch composition algorithm
+used during boot.
 
 ## Launch and Smoke Test
 
@@ -149,4 +165,5 @@ The smoke test checks both dumped entries, starts the Profile on port `0` so the
 - Harness exposes no public Router or primary sidebar navigation list. The plugin owns `#/inbox` and mounts its supported additive entry in the sidebar footer; [ADR 0001](decisions/0001-upstream-generic-inbox-extension-points.md) limits this path to Stage 0 and selects a generic upstream contract for the product Inbox.
 - The external Client builder covers one source module and the shared React runtime only because the upstream preset is not published.
 - JSONL Session artifacts can contain user text, model output, and Tool data. The Stage 0 probe uses synthetic temporary data; product retention, redacted export, deletion, encryption-at-rest expectations, and format migration remain unresolved before Stage 1 persistence work.
+- The Codex provider cannot enforce Harness numeric depth or Tool-filter options in this pin. `provider-managed` is a recorded Stage 0 limitation; TD-404 must add native child-runtime budgets before production use.
 - Profile state under `.twindesk/` is disposable compatibility-test data, not a supported user-data location.

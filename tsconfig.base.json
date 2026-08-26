@@ -6,6 +6,7 @@
     "forceConsistentCasingInFileNames": true,
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "rewriteRelativeImportExtensions": true,
     "noEmitOnError": true,
     "noImplicitOverride": true,
     "noUncheckedIndexedAccess": true,

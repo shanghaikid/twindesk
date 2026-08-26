@@ -14,6 +14,7 @@ if (declarations.some((source) => source.includes('@deepseek-ai/'))) {
 
 const adapter = await import(pathToFileURL(join(adapterRoot, 'index.js')).href)
 const adapterTesting = await import(pathToFileURL(join(adapterRoot, 'testing.js')).href)
+const adapterCodexTesting = await import(pathToFileURL(join(adapterRoot, 'codex-testing.js')).href)
 
 if (
   typeof adapter.inspectHarnessCompatibility !== 'function' ||
@@ -31,7 +32,8 @@ if (
   typeof adapterTesting.probeHarnessBooleanSettingPlugin !== 'function' ||
   typeof adapterTesting.probeHarnessClientInboxSlots !== 'function' ||
   typeof adapterTesting.probeHarnessAgentPresets !== 'function' ||
-  typeof adapterTesting.probeHarnessJsonlSessionRecovery !== 'function'
+  typeof adapterTesting.probeHarnessJsonlSessionRecovery !== 'function' ||
+  typeof adapterCodexTesting.probeHarnessCodexSubagent !== 'function'
 ) {
   throw new Error('Built Harness adapter is missing its public testing contract.')
 }

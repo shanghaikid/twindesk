@@ -161,6 +161,16 @@ chunk packing; another repairs a deliberately incomplete raw tail during cold
 resume. Both verify stable Preset identity, scoped Tools, derived messages,
 Tool trace, contiguous sequence numbers, and zero model calls during resumes.
 
+TD-042 adds exact `0.1.1-rc.2` pins for the Subagent service, Codex provider,
+local subprocess provider, and model-facing Subagent Tool. The provider carries
+the package-local official `@openai/codex@0.147.0` wrapper. The adapter checks
+all four Harness package versions at runtime and keeps their types behind an
+owned testing projection. A loopback-only synthetic model fixture drives the
+real Codex app-server process through repository read, denied write,
+cancellation, lifecycle attribution, and fail-loud unsupported depth and Tool
+filter paths. Native `sandbox_mode = "read-only"` is the authority ceiling;
+`maxDepth: provider-managed` remains an explicit Stage 4 upgrade risk.
+
 ## Upgrade Procedure
 
 For each intentional Harness upgrade:

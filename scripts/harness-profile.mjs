@@ -25,6 +25,16 @@ const bundleRoot = join(repositoryRoot, 'packages', 'bundle-workbench')
 const bundledAgentPresetRoot = join(bundleRoot, 'agent-presets')
 const workHubPluginRoot = join(repositoryRoot, 'packages', 'plugin-work-hub')
 const uiPluginRoot = join(repositoryRoot, 'packages', 'plugin-ui')
+const codexBundleName = '@deepseek-ai/dsh-subagent-codex'
+const codexBundleSpec = `${codexBundleName}@0.1.1-rc.2`
+const codexReadonlyHomeName = 'twindesk-codex-readonly'
+const codexReadonlyConfig = [
+  'approval_policy = "never"',
+  'sandbox_mode = "read-only"',
+  'disable_response_storage = true',
+  'check_for_update_on_startup = false',
+  '',
+].join('\n')
 const dshBin = join(repositoryRoot, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
 const startupTimeoutMs = 30_000
 const clientVerificationTimeoutMs = 10_000
@@ -210,6 +220,45 @@ export async function prepareTwinDeskAgentPresets(harnessHome = resolveHarnessHo
 }
 
 /**
+ * Materialize the native Codex authority ceiling used by the TwinDesk provider.
+ * Existing user-authored content is never replaced: only an exact regular-file
+ * match is accepted, and links or special files fail closed.
+ * @param {string} harnessHome
+ */
+export async function prepareTwinDeskCodexSafetyConfig(harnessHome = resolveHarnessHome()) {
+  const codexHome = join(harnessHome, codexReadonlyHomeName)
+  const configPath = join(codexHome, 'config.toml')
+  await mkdir(codexHome, { recursive: true, mode: 0o700 })
+  const homeStat = await lstat(codexHome)
+  if (!homeStat.isDirectory() || homeStat.isSymbolicLink()) {
+    throw new Error(`Refusing to use non-directory TwinDesk Codex home: ${codexHome}`)
+  }
+
+  const configStat = await lstatOrUndefined(configPath)
+  if (configStat === undefined) {
+    try {
+      await writeFile(configPath, codexReadonlyConfig, {
+        encoding: 'utf8',
+        mode: 0o600,
+        flag: 'wx',
+      })
+    } catch (error) {
+      if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
+      return prepareTwinDeskCodexSafetyConfig(harnessHome)
+    }
+  } else {
+    if (!configStat.isFile() || configStat.isSymbolicLink()) {
+      throw new Error(`Refusing to use non-file TwinDesk Codex safety config: ${configPath}`)
+    }
+    if ((await readFile(configPath, 'utf8')) !== codexReadonlyConfig) {
+      throw new Error(`Refusing to overwrite divergent TwinDesk Codex safety config: ${configPath}`)
+    }
+  }
+  await Promise.all([chmod(codexHome, 0o700), chmod(configPath, 0o600)])
+  return configPath
+}
+
+/**
  * @param {unknown} value
  * @returns {value is Record<string, unknown>}
  */
@@ -256,15 +305,23 @@ export async function prepareProfile(harnessHome = resolveHarnessHome()) {
   const installedBundle = join(profileRoot, 'node_modules', '@twindesk', 'bundle-workbench')
   const installedWorkHubPlugin = join(profileRoot, 'node_modules', '@twindesk', 'plugin-work-hub')
   const installedUiPlugin = join(profileRoot, 'node_modules', '@twindesk', 'plugin-ui')
+  const installedCodexBundle = join(
+    profileRoot,
+    'node_modules',
+    '@deepseek-ai',
+    'dsh-subagent-codex',
+  )
   await mkdir(harnessHome, { recursive: true })
+  await prepareTwinDeskCodexSafetyConfig(harnessHome)
   await ensurePinnedPnpm(harnessHome)
   await inspectClientPluginArtifacts(uiPluginRoot)
   await prepareTwinDeskAgentPresets(harnessHome)
 
-  const [bundleTarget, workHubPluginTarget, uiPluginTarget] = await Promise.all([
+  const [bundleTarget, workHubPluginTarget, uiPluginTarget, codexBundleTarget] = await Promise.all([
     realpathOrUndefined(installedBundle),
     realpathOrUndefined(installedWorkHubPlugin),
     realpathOrUndefined(installedUiPlugin),
+    realpathOrUndefined(installedCodexBundle),
   ])
   const [expectedBundleTarget, expectedWorkHubPluginTarget, expectedUiPluginTarget] =
     await Promise.all([realpath(bundleRoot), realpath(workHubPluginRoot), realpath(uiPluginRoot)])
@@ -275,9 +332,11 @@ export async function prepareProfile(harnessHome = resolveHarnessHome()) {
     bundleTarget !== expectedBundleTarget ||
     workHubPluginTarget !== expectedWorkHubPluginTarget ||
     uiPluginTarget !== expectedUiPluginTarget ||
+    codexBundleTarget === undefined ||
     dependencies['@twindesk/bundle-workbench'] === undefined ||
     dependencies['@twindesk/plugin-work-hub'] === undefined ||
-    dependencies['@twindesk/plugin-ui'] === undefined
+    dependencies['@twindesk/plugin-ui'] === undefined ||
+    dependencies[codexBundleName] !== '0.1.1-rc.2'
   ) {
     runDshSync(
       [
@@ -288,6 +347,7 @@ export async function prepareProfile(harnessHome = resolveHarnessHome()) {
         '--store-dir',
         profilePnpmStore,
         '--save-exact',
+        codexBundleSpec,
         bundleRoot,
         workHubPluginRoot,
         uiPluginRoot,
@@ -516,13 +576,17 @@ async function main(args) {
   if (command === 'check') {
     const config = await dumpProfile(harnessHome)
     if (
+      !config.includes('id: twindesk-subagent-codex-readonly') ||
+      !config.includes('providerName: twindesk-codex-readonly') ||
+      !config.includes('permissionMode: never') ||
+      config.includes('- id: subagent-codex\n') ||
       !config.includes('id: twindesk-work-hub') ||
       !config.includes("name: '@twindesk/plugin-work-hub'") ||
       !config.includes('id: twindesk-ui') ||
       !config.includes("name: '@twindesk/plugin-ui'")
     ) {
       throw new Error(
-        'The effective Harness configuration does not contain the required TwinDesk plugins.',
+        'The effective Harness configuration does not contain exactly the required TwinDesk provider and plugins.',
       )
     }
     await smokeProfile(harnessHome)
