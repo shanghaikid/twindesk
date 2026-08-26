@@ -29,6 +29,8 @@ test('adapter validates the installed pinned Harness contracts', () => {
       agentPresetRegistry: true,
       skillRegistry: true,
       scopedRegistries: true,
+      sessionPersistence: true,
+      jsonlSessionPersistence: true,
     },
   })
   assert.equal(Object.isFrozen(compatibility), true)

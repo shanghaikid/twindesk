@@ -58,6 +58,33 @@ The compatibility test mounts the published Loader, Agent Preset, scoped registr
 
 Harness `0.1.1-rc.2` lets its CLI configure only the shipped system Preset root plus the Harness-home user root; an external Bundle cannot append its own system root through the current Profile patch. Profile preparation therefore copies these versioned compositions into `$DSH_HOME/.agent-presets`, which is the supported discoverable root. It copies only a missing directory, validates an existing copy byte-for-byte, rejects links and special files, and refuses to overwrite divergent content. This is a Stage 0 deployment workaround, not a product Persona storage design.
 
+## Session Persistence
+
+The pinned base Bundle mounts `@deepseek-ai/dsh-session-persistence-jsonl` as
+the authoritative Session backend under the Harness home's `sessions`
+directory. TwinDesk keeps that default for the Stage 0 spike. The SQLite
+session-query plugin is a disposable full-text projection and is mounted with
+`openAt: never`; it is not a second authoritative Session store.
+
+The adapter-owned recovery probes write a synthetic technical-lead Session
+containing user and assistant messages plus a successful `twindesk_status`
+Tool call. It flushes the durable boundary, disposes the complete Host
+composition, and starts a new composition over the same root. Recovery reads
+the stored Preset identity before mounting its Persona, Skill, and Tool scope.
+Each probe repeats this cold restart and compares the complete message and Tool
+event projections. One runs the Profile's default Zstandard encoding and chunk
+packing. A second injects an incomplete final raw JSONL record and checks that
+resume repairs the tail without duplicating committed events or requesting
+another model generation.
+
+The torn-tail case uses a separate fresh root with `compression: 'none'` and
+chunk packing disabled only so it can inject and then inspect a deterministic
+byte tail. The Session persistence service, event validation, recovery
+coordinator, and resume path are otherwise the pinned production
+implementations. See
+[`SESSION_PERSISTENCE_SPIKE.md`](SESSION_PERSISTENCE_SPIKE.md) for the decision,
+evidence, and retention review.
+
 ## Client Diagnostic Card
 
 `@twindesk/plugin-ui` declares a Web `dsh.client` entry with explicit graph edges to Harness's conversation, plugin-settings, and sidebar surfaces. Its browser half registers a small read-only card under the `twindesk-work-hub` namespace. The card says that the Client plugin loaded and performs no reads or writes.
@@ -121,4 +148,5 @@ The smoke test checks both dumped entries, starts the Profile on port `0` so the
 - The generated Preset copies currently use Harness's user-trust root because the pinned CLI does not expose an external system-root extension. Product Persona authoring, upgrade, and conflict handling remain Stage 1 work.
 - Harness exposes no public Router or primary sidebar navigation list. The plugin owns `#/inbox` and mounts its supported additive entry in the sidebar footer; [ADR 0001](decisions/0001-upstream-generic-inbox-extension-points.md) limits this path to Stage 0 and selects a generic upstream contract for the product Inbox.
 - The external Client builder covers one source module and the shared React runtime only because the upstream preset is not published.
+- JSONL Session artifacts can contain user text, model output, and Tool data. The Stage 0 probe uses synthetic temporary data; product retention, redacted export, deletion, encryption-at-rest expectations, and format migration remain unresolved before Stage 1 persistence work.
 - Profile state under `.twindesk/` is disposable compatibility-test data, not a supported user-data location.

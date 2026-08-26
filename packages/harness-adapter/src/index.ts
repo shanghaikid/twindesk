@@ -8,6 +8,8 @@ import appBootManifest from '@deepseek-ai/dsh-app-boot/package.json' with { type
 import clientUiSlotsManifest from '@deepseek-ai/dsh-client-ui-slots/package.json' with { type: 'json' }
 import llmManifest from '@deepseek-ai/dsh-llm/package.json' with { type: 'json' }
 import sessionManifest from '@deepseek-ai/dsh-session/package.json' with { type: 'json' }
+import sessionPersistenceManifest from '@deepseek-ai/dsh-session-persistence/package.json' with { type: 'json' }
+import jsonlSessionPersistenceManifest from '@deepseek-ai/dsh-session-persistence-jsonl/package.json' with { type: 'json' }
 import scopeManifest from '@deepseek-ai/dsh-scope/package.json' with { type: 'json' }
 import settingsManifest from '@deepseek-ai/dsh-settings/package.json' with { type: 'json' }
 import settingsFileManifest from '@deepseek-ai/dsh-settings-file/package.json' with { type: 'json' }
@@ -18,6 +20,7 @@ import schemasteryManifest from '@deepseek-ai/schemastery/package.json' with { t
 import type { Context as CordisContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent-presets'
 import type { DshProfileManifest as UpstreamProfileManifest } from '@deepseek-ai/dsh-app-boot'
+import type {} from '@deepseek-ai/dsh-session-persistence'
 import type {} from '@deepseek-ai/dsh-skill'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { defineTool } from '@deepseek-ai/dsh-tools'
@@ -35,6 +38,7 @@ type HasSettingsRegistry = 'settings' extends keyof CordisContext ? true : never
 type HasToolRegistry = 'tools' extends keyof CordisContext ? true : never
 type HasAgentPresetRegistry = 'agentPresets' extends keyof CordisContext ? true : never
 type HasSkillRegistry = 'skills' extends keyof CordisContext ? true : never
+type HasSessionPersistence = 'sessionPersistence' extends keyof CordisContext ? true : never
 
 const hasCordisLifecycle: HasCordisLifecycle = true
 const hasProfileBundles: HasProfileBundles = true
@@ -42,6 +46,7 @@ const hasSettingsRegistry: HasSettingsRegistry = true
 const hasToolRegistry: HasToolRegistry = true
 const hasAgentPresetRegistry: HasAgentPresetRegistry = true
 const hasSkillRegistry: HasSkillRegistry = true
+const hasSessionPersistence: HasSessionPersistence = true
 const harnessPackageManifests = Object.freeze([
   ['@deepseek-ai/dsh-agent', agentManifest],
   ['@deepseek-ai/dsh-agent-loop', agentLoopManifest],
@@ -50,6 +55,8 @@ const harnessPackageManifests = Object.freeze([
   ['@deepseek-ai/dsh-client-ui-slots', clientUiSlotsManifest],
   ['@deepseek-ai/dsh-llm', llmManifest],
   ['@deepseek-ai/dsh-session', sessionManifest],
+  ['@deepseek-ai/dsh-session-persistence', sessionPersistenceManifest],
+  ['@deepseek-ai/dsh-session-persistence-jsonl', jsonlSessionPersistenceManifest],
   ['@deepseek-ai/dsh-scope', scopeManifest],
   ['@deepseek-ai/dsh-settings', settingsManifest],
   ['@deepseek-ai/dsh-settings-file', settingsFileManifest],
@@ -130,6 +137,8 @@ export interface HarnessCompatibility {
     readonly agentPresetRegistry: true
     readonly skillRegistry: true
     readonly scopedRegistries: true
+    readonly sessionPersistence: true
+    readonly jsonlSessionPersistence: true
   }
 }
 
@@ -190,6 +199,8 @@ export function inspectHarnessCompatibility(): HarnessCompatibility {
       agentPresetRegistry: hasAgentPresetRegistry,
       skillRegistry: hasSkillRegistry,
       scopedRegistries: true,
+      sessionPersistence: hasSessionPersistence,
+      jsonlSessionPersistence: true,
     }),
   })
 }

@@ -150,6 +150,17 @@ replaces rather than extends the configured system Preset roots, so the Stage
 0 Profile safely materializes versioned copies in its Harness-home user root
 and refuses to overwrite any divergent copy.
 
+TD-041 adds exact `0.1.1-rc.2` pins for the Session Persistence service and
+JSONL backend. The adapter checks both published packages and keeps their
+types behind a TwinDesk-owned recovery result. Source inspection confirms that
+the pinned base Bundle uses JSONL as its authoritative Session store and keeps
+the separate SQLite session-query service disabled as a full-text projection.
+Keyless probes flush a synthetic technical-lead Session, tear down the Host,
+and restart twice. One covers the Profile's default Zstandard encoding and
+chunk packing; another repairs a deliberately incomplete raw tail during cold
+resume. Both verify stable Preset identity, scoped Tools, derived messages,
+Tool trace, contiguous sequence numbers, and zero model calls during resumes.
+
 ## Upgrade Procedure
 
 For each intentional Harness upgrade:

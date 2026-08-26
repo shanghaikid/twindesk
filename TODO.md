@@ -116,11 +116,12 @@ Goal: prove that TwinDesk can be built primarily as out-of-tree DeepSeek Harness
   - Verification record: the versioned technical-lead and communication Presets compose through the pinned public Harness Loader and Agent Preset services; a keyless deterministic probe gives both the same synthetic release-delay request and verifies distinct prompts, exact scoped Skill and read-only Tool exposure, distinct draft-only responses, preset identity, and independent disposal. Profile preparation copies only missing Presets into the supported Harness-home root, validates matching copies byte-for-byte, and refuses to overwrite divergent content.
   - Completion check: the same fixture request produces behavior consistent with each Persona's configuration and authority.
 
-- [ ] **TD-041 — Validate Session persistence and restart recovery**
+- [x] **TD-041 — Validate Session persistence and restart recovery**
   - Select JSONL or SQLite explicitly for the spike and document why.
   - Persist a Session containing messages, a Tool call, and Persona identity.
   - Restart the Host and resume the Session.
   - Depends on: TD-020, TD-040.
+  - Verification record: the pinned JSONL backend durably stores a synthetic technical-lead Session and preserves it across two cold Host restarts using the Profile's default Zstandard encoding and chunk packing; a separate raw-encoding case repairs an injected incomplete tail. Both restore the recorded Preset before mounting its scoped Persona, Skill, and Tools, preserve identical messages and Tool trace, and use contiguous event projections to prove the first resume adds only its required `session/end-seed` while the second adds nothing.
   - Completion check: the resumed Session preserves history, Persona identity, and Tool trace without duplicate events.
 
 - [ ] **TD-042 — Validate Codex as a specialist Subagent**

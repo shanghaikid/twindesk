@@ -1,5 +1,6 @@
-import { readFile } from 'node:fs/promises'
+import { appendFile, readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
+import { basename } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { Context, type Fiber, type Plugin } from '@deepseek-ai/cordis'
@@ -7,7 +8,7 @@ import Include from '@deepseek-ai/cordis-plugin-include'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import AgentRegistry, { type AgentHandle } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
-import AgentPresets from '@deepseek-ai/dsh-agent-presets'
+import AgentPresets, { resolveSessionPreset } from '@deepseek-ai/dsh-agent-presets'
 import LlmRuntime, {
   CallId,
   createUserMessage,
@@ -16,7 +17,8 @@ import LlmRuntime, {
   type LlmResolvedModelInfo,
   type StreamChunk,
 } from '@deepseek-ai/dsh-llm'
-import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import SessionStore, { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
+import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import { scopeOf } from '@deepseek-ai/dsh-scope'
 import SettingsProvider, {
   settingsNamespace,
@@ -123,6 +125,51 @@ export interface HarnessAgentPresetProbeResult {
   readonly communication: HarnessAgentPresetObservation
   readonly communicationToolsAfterTechnicalDisposal: readonly string[]
   readonly globalToolsAfterPluginDisposal: readonly string[]
+}
+
+/** Input for the production JSONL Session restart compatibility probe. */
+export interface HarnessJsonlSessionRecoveryProbeOptions {
+  readonly storageRoot: string
+  readonly presetRoot: string
+  readonly plugin: HarnessHostPlugin
+  readonly presetId: string
+  readonly toolName: string
+  readonly fixtureRequest: string
+  readonly physicalEncoding?: 'zstd' | 'none'
+  readonly injectTornTail?: boolean
+}
+
+/** Stable event identity used to prove a restart did not duplicate records. */
+export interface HarnessPersistedEventProjection {
+  readonly seq: number
+  readonly type: string
+}
+
+/** Observable result of two cold Host restarts over one JSONL Session. */
+export interface HarnessJsonlSessionRecoveryResult {
+  readonly backend: 'jsonl'
+  readonly physicalEncoding: 'zstd' | 'none'
+  readonly tornTailInjected: boolean
+  readonly sessionId: string
+  readonly physicalArtifactFilename: string
+  readonly rawExportFilename: string
+  readonly presetBeforeRestart: string
+  readonly presetAfterFirstRestart: string
+  readonly presetAfterSecondRestart: string
+  readonly derivedMessagesBeforeRestart: string
+  readonly derivedMessagesAfterFirstRestart: string
+  readonly derivedMessagesAfterSecondRestart: string
+  readonly toolTraceBeforeRestart: readonly HarnessToolTraceEntry[]
+  readonly toolTraceAfterFirstRestart: readonly HarnessToolTraceEntry[]
+  readonly toolTraceAfterSecondRestart: readonly HarnessToolTraceEntry[]
+  readonly eventsBeforeRestart: readonly HarnessPersistedEventProjection[]
+  readonly eventsAfterFirstRestart: readonly HarnessPersistedEventProjection[]
+  readonly eventsAfterSecondRestart: readonly HarnessPersistedEventProjection[]
+  readonly resumeSources: readonly string[]
+  readonly toolsAfterRestart: readonly string[]
+  readonly firstRunModelCalls: number
+  readonly modelCallsAfterRestart: number
+  readonly tornTailRecovered: boolean | undefined
 }
 
 interface ErasedClientSlotEntry {
@@ -312,6 +359,43 @@ function finalAssistantText(handle: AgentHandle): string {
   return text.text
 }
 
+function projectToolTrace(events: readonly SessionEvent[]): HarnessToolTraceEntry[] {
+  return events.flatMap((event): HarnessToolTraceEntry[] => {
+    if (event.type === 'tool/call') {
+      return [{ type: event.type, name: event.data.name }]
+    }
+    if (event.type !== 'tool/result') return []
+    const block = event.data.message.content.find((candidate) => candidate.type === 'tool-result')
+    const text = block?.content.find((candidate) => candidate.type === 'text')
+    return [
+      {
+        type: event.type,
+        ...(block === undefined ? {} : { isError: block.isError }),
+        ...(text?.type === 'text' ? { text: text.text } : {}),
+      },
+    ]
+  })
+}
+
+function projectPersistedEvents(
+  events: readonly SessionEvent[],
+): readonly HarnessPersistedEventProjection[] {
+  return Object.freeze(events.map((event) => Object.freeze({ seq: event.seq, type: event.type })))
+}
+
+class ForbiddenGenerationAdapter extends LlmAdapter {
+  readonly requests: GenerateOptions[] = []
+
+  override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+    return Promise.resolve({ provider, id: model, name: model })
+  }
+
+  async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+    this.requests.push(options)
+    throw new Error('A balanced resumed Session must not generate without a new user request')
+  }
+}
+
 /**
  * Compose both TwinDesk Stage 0 Agent Presets through the pinned public
  * Harness services and run the same fixture through a deterministic model.
@@ -438,6 +522,254 @@ export async function probeHarnessAgentPresets(
     if (pluginFiber !== undefined) await pluginFiber.dispose()
     for (const fiber of serviceFibers.reverse()) await fiber.dispose()
   }
+}
+
+interface PersistentPresetProbeRuntime {
+  readonly ctx: Context
+  readonly serviceFibers: Fiber[]
+  pluginFiber: Fiber | undefined
+}
+
+async function bootPersistentPresetProbeRuntime(
+  options: HarnessJsonlSessionRecoveryProbeOptions,
+): Promise<PersistentPresetProbeRuntime> {
+  const ctx = new Context()
+  const serviceFibers: Fiber[] = []
+  let pluginFiber: Fiber | undefined
+
+  async function mount(service: Plugin, config?: unknown): Promise<void> {
+    serviceFibers.push(await ctx.plugin(service, config))
+  }
+
+  try {
+    ctx.baseUrl = `${pathToFileURL(options.presetRoot).href.replace(/\/$/u, '')}/`
+    await mount(Loader)
+    ctx.loader.builtins.include = Include
+    await mount(LlmRuntime)
+    await mount(SessionStore)
+    await mount(MemorySettingsProvider)
+    await mount(SystemPrompt, { persona: '' })
+    await mount(ToolRuntime)
+    await mount(SkillRegistry)
+    await mount(AgentRegistry)
+    await mount(AgentLoop, { agents: [] })
+    await mount(
+      JsonlSessionPersistence,
+      options.physicalEncoding === 'none'
+        ? {
+            root: options.storageRoot,
+            compression: 'none',
+            packChunks: false,
+            writeBatchMaxDelayMs: 1,
+          }
+        : { root: options.storageRoot },
+    )
+    await mount(AgentPresets, {
+      default: options.presetId,
+      roots: [{ path: options.presetRoot, trust: 'user' }],
+      includeUserRoot: false,
+    })
+    pluginFiber = await ctx.plugin(options.plugin as Plugin)
+    return { ctx, serviceFibers, pluginFiber }
+  } catch (error) {
+    if (pluginFiber !== undefined) await pluginFiber.dispose()
+    for (const fiber of serviceFibers.reverse()) await fiber.dispose()
+    throw error
+  }
+}
+
+async function disposePersistentPresetProbeRuntime(
+  runtime: PersistentPresetProbeRuntime | undefined,
+): Promise<void> {
+  if (runtime === undefined) return
+  if (runtime.pluginFiber !== undefined) {
+    await runtime.pluginFiber.dispose()
+    runtime.pluginFiber = undefined
+  }
+  for (const fiber of runtime.serviceFibers.reverse()) await fiber.dispose()
+}
+
+function requirePresetIdentity(
+  events: readonly SessionEvent[],
+  header: Parameters<typeof resolveSessionPreset>[0]['header'],
+  expectedPresetId: string,
+): string {
+  const presetId = resolveSessionPreset({ header, events })
+  if (presetId !== expectedPresetId) {
+    throw new Error(
+      `Persisted Session resolved Agent Preset ${JSON.stringify(presetId)} instead of ${JSON.stringify(expectedPresetId)}`,
+    )
+  }
+  return presetId
+}
+
+const TORN_JSONL_MARKER = 'TWIN_DESK_SYNTHETIC_TORN_TAIL'
+
+interface PersistentResumeObservation {
+  readonly presetId: string
+  readonly derivedMessages: string
+  readonly toolTrace: readonly HarnessToolTraceEntry[]
+  readonly events: readonly HarnessPersistedEventProjection[]
+  readonly tools: readonly string[]
+  readonly modelCalls: number
+  readonly rawContent: string
+}
+
+async function resumePersistentPresetProbeSession(
+  options: HarnessJsonlSessionRecoveryProbeOptions,
+  sessionId: ReturnType<typeof SessionId>,
+  resumeSources: string[],
+): Promise<PersistentResumeObservation> {
+  let runtime: PersistentPresetProbeRuntime | undefined
+  let handle: AgentHandle | undefined
+
+  try {
+    runtime = await bootPersistentPresetProbeRuntime(options)
+    const context = runtime.ctx
+    const adapter = new ForbiddenGenerationAdapter()
+    context.llm.registerAdapter(['twindesk-jsonl-probe'], adapter)
+    context.on('agent/session-start', ({ agent, source }) => {
+      if (agent.session.id === sessionId) resumeSources.push(source)
+    })
+    const cold = await context.sessionPersistence.inspect(sessionId)
+    const storedPreset = requirePresetIdentity(cold.events, cold.meta, options.presetId)
+    handle = await context.agents.resume({
+      resumeSessionId: sessionId,
+      agentOptions: { provider: 'twindesk-jsonl-probe', model: 'deterministic' },
+      setup: async (agentContext: Context) =>
+        void (await context.agentPresets.mount(agentContext, storedPreset)),
+    })
+    await context.sessions.flush(handle.agent.session)
+    const stored = await context.sessionPersistence.inspect(sessionId)
+    const raw = await context.sessionPersistence.readRaw(sessionId)
+    if (raw === undefined) throw new Error('Resumed JSONL Session has no raw artifact')
+
+    return Object.freeze({
+      presetId: requirePresetIdentity(stored.events, stored.meta, options.presetId),
+      derivedMessages: JSON.stringify(handle.agent.session.deriveMessages()),
+      toolTrace: Object.freeze(projectToolTrace(stored.events)),
+      events: projectPersistedEvents(stored.events),
+      tools: Object.freeze(
+        context.tools
+          .schemas(handle.agent)
+          .map((schema) => schema.name)
+          .sort(),
+      ),
+      modelCalls: adapter.requests.length,
+      rawContent: raw.content,
+    })
+  } finally {
+    if (handle !== undefined) await handle.dispose()
+    await disposePersistentPresetProbeRuntime(runtime)
+  }
+}
+
+/**
+ * Persist one technical-Persona Tool turn in Harness's pinned JSONL backend,
+ * then cold-start and resume twice. Raw mode can additionally inject a
+ * synthetic incomplete final record. The probe demonstrates Persona identity
+ * restoration, durable messages and Tool events, and duplicate-free replay.
+ */
+export async function probeHarnessJsonlSessionRecovery(
+  options: HarnessJsonlSessionRecoveryProbeOptions,
+): Promise<HarnessJsonlSessionRecoveryResult> {
+  const physicalEncoding = options.physicalEncoding ?? 'zstd'
+  const tornTailInjected = options.injectTornTail ?? false
+  if (tornTailInjected && physicalEncoding !== 'none') {
+    throw new Error('Synthetic torn-tail injection requires physicalEncoding "none"')
+  }
+  const sessionId = SessionId('twindesk-jsonl-session-recovery')
+  let firstRuntime: PersistentPresetProbeRuntime | undefined
+  let firstHandle: AgentHandle | undefined
+  let artifactPath: string
+  let physicalArtifactFilename: string
+  let rawExportFilename: string
+  let presetBeforeRestart: string
+  let derivedMessagesBeforeRestart: string
+  let toolTraceBeforeRestart: readonly HarnessToolTraceEntry[]
+  let eventsBeforeRestart: readonly HarnessPersistedEventProjection[]
+  let firstRunModelCalls: number
+
+  try {
+    firstRuntime = await bootPersistentPresetProbeRuntime(options)
+    const firstContext = firstRuntime.ctx
+    const adapter = new DeterministicAdapter(options.toolName)
+    firstContext.llm.registerAdapter(['twindesk-jsonl-probe'], adapter)
+    firstHandle = await firstContext.agents.create({
+      sessionId,
+      agentOptions: { provider: 'twindesk-jsonl-probe', model: 'deterministic' },
+      meta: { agentPreset: options.presetId },
+      setup: async (agentCtx: Context) =>
+        void (await firstContext.agentPresets.mount(agentCtx, options.presetId)),
+    })
+    firstHandle.agent.followup(
+      createUserMessage({
+        content: [{ type: 'text', text: options.fixtureRequest }],
+        source: { kind: 'user' },
+      }),
+    )
+    await firstHandle.agent.whenIdle()
+    await firstContext.sessions.flush(firstHandle.agent.session)
+
+    const stored = await firstContext.sessionPersistence.inspect(sessionId)
+    presetBeforeRestart = requirePresetIdentity(stored.events, stored.meta, options.presetId)
+    derivedMessagesBeforeRestart = JSON.stringify(firstHandle.agent.session.deriveMessages())
+    toolTraceBeforeRestart = Object.freeze(projectToolTrace(stored.events))
+    eventsBeforeRestart = projectPersistedEvents(stored.events)
+    firstRunModelCalls = adapter.requests.length
+    const location = firstContext.sessionPersistence.locate(firstHandle.agent.session.header)
+    if (location?.kind !== 'jsonl') {
+      throw new Error('JSONL Session probe received no per-session artifact location')
+    }
+    artifactPath = location.path
+    physicalArtifactFilename = basename(artifactPath)
+    const raw = await firstContext.sessionPersistence.readRaw(sessionId)
+    if (raw === undefined) throw new Error('JSONL Session probe produced no raw artifact')
+    rawExportFilename = raw.filename
+  } finally {
+    if (firstHandle !== undefined) await firstHandle.dispose()
+    await disposePersistentPresetProbeRuntime(firstRuntime)
+  }
+
+  if (tornTailInjected) {
+    await appendFile(
+      artifactPath,
+      `{"type":"assistant/chunk","seq":999,"time":0,"data":{"delta":"${TORN_JSONL_MARKER}`,
+    )
+  }
+
+  const resumeSources: string[] = []
+  const firstResume = await resumePersistentPresetProbeSession(options, sessionId, resumeSources)
+  const secondResume = await resumePersistentPresetProbeSession(options, sessionId, resumeSources)
+  const tornTailRecovered = tornTailInjected
+    ? !firstResume.rawContent.includes(TORN_JSONL_MARKER)
+    : undefined
+
+  return Object.freeze({
+    backend: 'jsonl',
+    physicalEncoding,
+    tornTailInjected,
+    sessionId,
+    physicalArtifactFilename,
+    rawExportFilename,
+    presetBeforeRestart,
+    presetAfterFirstRestart: firstResume.presetId,
+    presetAfterSecondRestart: secondResume.presetId,
+    derivedMessagesBeforeRestart,
+    derivedMessagesAfterFirstRestart: firstResume.derivedMessages,
+    derivedMessagesAfterSecondRestart: secondResume.derivedMessages,
+    toolTraceBeforeRestart,
+    toolTraceAfterFirstRestart: firstResume.toolTrace,
+    toolTraceAfterSecondRestart: secondResume.toolTrace,
+    eventsBeforeRestart,
+    eventsAfterFirstRestart: firstResume.events,
+    eventsAfterSecondRestart: secondResume.events,
+    resumeSources: Object.freeze(resumeSources),
+    toolsAfterRestart: firstResume.tools,
+    firstRunModelCalls,
+    modelCallsAfterRestart: firstResume.modelCalls + secondResume.modelCalls,
+    tornTailRecovered,
+  })
 }
 
 /**

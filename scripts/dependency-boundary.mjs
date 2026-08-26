@@ -21,6 +21,8 @@ const expectedAdapterDependencies = new Map([
   ['@deepseek-ai/dsh-client-ui-slots', '0.1.1-rc.2'],
   ['@deepseek-ai/dsh-llm', '0.1.1-rc.2'],
   ['@deepseek-ai/dsh-session', '0.1.1-rc.2'],
+  ['@deepseek-ai/dsh-session-persistence', '0.1.1-rc.2'],
+  ['@deepseek-ai/dsh-session-persistence-jsonl', '0.1.1-rc.2'],
   ['@deepseek-ai/dsh-settings', '0.1.1-rc.2'],
   ['@deepseek-ai/dsh-settings-file', '0.1.1-rc.2'],
   ['@deepseek-ai/dsh-scope', '0.1.1-rc.2'],

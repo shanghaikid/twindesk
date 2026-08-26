@@ -70,7 +70,8 @@ The TwinDesk business database:
 - drafts, approvals, and execution results;
 - data deletion and export.
 
-It never writes directly into the Harness Session SQLite schema.
+It never writes directly into Harness Session artifacts or derived Session
+query indexes.
 
 ### `@twindesk/plugin-work-hub`
 
@@ -126,7 +127,9 @@ bundles. They currently expose only a synthetic Tool, one non-secret setting,
 a Client diagnostic card, a static out-of-tree Inbox extension spike, and two
 versioned draft-only Agent Presets with different scoped Skills and read-only
 Tool exposure. Preset identity controls behavior and composition only; it does
-not grant policy authority. Later compatibility tasks add persistence and
+not grant policy authority. The Stage 0 persistence probe keeps the pinned
+base Bundle's append-only JSONL Session backend; SQLite remains a disposable
+search projection, not an authoritative store. Later compatibility tasks add
 delegation probes without moving TwinDesk business logic into Harness core.
 
 ## 4. Harness Capability Mapping
@@ -166,6 +169,11 @@ Received ExternalEvents are append-only. Inbox state, Thread associations, and u
 
 - Harness Session Store: model messages, Tool events, approval events, and Subagent or Team history.
 - TwinDesk Store: external events, Inbox state, synchronization cursors, business audit data, and retention policy state.
+
+For Stage 0, the Harness Session Store is the pinned append-only JSONL backend.
+Its default physical encoding is Zstandard. The independent SQLite Session
+query service is a rebuildable search projection and must never be treated as
+the source of truth or combined with TwinDesk business tables.
 
 The stores are associated through stable `session_id`, `run_id`, `work_item_id`, and external references.
 
@@ -286,7 +294,7 @@ Because Harness is in developer preview:
 - Will upstream publish the generic primary-navigation and keyed-page contract selected by [ADR 0001](decisions/0001-upstream-generic-inbox-extension-points.md) in time for the Stage 0 exit review?
 - Has the client bundle preset required to build external plugins been formally published?
 - What is the complete installation, upgrade, and version-pinning experience for third-party Profile plugins?
-- What latency results from running Session SQLite and business SQLite concurrently in one process?
+- What latency and backup behavior results from running append-only Session JSONL alongside the TwinDesk business SQLite database?
 - Can a Host Service continue synchronization reliably when no browser is connected to the Web UI?
 - What are the visibility, rate-limit, and incremental-query boundaries for Feishu messages under User identity?
 - What deployment and company security approvals are required for a Jira Cloud Webhook Relay?
