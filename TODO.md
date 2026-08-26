@@ -141,11 +141,12 @@ Goal: prove that TwinDesk can be built primarily as out-of-tree DeepSeek Harness
   - Verification record: `pnpm compat:check` builds production artifacts, runs an explicit integrity-tested manifest covering the pinned adapter contracts, Host Tool and Settings activation, production Client loading and Inbox lifecycle, Profile and Preset composition, Persona selection, duplicate-free Session recovery, and real package-local Codex delegation. It then validates the built adapter boundary and boots the effective Profile on loopback. Each stage reports its capability, status or signal, and exact reproduction command; unsupported package versions and capabilities continue to fail before behavioral success can be inferred.
   - Completion check: one command runs all compatibility checks in CI and locally.
 
-- [ ] **TD-051 — Publish the Stage 0 compatibility report**
+- [x] **TD-051 — Publish the Stage 0 compatibility report**
   - Record the validated Harness revision and supported extension points.
   - List gaps, unstable APIs, required patches, and upgrade risks.
   - Estimate only the implementation surface, not speculative delivery dates.
   - Depends on: TD-032, TD-050.
+  - Verification record: `docs/STAGE_0_COMPATIBILITY_REPORT.md` records the exact Harness tag and commit, published package and toolchain pins, validated public extension points, compatibility-only seams, gaps, required generic upstream work, Stage 1 and later implementation surfaces, upgrade risks, and security boundaries. A suite-owned consistency test keeps the report aligned with the pinned version record and asserts the gate decision. The report recommends **NO-GO** for Stage 1 on Harness `0.1.1-rc.2` because the accepted product path still lacks a released public primary-navigation, keyed-page, and route lifecycle contract; it approves no local Harness fork or TwinDesk-specific core patch.
   - Completion check: the report makes a clear go/no-go recommendation for Stage 1.
 
 - [ ] **TD-052 — Pass the Stage 0 exit gate**

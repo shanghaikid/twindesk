@@ -69,6 +69,6 @@ result.
 ## Scope Boundary
 
 Passing this suite proves compatibility with the selected developer-preview
-interfaces. It does not by itself approve Stage 1. TD-051 separately interprets
-these results, records gaps and required patches, and makes the Stage 1 go/no-go
-recommendation.
+interfaces. It does not by itself approve Stage 1. The
+[`Stage 0 Compatibility Report`](STAGE_0_COMPATIBILITY_REPORT.md) interprets
+the evidence and recommends NO-GO until the product-shell blocker is resolved.

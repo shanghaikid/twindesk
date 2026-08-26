@@ -89,8 +89,9 @@ sha512-UP1UIh6q3Gme/yXRn/QL2P8IsVlv8Shpg22TRJIZPsCRWLm4CBiA1MUvXmJAfsOEETBMLAl+x
 
 TD-011 preserves this resolution in `pnpm-lock.yaml`. A clean temporary copy
 completed frozen installation and the full workspace `check` command on
-2026-08-25. TD-050 will later extend this scaffold verification into the full
-TwinDesk compatibility smoke suite.
+2026-08-25. TD-050 now runs the complete pinned Host, Client, Preset, Session,
+Codex, built-adapter, and real-Profile compatibility surface through
+`corepack pnpm@11.7.0 run compat:check`.
 
 TD-012 adds adapter-owned compatibility probes for
 `@deepseek-ai/cordis@4.0.1` and

@@ -136,6 +136,8 @@ stays behind the adapter and moves no TwinDesk business logic into Harness core.
 All selected Stage 0 seams run through the ordered
 [`Harness Compatibility Suite`](HARNESS_COMPATIBILITY_SUITE.md); its manifest
 and built adapter checks fail loudly on an unsupported upstream change.
+The resulting [Stage 0 report](STAGE_0_COMPATIBILITY_REPORT.md) records the
+validated seams and the unresolved product-shell gate.
 
 ## 4. Harness Capability Mapping
 

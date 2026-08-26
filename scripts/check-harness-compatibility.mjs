@@ -39,6 +39,10 @@ export const HARNESS_COMPATIBILITY_TESTS = Object.freeze([
     file: 'tests/compatibility-suite.test.mjs',
     capability: 'suite coverage manifest and failure diagnostics',
   }),
+  Object.freeze({
+    file: 'tests/compatibility-report.test.mjs',
+    capability: 'Stage 0 report alignment and gate recommendation',
+  }),
 ])
 
 export const HARNESS_COMPATIBILITY_STEPS = Object.freeze([
