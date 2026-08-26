@@ -148,9 +148,15 @@ importers:
 
   packages/plugin-work-hub:
     dependencies:
+      '@twindesk/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@twindesk/harness-adapter':
         specifier: workspace:*
         version: link:../harness-adapter
+      '@twindesk/storage-sqlite':
+        specifier: workspace:*
+        version: link:../storage-sqlite
 
   packages/storage-sqlite:
     dependencies:
@@ -158,7 +164,11 @@ importers:
         specifier: workspace:*
         version: link:../domain
 
-  packages/web: {}
+  packages/web:
+    dependencies:
+      '@twindesk/plugin-work-hub':
+        specifier: workspace:*
+        version: link:../plugin-work-hub
 
 packages:
 

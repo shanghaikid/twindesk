@@ -267,8 +267,16 @@ p {
   display: flex;
   min-height: 48px;
   align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
   border-bottom: 1px solid var(--border);
   padding: 0 14px;
+}
+
+.fixture-label {
+  align-self: center;
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .tabs {
@@ -317,6 +325,117 @@ p {
   min-height: 520px;
   place-items: center;
   background: #fbfcfb;
+}
+
+.work-items {
+  align-self: stretch;
+  width: 100%;
+}
+
+.work-item-row {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 8px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  padding: 14px 16px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.work-item-row:hover,
+.work-item-row.is-selected {
+  background: #f5f8f6;
+}
+
+.work-item-row.is-selected {
+  box-shadow: inset 2px 0 var(--primary);
+}
+
+.work-item-heading,
+.work-item-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.work-item-heading strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.work-item-heading > span,
+.work-item-meta > span:last-child {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.work-item-summary {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.detail-card {
+  align-self: stretch;
+  width: 100%;
+  background: var(--surface);
+}
+
+.detail-title {
+  border-bottom: 1px solid var(--border);
+  padding: 20px;
+}
+
+.detail-title h2 {
+  margin-top: 12px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.detail-title p {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.detail-list {
+  margin: 0;
+  padding: 6px 20px 18px;
+}
+
+.detail-list > div {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 0;
+}
+
+.detail-list dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.detail-list dd {
+  margin: 0;
+  color: #36413b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.secondary-button {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  padding: 6px 11px;
+  cursor: pointer;
+  font-size: 12px;
 }
 
 .empty-state,

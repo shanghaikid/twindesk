@@ -4,47 +4,142 @@ import {
   TWIN_DESK_ROUTES,
   type TwinDeskRoute,
 } from './routes.ts'
+import {
+  parseInboxSnapshot,
+  type InboxItem,
+  type InboxSnapshot,
+  type InboxState,
+} from './inbox-contract.ts'
+
+const INBOX_STATES: readonly { readonly id: InboxState; readonly label: string }[] = [
+  { id: 'needs_reply', label: 'Needs reply' },
+  { id: 'needs_review', label: 'Needs review' },
+  { id: 'waiting', label: 'Waiting' },
+  { id: 'done', label: 'Done' },
+]
+const EMPTY_COUNTS: Readonly<Record<InboxState, number>> = {
+  needs_reply: 0,
+  needs_review: 0,
+  waiting: 0,
+  done: 0,
+}
 
 const root = document.querySelector<HTMLElement>('#root')
 if (root === null) throw new Error('TwinDesk Web root is missing')
 const appRoot = root
+let activeInboxState: InboxState = 'needs_reply'
+let inboxSnapshot: InboxSnapshot | undefined
+let selectedWorkItemId: string | undefined
+let inboxLoading = false
+let inboxError: string | undefined
+let inboxRequest = 0
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>'"]/gu, (character) => {
+    switch (character) {
+      case '&':
+        return '&amp;'
+      case '<':
+        return '&lt;'
+      case '>':
+        return '&gt;'
+      case "'":
+        return '&#39;'
+      default:
+        return '&quot;'
+    }
+  })
+}
 
 function navigation(route: TwinDeskRoute): string {
   return TWIN_DESK_ROUTES.map(
     (entry) => `
       <a class="nav-item${entry.id === route.id ? ' is-active' : ''}" href="${entry.path}" data-route>
         <span class="nav-dot" aria-hidden="true"></span>
-        <span>${entry.label}</span>
+        <span>${escapeHtml(entry.label)}</span>
       </a>`,
   ).join('')
 }
 
+function stateLabel(state: InboxState): string {
+  return INBOX_STATES.find(({ id }) => id === state)?.label ?? state
+}
+
+function formatTimestamp(timestamp: string): string {
+  const parsed = new Date(timestamp)
+  if (!Number.isFinite(parsed.valueOf())) return timestamp
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(parsed)
+}
+
+function workItemList(items: readonly InboxItem[]): string {
+  if (inboxLoading) {
+    return `<div class="empty-state"><h2>Loading Inbox…</h2><p>Reading local fixture projections.</p></div>`
+  }
+  if (inboxError !== undefined) {
+    return `<div class="empty-state"><h2>Inbox unavailable</h2><p>${escapeHtml(inboxError)}</p><button class="secondary-button" type="button" data-inbox-retry>Retry</button></div>`
+  }
+  if (items.length === 0) {
+    return `<div class="empty-state"><div class="empty-icon" aria-hidden="true">✓</div><h2>No work items</h2><p>There are no fixture items in this state.</p></div>`
+  }
+  return `<div class="work-items">${items
+    .map(
+      (
+        item,
+      ) => `<button class="work-item-row${item.id === selectedWorkItemId ? ' is-selected' : ''}" type="button" data-work-item-id="${escapeHtml(item.id)}">
+        <span class="work-item-heading"><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(formatTimestamp(item.updatedAt))}</span></span>
+        <span class="work-item-summary">${escapeHtml(item.summary)}</span>
+        <span class="work-item-meta"><span class="badge neutral">${escapeHtml(item.source.label)}</span>${
+          item.personaLabel === undefined ? '' : `<span>${escapeHtml(item.personaLabel)}</span>`
+        }</span>
+      </button>`,
+    )
+    .join('')}</div>`
+}
+
+function workItemDetails(item: InboxItem | undefined): string {
+  if (item === undefined) {
+    return `<div class="detail-empty"><h2>Work item details</h2><p>Select an item to view its local projection and context.</p></div>`
+  }
+  const contextText =
+    item.context.status === 'complete'
+      ? 'Complete fixture context'
+      : `Partial — missing ${item.context.missing.join(', ')}`
+  return `<article class="detail-card">
+    <div class="detail-title"><span class="badge">${escapeHtml(stateLabel(item.inboxState))}</span><h2>${escapeHtml(item.title)}</h2><p>${escapeHtml(item.summary)}</p></div>
+    <dl class="detail-list">
+      <div><dt>Attention</dt><dd>${escapeHtml(item.attentionReason)}</dd></div>
+      <div><dt>Persona</dt><dd>${escapeHtml(item.personaLabel ?? 'Not selected')}</dd></div>
+      <div><dt>Source</dt><dd>${escapeHtml(item.source.label)} · ${escapeHtml(item.source.objectType)} · ${item.sourceCount} ${item.sourceCount === 1 ? 'event' : 'events'}</dd></div>
+      <div><dt>Context</dt><dd>${escapeHtml(contextText)}</dd></div>
+      <div><dt>Updated</dt><dd>${escapeHtml(formatTimestamp(item.updatedAt))}</dd></div>
+    </dl>
+    <div class="notice"><strong>Fixture only.</strong> This page reads local synthetic data and cannot perform an external write.</div>
+  </article>`
+}
+
 function inboxContent(): string {
+  const counts = inboxSnapshot?.counts ?? EMPTY_COUNTS
+  const items = inboxSnapshot?.items ?? []
+  const selected = inboxLoading
+    ? undefined
+    : (items.find(({ id }) => id === selectedWorkItemId) ?? items[0])
   return `
     <div class="inbox-page">
       <div class="toolbar">
         <div class="tabs" role="tablist" aria-label="Inbox states">
-          <button class="tab is-active" type="button" role="tab" aria-selected="true">Needs reply <span>0</span></button>
-          <button class="tab" type="button" role="tab" aria-selected="false">Needs review <span>0</span></button>
-          <button class="tab" type="button" role="tab" aria-selected="false">Waiting <span>0</span></button>
-          <button class="tab" type="button" role="tab" aria-selected="false">Done <span>0</span></button>
+          ${INBOX_STATES.map(
+            ({ id, label }) =>
+              `<button class="tab${id === activeInboxState ? ' is-active' : ''}" type="button" role="tab" aria-selected="${id === activeInboxState}" data-inbox-state="${id}">${label} <span>${counts[id]}</span></button>`,
+          ).join('')}
         </div>
+        <span class="fixture-label">Synthetic fixtures</span>
       </div>
       <div class="inbox-split">
-        <section class="work-list" aria-label="Work item list">
-          <div class="empty-state">
-            <div class="empty-icon" aria-hidden="true">✓</div>
-            <h2>No work items</h2>
-            <p>Fixture ingestion and Connector-backed work items are not implemented yet.</p>
-            <span class="badge neutral">No fixtures loaded</span>
-          </div>
-        </section>
-        <aside class="detail-pane">
-          <div class="detail-empty">
-            <h2>Work item details</h2>
-            <p>Select an item to view its sources, context, Persona, draft, approval, and audit history.</p>
-          </div>
-        </aside>
+        <section class="work-list" aria-label="Work item list">${workItemList(items)}</section>
+        <aside class="detail-pane">${workItemDetails(selected)}</aside>
       </div>
     </div>`
 }
@@ -125,7 +220,7 @@ function settingsContent(): string {
         <div class="setting-row"><div><h3>Product UI</h3><p>TwinDesk-owned local Web shell</p></div><span class="badge success">Active</span></div>
         <div class="setting-row"><div><h3>Agent Runtime</h3><p>DeepSeek Harness 0.1.1-rc.2, behind the adapter</p></div><span class="badge neutral">Diagnostic UI only</span></div>
         <div class="setting-row"><div><h3>Autonomy</h3><p>Reads, drafts, approvals, and execution remain separate</p></div><span class="badge success">draft_only</span></div>
-        <div class="setting-row"><div><h3>Business storage</h3><p>Separate from Harness Session storage</p></div><span class="badge neutral">Not implemented</span></div>
+        <div class="setting-row"><div><h3>Business storage</h3><p>Fixture projections use TwinDesk SQLite, separate from Harness Sessions</p></div><span class="badge success">Active</span></div>
       </div>
     </section>`
 }
@@ -145,8 +240,12 @@ function contentFor(route: TwinDeskRoute): string {
   }
 }
 
+function currentRoute(): TwinDeskRoute {
+  return resolveTwinDeskRoute(window.location.pathname) ?? DEFAULT_TWIN_DESK_ROUTE
+}
+
 function render(): void {
-  const route = resolveTwinDeskRoute(window.location.pathname) ?? DEFAULT_TWIN_DESK_ROUTE
+  const route = currentRoute()
   document.title = `${route.label} · TwinDesk`
   appRoot.innerHTML = `
     <div class="app-shell">
@@ -159,7 +258,7 @@ function render(): void {
       </aside>
       <main class="main-shell">
         <header class="page-header">
-          <div><h1>${route.label}</h1><p>${route.description}</p></div>
+          <div><h1>${escapeHtml(route.label)}</h1><p>${escapeHtml(route.description)}</p></div>
           <span class="badge success">draft_only</span>
         </header>
         <div class="page-content">${contentFor(route)}</div>
@@ -167,14 +266,62 @@ function render(): void {
     </div>`
 }
 
+async function loadInbox(state: InboxState): Promise<void> {
+  const request = ++inboxRequest
+  activeInboxState = state
+  inboxLoading = true
+  inboxError = undefined
+  selectedWorkItemId = undefined
+  render()
+  try {
+    const response = await fetch(`/api/inbox?state=${encodeURIComponent(state)}`, {
+      headers: { accept: 'application/json' },
+    })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseInboxSnapshot(await response.json(), state)
+    if (request !== inboxRequest) return
+    inboxSnapshot = snapshot
+    selectedWorkItemId = snapshot.items[0]?.id
+  } catch (error) {
+    if (request !== inboxRequest) return
+    inboxSnapshot = undefined
+    inboxError = error instanceof Error ? error.message : 'The local Inbox request failed.'
+  } finally {
+    if (request === inboxRequest) {
+      inboxLoading = false
+      render()
+    }
+  }
+}
+
+function renderRouteAndLoad(): void {
+  render()
+  if (currentRoute().id === 'inbox') void loadInbox(activeInboxState)
+}
+
 document.addEventListener('click', (event) => {
   const target = event.target
   if (!(target instanceof Element)) return
   const anchor = target.closest<HTMLAnchorElement>('a[data-route]')
-  if (anchor === null || anchor.origin !== window.location.origin) return
-  event.preventDefault()
-  if (anchor.pathname !== window.location.pathname) history.pushState({}, '', anchor.pathname)
-  render()
+  if (anchor !== null && anchor.origin === window.location.origin) {
+    event.preventDefault()
+    if (anchor.pathname !== window.location.pathname) history.pushState({}, '', anchor.pathname)
+    renderRouteAndLoad()
+    return
+  }
+  const stateButton = target.closest<HTMLButtonElement>('button[data-inbox-state]')
+  const state = stateButton?.dataset.inboxState as InboxState | undefined
+  if (state !== undefined && INBOX_STATES.some(({ id }) => id === state)) {
+    void loadInbox(state)
+    return
+  }
+  const itemButton = target.closest<HTMLButtonElement>('button[data-work-item-id]')
+  if (itemButton?.dataset.workItemId !== undefined) {
+    selectedWorkItemId = itemButton.dataset.workItemId
+    render()
+    return
+  }
+  if (target.closest('[data-inbox-retry]') !== null) void loadInbox(activeInboxState)
 })
-window.addEventListener('popstate', render)
-render()
+window.addEventListener('popstate', renderRouteAndLoad)
+renderRouteAndLoad()

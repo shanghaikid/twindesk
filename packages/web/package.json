@@ -15,5 +15,8 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "dependencies": {
+    "@twindesk/plugin-work-hub": "workspace:*"
+  }
 }

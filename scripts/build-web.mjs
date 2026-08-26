@@ -13,7 +13,14 @@ if (process.argv[2] === 'clean') {
   process.exit(0)
 }
 
-for (const compiledEntry of ['app.js', 'cli.js', 'index.js', 'routes.js', 'server.js']) {
+for (const compiledEntry of [
+  'app.js',
+  'cli.js',
+  'inbox-contract.js',
+  'index.js',
+  'routes.js',
+  'server.js',
+]) {
   try {
     const entry = await stat(join(outputRoot, compiledEntry))
     if (!entry.isFile()) throw new Error('not a regular file')

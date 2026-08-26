@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 
 import {
@@ -19,6 +22,13 @@ function request(url, init = {}) {
   })
 }
 
+/** @param {import('node:test').TestContext} context */
+async function temporaryDatabase(context) {
+  const root = await mkdtemp(join(tmpdir(), 'twindesk-web-test-'))
+  context.after(() => rm(root, { force: true, recursive: true }))
+  return join(root, 'twindesk.sqlite3')
+}
+
 test('the product Web shell owns deterministic top-level routes', () => {
   assert.deepEqual(
     TWIN_DESK_ROUTES.map(({ id, path }) => ({ id, path })),
@@ -37,7 +47,8 @@ test('the product Web shell owns deterministic top-level routes', () => {
 })
 
 test('the local Web server serves product routes and restarts on the same port', async (context) => {
-  const running = await startTwinDeskWebServer({ port: 0 })
+  const databasePath = await temporaryDatabase(context)
+  const running = await startTwinDeskWebServer({ databasePath, port: 0 })
   context.after(() => running.close())
 
   const rootResponse = await request(`${running.url}/`)
@@ -53,7 +64,14 @@ test('the local Web server serves product routes and restarts on the same port',
 
   const appResponse = await request(`${running.url}/app.js`)
   assert.equal(appResponse.status, 200)
-  assert.match(await appResponse.text(), /history\.pushState/u)
+  const appSource = await appResponse.text()
+  assert.match(appSource, /history\.pushState/u)
+  assert.match(appSource, /\/api\/inbox\?state=/u)
+  assert.match(appSource, /function escapeHtml/u)
+
+  const contractResponse = await request(`${running.url}/inbox-contract.js`)
+  assert.equal(contractResponse.status, 200)
+  assert.match(await contractResponse.text(), /function parseInboxSnapshot/u)
 
   const stylesResponse = await request(`${running.url}/styles.css`)
   assert.equal(stylesResponse.status, 200)
@@ -66,17 +84,42 @@ test('the local Web server serves product routes and restarts on the same port',
     version: 1,
   })
 
+  const inboxResponse = await request(`${running.url}/api/inbox?state=needs_review`)
+  assert.equal(inboxResponse.status, 200)
+  assert.match(inboxResponse.headers.get('content-type') ?? '', /^application\/json/u)
+  const inbox = await inboxResponse.json()
+  assert.deepEqual(inbox.counts, {
+    needs_reply: 1,
+    needs_review: 1,
+    waiting: 1,
+    done: 1,
+  })
+  assert.equal(inbox.fixture, true)
+  assert.equal(inbox.items.length, 1)
+  assert.equal(inbox.items[0].inboxState, 'needs_review')
+  assert.equal(inbox.items[0].context.status, 'partial')
+  assert.equal(inbox.items[0].source.label, 'Synthetic fixture')
+  assert.equal('accountId' in inbox.items[0].source, false)
+  const headInbox = await request(`${running.url}/api/inbox?state=done`, { method: 'HEAD' })
+  assert.equal(headInbox.status, 200)
+  assert.equal(await headInbox.text(), '')
+  assert.equal((await request(`${running.url}/api/inbox?state=unknown`)).status, 400)
+  assert.equal((await request(`${running.url}/api/inbox?state=done&extra=true`)).status, 400)
+
   const postResponse = await request(`${running.url}/health`, { method: 'POST' })
   assert.equal(postResponse.status, 405)
   assert.equal(postResponse.headers.get('allow'), 'GET, HEAD')
+  assert.equal((await request(`${running.url}/api/inbox`, { method: 'POST' })).status, 405)
   assert.equal((await request(`${running.url}/unknown`)).status, 404)
 
   const port = running.port
   await running.close()
   await running.close()
-  const restarted = await startTwinDeskWebServer({ port })
+  const restarted = await startTwinDeskWebServer({ databasePath, port })
   try {
     assert.equal((await request(`${restarted.url}/inbox`)).status, 200)
+    const restartedInbox = await request(`${restarted.url}/api/inbox`)
+    assert.deepEqual((await restartedInbox.json()).counts, inbox.counts)
   } finally {
     await restarted.close()
   }

@@ -49,6 +49,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [External Event Ingestion](docs/EVENT_INGESTION.md): transactional deduplication, replay, conflict, and out-of-order semantics.
 - [Durable Synchronization Cursors](docs/SYNC_CURSORS.md): atomic event/checkpoint commits, restart recovery, and regression rules.
 - [Work Item Projections](docs/WORK_ITEM_PROJECTIONS.md): event-anchored projection writes, revisioned user actions, rebuilds, and Inbox pagination.
+- [Fixture-driven Inbox](docs/FIXTURE_INBOX.md): synthetic four-state Work Hub data, loopback read API, UI behavior, and restart limits.
 - [Harness Upstream Navigation Proposal](docs/HARNESS_UPSTREAM_NAVIGATION_PROPOSAL.md): an optional ecosystem reference for generic Harness Client extensibility.
 - [Inbox Extension Spike](docs/INBOX_EXTENSION_SPIKE.md): out-of-tree route and sidebar findings, limitations, and compatibility seams.
 - [ADR 0001](docs/decisions/0001-upstream-generic-inbox-extension-points.md): historical Harness Client investigation and upstream path.
@@ -59,9 +60,10 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 Stage 0 is complete and the project is in Roadmap Stage 1. The standalone
 `@twindesk/web` shell owns Inbox, Personas, Connectors, Audit, and Settings
 routes and runs only on loopback. The business schema, idempotent ExternalEvent
-ingestion, durable synchronization cursors, Work Item projections, and Inbox
-queries are implemented, but fixture wiring, drafts, approvals, audit records,
-and real Connectors are not.
+ingestion, durable synchronization cursors, Work Item projections, Inbox
+queries, and the fixture-driven four-state Inbox page are implemented, but
+Persona-to-Preset mapping, drafts, approvals, audit records, and real
+Connectors are not.
 Versioned domain records and the product-owned Connector contract are
 implemented. The pinned Harness Profile,
 two draft-only Personas, JSONL restart recovery, and bounded Codex specialist

@@ -4,8 +4,13 @@
     "composite": true,
     "outDir": "./dist",
     "rootDir": "./src",
-    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo",
+    "types": ["node"]
   },
   "include": ["src"],
-  "references": [{ "path": "../harness-adapter" }]
+  "references": [
+    { "path": "../domain" },
+    { "path": "../harness-adapter" },
+    { "path": "../storage-sqlite" }
+  ]
 }

@@ -3,11 +3,18 @@ import { createServer, type Server, type ServerResponse } from 'node:http'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import {
+  createFixtureInboxService,
+  FIXTURE_INBOX_STATES,
+  type FixtureInboxService,
+} from '@twindesk/plugin-work-hub/fixture-inbox'
+
 import { resolveTwinDeskRoute } from './routes.ts'
 
 const outputRoot = dirname(fileURLToPath(import.meta.url))
 const ASSETS = new Map([
   ['/app.js', { file: 'app.js', type: 'text/javascript; charset=utf-8' }],
+  ['/inbox-contract.js', { file: 'inbox-contract.js', type: 'text/javascript; charset=utf-8' }],
   ['/routes.js', { file: 'routes.js', type: 'text/javascript; charset=utf-8' }],
   ['/styles.css', { file: 'styles.css', type: 'text/css; charset=utf-8' }],
 ])
@@ -28,6 +35,8 @@ const CONTENT_SECURITY_POLICY = [
 export interface TwinDeskWebServerOptions {
   readonly host?: '127.0.0.1' | '::1'
   readonly port?: number
+  /** Stage 1 business database. Omit to keep fixture data in memory. */
+  readonly databasePath?: string
 }
 
 /** Running local server with explicit, idempotent shutdown. */
@@ -52,6 +61,39 @@ function commonHeaders(contentType: string): Record<string, string> {
 function send(response: ServerResponse, status: number, body: string | Buffer, type: string): void {
   response.writeHead(status, commonHeaders(type))
   response.end(body)
+}
+
+function inboxStateFrom(requestUrl: URL): (typeof FIXTURE_INBOX_STATES)[number] | undefined {
+  for (const key of requestUrl.searchParams.keys()) {
+    if (key !== 'state') throw new TypeError('Unsupported Inbox query parameter.')
+  }
+  const values = requestUrl.searchParams.getAll('state')
+  if (values.length === 0) return undefined
+  if (values.length !== 1 || !FIXTURE_INBOX_STATES.includes(values[0] as never)) {
+    throw new TypeError('Unsupported Inbox state.')
+  }
+  return values[0] as (typeof FIXTURE_INBOX_STATES)[number]
+}
+
+function serveInboxApi(
+  response: ServerResponse,
+  requestUrl: URL,
+  headOnly: boolean,
+  inbox: FixtureInboxService,
+): void {
+  let state: (typeof FIXTURE_INBOX_STATES)[number] | undefined
+  try {
+    state = inboxStateFrom(requestUrl)
+  } catch {
+    send(response, 400, headOnly ? '' : 'Invalid Inbox query.\n', 'text/plain; charset=utf-8')
+    return
+  }
+  const body = JSON.stringify(inbox.read(state))
+  response.writeHead(200, {
+    ...commonHeaders('application/json; charset=utf-8'),
+    'content-length': String(Buffer.byteLength(body)),
+  })
+  response.end(headOnly ? undefined : body)
 }
 
 async function serveAsset(
@@ -106,6 +148,8 @@ export async function startTwinDeskWebServer(
     throw new Error('TwinDesk Web port must be an integer from 0 through 65535')
   }
 
+  const inbox = createFixtureInboxService(options.databasePath)
+
   const server = createServer((request, response) => {
     void (async () => {
       const method = request.method ?? 'GET'
@@ -119,6 +163,10 @@ export async function startTwinDeskWebServer(
       if (requestUrl.pathname === '/health') {
         const body = JSON.stringify({ service: 'twindesk-web', status: 'ok', version: 1 })
         send(response, 200, method === 'HEAD' ? '' : body, 'application/json; charset=utf-8')
+        return
+      }
+      if (requestUrl.pathname === '/api/inbox') {
+        serveInboxApi(response, requestUrl, method === 'HEAD', inbox)
         return
       }
       if (ASSETS.has(requestUrl.pathname)) {
@@ -139,14 +187,19 @@ export async function startTwinDeskWebServer(
     })
   })
 
-  await new Promise<void>((resolve, reject) => {
-    const onError = (error: Error): void => reject(error)
-    server.once('error', onError)
-    server.listen(port, host, () => {
-      server.off('error', onError)
-      resolve()
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const onError = (error: Error): void => reject(error)
+      server.once('error', onError)
+      server.listen(port, host, () => {
+        server.off('error', onError)
+        resolve()
+      })
     })
-  })
+  } catch (error) {
+    inbox.close()
+    throw error
+  }
 
   const address = addressOf(server)
   const displayHost = address.host.includes(':') ? `[${address.host}]` : address.host
@@ -158,6 +211,7 @@ export async function startTwinDeskWebServer(
     close() {
       closing ??= new Promise<void>((resolve, reject) => {
         server.close((error) => {
+          inbox.close()
           if (error !== undefined) reject(error)
           else resolve()
         })

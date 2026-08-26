@@ -11,9 +11,15 @@
     "./technical-context": {
       "types": "./dist/technical-context.d.ts",
       "default": "./dist/technical-context.js"
+    },
+    "./fixture-inbox": {
+      "types": "./dist/fixture-inbox.d.ts",
+      "default": "./dist/fixture-inbox.js"
     }
   },
   "dependencies": {
+    "@twindesk/domain": "workspace:*",
+    "@twindesk/storage-sqlite": "workspace:*",
     "@twindesk/harness-adapter": "workspace:*"
   }
 }

@@ -102,14 +102,17 @@ The core Host-side service:
 - Connector registry;
 - event normalization and deduplication;
 - Work Item routing;
+- Stage 1 fixture ingestion and presentation-safe Inbox reads;
 - Persona selection;
 - association between Runs and external objects;
 - post-approval action dispatch;
 - audit writes.
 
-During TD-020 this package contains only a disposable Host lifecycle effect.
-The service behavior above remains later-stage work; the minimal plugin exists
-only to prove out-of-tree Profile installation and activation.
+The Stage 0 Host lifecycle effect remains as compatibility evidence. TD-106
+adds a product-owned fixture Inbox service that seeds normalized synthetic
+records through `@twindesk/storage-sqlite` and exposes a narrow read model to
+the local Web server. Connector registry, real event routing, Run association,
+and action dispatch remain later-stage work.
 
 ### `@twindesk/plugin-feishu`
 
@@ -143,7 +146,7 @@ The local product presentation boundary:
 
 - owns Inbox, Personas, Connectors, Audit, and Settings routes;
 - serves only on loopback and applies restrictive browser security headers;
-- consumes a future Work Hub API rather than Harness or database internals;
+- consumes the loopback Work Hub Inbox API rather than Harness or database internals;
 - presents drafts, approvals, execution receipts, and partial context without
   implying authority from Persona or page visibility.
 
