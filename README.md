@@ -39,6 +39,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Codex Subagent Spike](docs/CODEX_SUBAGENT_SPIKE.md): read-only specialist configuration, cancellation, attribution, and capability limits.
 - [Harness Compatibility Suite](docs/HARNESS_COMPATIBILITY_SUITE.md): one-command Stage 0 contract coverage and failure diagnostics.
 - [Stage 0 Compatibility Report](docs/STAGE_0_COMPATIBILITY_REPORT.md): validated extension points, gaps, upgrade risks, and the Stage 1 gate recommendation.
+- [Stage 0 Exit Gate](docs/STAGE_0_EXIT_GATE.md): the formal TD-052 decision, criterion evidence, blocker, and re-evaluation requirements.
 - [Inbox Extension Spike](docs/INBOX_EXTENSION_SPIKE.md): out-of-tree route and sidebar findings, limitations, and compatibility seams.
 - [ADR 0001](docs/decisions/0001-upstream-generic-inbox-extension-points.md): Inbox core-patch policy, upstream ownership, and upgrade consequences.
 
@@ -52,9 +53,10 @@ probe also verifies Persona-aware, duplicate-free cold restart recovery. A
 foreground Codex specialist spike now proves bounded read-only repository
 delegation, cancellation, and traceable results. The complete selected Harness
 surface is available through one compatibility command. The Stage 0 report
-recommends NO-GO for Stage 1 until a released Harness version exposes the
-accepted generic navigation and keyed-page contract. Work Hub product behavior
-has not been implemented.
+recommends NO-GO, and the formal TD-052 audit is **NOT PASSED**, because the
+pinned Harness release does not expose the accepted generic navigation,
+keyed-page, and route lifecycle contract. Stage 1 remains gated and Work Hub
+product behavior has not been implemented.
 
 ## Development
 

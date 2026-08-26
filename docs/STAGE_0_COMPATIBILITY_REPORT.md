@@ -11,6 +11,9 @@
 
 **NO-GO for the Stage 1 gate on the validated Harness revision.**
 
+The formal [TD-052 exit-gate audit](STAGE_0_EXIT_GATE.md) records this as
+**NOT PASSED**: three criteria pass and the product-experience criterion fails.
+
 The runtime and Host extension model are viable without a fork. TwinDesk can
 formally install out-of-tree Host and Client plugins, register read-only Tools
 and Settings, compose distinct Agent Presets, recover Sessions, and run a

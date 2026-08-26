@@ -23,6 +23,7 @@ test('the Harness compatibility suite covers every TD-050 boundary', async () =>
       'tests/codex-subagent.test.mjs',
       'tests/compatibility-suite.test.mjs',
       'tests/compatibility-report.test.mjs',
+      'tests/stage0-exit-gate.test.mjs',
     ],
   )
   assert.deepEqual(

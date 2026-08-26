@@ -17,6 +17,10 @@ Goal: prove that key capabilities can be implemented through out-of-tree plugins
 
 Exit criterion: the product experience can be built without a fork, using at most one minimal, product-neutral Client navigation and page extension accepted upstream.
 
+Current gate status (2026-08-26): **NOT PASSED**. The pinned Harness release
+lacks the accepted generic Client navigation, keyed-page, and route lifecycle;
+see [the TD-052 exit-gate audit](STAGE_0_EXIT_GATE.md). Stage 1 remains gated.
+
 ## Stage 1: Local Work Hub
 
 Goal: establish domain and persistence layers with no external side effects.

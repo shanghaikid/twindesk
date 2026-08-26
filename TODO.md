@@ -155,6 +155,7 @@ Goal: prove that TwinDesk can be built primarily as out-of-tree DeepSeek Harness
   - Compatibility tests cover every selected unstable boundary.
   - All Stage 0 security and restart checks pass.
   - Depends on: TD-051.
+  - Latest gate audit (2026-08-26): **NOT PASSED**. Three criteria pass, but the product-experience criterion fails because Harness `0.1.1-rc.2` has no released generic primary-navigation, keyed-page, and route lifecycle contract. `docs/STAGE_0_EXIT_GATE.md` records the evidence and re-evaluation requirements. Stage 1 remains gated.
 
 ## Stage 1 Backlog — Local Work Hub
 
