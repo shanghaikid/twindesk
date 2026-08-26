@@ -13,6 +13,7 @@ import {
   type JsonValue,
   type ContentDigest,
   type WorkItem,
+  type WorkItemUserAction,
 } from './model.ts'
 
 /** Boundary error that reports a field path without echoing sensitive input. */
@@ -318,6 +319,46 @@ export function parseWorkItem(value: unknown): WorkItem {
   return deepFreeze(record as unknown as WorkItem)
 }
 
+export function parseWorkItemUserAction(value: unknown): WorkItemUserAction {
+  const path = 'work_item_user_action'
+  const record = objectAt(value, path)
+  const action = enumAt(
+    record.action,
+    ['set_inbox_state', 'select_persona', 'clear_persona'],
+    `${path}.action`,
+  )
+  const commonKeys = [
+    'kind',
+    'schemaVersion',
+    'id',
+    'workItemId',
+    'revision',
+    'action',
+    'occurredAt',
+  ]
+  if (action === 'set_inbox_state') {
+    exactKeys(record, path, [...commonKeys, 'inboxState'])
+  } else if (action === 'select_persona') {
+    exactKeys(record, path, [...commonKeys, 'personaId'])
+  } else {
+    exactKeys(record, path, commonKeys)
+  }
+  commonRecordAt(record, 'work_item_user_action', path)
+  stringAt(record.workItemId, `${path}.workItemId`)
+  positiveIntegerAt(record.revision, `${path}.revision`)
+  if (action === 'set_inbox_state') {
+    enumAt(
+      record.inboxState,
+      ['needs_reply', 'needs_review', 'waiting', 'done'],
+      `${path}.inboxState`,
+    )
+  } else if (action === 'select_persona') {
+    stringAt(record.personaId, `${path}.personaId`)
+  }
+  timestampAt(record.occurredAt, `${path}.occurredAt`)
+  return deepFreeze(record as unknown as WorkItemUserAction)
+}
+
 export function parseDraft(value: unknown): Draft {
   const path = 'draft'
   const record = objectAt(value, path)
@@ -583,6 +624,8 @@ export function parseDomainRecord(value: unknown): DomainRecord {
       return parseExternalThread(value)
     case 'work_item':
       return parseWorkItem(value)
+    case 'work_item_user_action':
+      return parseWorkItemUserAction(value)
     case 'draft':
       return parseDraft(value)
     case 'action_proposal':

@@ -1,7 +1,13 @@
 import { createHash } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
 
-import type { ConnectorCursor, ExternalEvent } from '@twindesk/domain'
+import type {
+  ConnectorCursor,
+  ExternalEvent,
+  WorkItem,
+  WorkItemId,
+  WorkItemUserAction,
+} from '@twindesk/domain'
 
 import {
   EventIngestionError,
@@ -22,6 +28,19 @@ import {
   type ConnectorSyncCommitRequest,
   type ConnectorSyncCommitResult,
 } from './sync-cursor.ts'
+import {
+  WorkItemProjectionError,
+  applyWorkItemUserAction as storeWorkItemUserAction,
+  putWorkItemProjection as storeWorkItemProjection,
+  queryInbox as queryStoredInbox,
+  readWorkItem,
+  rebuildWorkItemProjection as rebuildStoredWorkItemProjection,
+  type InboxPage,
+  type InboxQuery,
+  type WorkItemProjectionInput,
+  type WorkItemProjectionWriteResult,
+  type WorkItemUserActionWriteResult,
+} from './work-item-projection.ts'
 
 export type StorageSchemaErrorCode =
   | 'foreign_database'
@@ -59,6 +78,11 @@ export interface TwinDeskDatabase {
   ingestExternalEvents(events: readonly ExternalEvent[]): EventIngestionResult
   getConnectorCursor(key: ConnectorCursorKey): ConnectorCursor | undefined
   commitConnectorSyncBatch(request: ConnectorSyncCommitRequest): ConnectorSyncCommitResult
+  putWorkItemProjection(input: WorkItemProjectionInput): WorkItemProjectionWriteResult
+  applyWorkItemUserAction(action: WorkItemUserAction): WorkItemUserActionWriteResult
+  rebuildWorkItemProjection(id: WorkItemId): WorkItem
+  getWorkItem(id: WorkItemId): WorkItem | undefined
+  queryInbox(query?: InboxQuery): InboxPage
   close(): void
   [Symbol.dispose](): void
 }
@@ -97,6 +121,46 @@ class TwinDeskDatabaseHandle implements TwinDeskDatabase {
       throw new SyncCursorError('database_closed', 'The TwinDesk database is closed.')
     }
     return commitConnectorSyncBatch(database, request)
+  }
+
+  putWorkItemProjection(input: WorkItemProjectionInput): WorkItemProjectionWriteResult {
+    const database = this.#database
+    if (database === undefined) {
+      throw new WorkItemProjectionError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return storeWorkItemProjection(database, input)
+  }
+
+  applyWorkItemUserAction(action: WorkItemUserAction): WorkItemUserActionWriteResult {
+    const database = this.#database
+    if (database === undefined) {
+      throw new WorkItemProjectionError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return storeWorkItemUserAction(database, action)
+  }
+
+  rebuildWorkItemProjection(id: WorkItemId): WorkItem {
+    const database = this.#database
+    if (database === undefined) {
+      throw new WorkItemProjectionError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return rebuildStoredWorkItemProjection(database, id)
+  }
+
+  getWorkItem(id: WorkItemId): WorkItem | undefined {
+    const database = this.#database
+    if (database === undefined) {
+      throw new WorkItemProjectionError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return readWorkItem(database, id)
+  }
+
+  queryInbox(query: InboxQuery = {}): InboxPage {
+    const database = this.#database
+    if (database === undefined) {
+      throw new WorkItemProjectionError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return queryStoredInbox(database, query)
   }
 
   close(): void {

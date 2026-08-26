@@ -47,6 +47,7 @@ or model SDK dependency:
 
 - ExternalEvent
 - WorkItem
+- WorkItemUserAction
 - ExternalThread
 - Draft
 - ActionProposal
@@ -201,6 +202,15 @@ connector + tenant/account + object type + external id + version/update time
 ```
 
 Received ExternalEvents are append-only. Inbox state, Thread associations, and unread counts are derived from events and explicit user actions.
+
+Work Hub supplies a versioned Thread and Work Item projection anchored to
+durable ExternalEvent IDs. SQLite stores that event-derived base separately
+from immutable, revisioned `WorkItemUserAction` records. The current `work_items`
+row and its event links can therefore be rebuilt in place without deleting
+dependent business records. A later event-derived base supersedes older user
+actions; actions at or after the base revision apply in strict revision order.
+Persona selection changes routing identity only and never grants Tool or
+Connector authority. See [Work Item Projections](WORK_ITEM_PROJECTIONS.md).
 
 The SQLite ingestion boundary validates the full batch before opening a write
 transaction, serializes deduplication with `BEGIN IMMEDIATE`, and treats an

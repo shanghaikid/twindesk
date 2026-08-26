@@ -378,11 +378,93 @@ BEGIN
 END;
 `
 
+const WORK_ITEM_PROJECTION_INPUTS_SQL = `
+CREATE TABLE work_item_projection_bases (
+  kind TEXT NOT NULL CHECK (kind = 'work_item_projection_base'),
+  schema_version INTEGER NOT NULL CHECK (schema_version = 1),
+  work_item_id TEXT PRIMARY KEY,
+  thread_id TEXT NOT NULL REFERENCES external_threads(id) ON DELETE CASCADE,
+  inbox_state TEXT NOT NULL CHECK (
+    inbox_state IN ('needs_reply', 'needs_review', 'waiting', 'done')
+  ),
+  title TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  attention_reason TEXT NOT NULL,
+  selected_persona_id TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK (
+    julianday(created_at) IS NOT NULL AND
+    julianday(updated_at) IS NOT NULL AND
+    julianday(updated_at) >= julianday(created_at)
+  )
+) STRICT;
+
+CREATE TABLE work_item_projection_base_events (
+  work_item_id TEXT NOT NULL
+    REFERENCES work_item_projection_bases(work_item_id) ON DELETE CASCADE,
+  event_id TEXT NOT NULL REFERENCES external_events(id) ON DELETE RESTRICT,
+  ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
+  PRIMARY KEY (work_item_id, event_id),
+  UNIQUE (work_item_id, ordinal)
+) STRICT;
+
+CREATE TABLE work_item_user_actions (
+  kind TEXT NOT NULL CHECK (kind = 'work_item_user_action'),
+  schema_version INTEGER NOT NULL CHECK (schema_version = 1),
+  id TEXT PRIMARY KEY,
+  work_item_id TEXT NOT NULL
+    REFERENCES work_item_projection_bases(work_item_id) ON DELETE CASCADE,
+  revision INTEGER NOT NULL CHECK (revision > 0),
+  action_type TEXT NOT NULL CHECK (
+    action_type IN ('set_inbox_state', 'select_persona', 'clear_persona')
+  ),
+  inbox_state TEXT CHECK (
+    inbox_state IN ('needs_reply', 'needs_review', 'waiting', 'done')
+  ),
+  persona_id TEXT,
+  occurred_at TEXT NOT NULL CHECK (julianday(occurred_at) IS NOT NULL),
+  UNIQUE (work_item_id, revision),
+  CHECK (
+    (action_type = 'set_inbox_state' AND inbox_state IS NOT NULL AND persona_id IS NULL) OR
+    (action_type = 'select_persona' AND inbox_state IS NULL AND persona_id IS NOT NULL) OR
+    (action_type = 'clear_persona' AND inbox_state IS NULL AND persona_id IS NULL)
+  )
+) STRICT;
+
+CREATE INDEX work_item_user_actions_order_index
+  ON work_item_user_actions (work_item_id, revision, id);
+
+CREATE TRIGGER work_item_user_actions_no_update
+BEFORE UPDATE ON work_item_user_actions
+BEGIN
+  SELECT RAISE(ABORT, 'Work Item user actions are immutable');
+END;
+
+INSERT INTO work_item_projection_bases (
+  kind, schema_version, work_item_id, thread_id, inbox_state, title, summary,
+  attention_reason, selected_persona_id, created_at, updated_at
+)
+SELECT
+  'work_item_projection_base', 1, id, thread_id, inbox_state, title, summary,
+  attention_reason, selected_persona_id, created_at, updated_at
+FROM work_items;
+
+INSERT INTO work_item_projection_base_events (work_item_id, event_id, ordinal)
+SELECT work_item_id, event_id, ordinal
+FROM work_item_events;
+`
+
 export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
   Object.freeze({
     version: 1,
     name: 'initial_business_schema',
     sql: INITIAL_SCHEMA_SQL,
+  }),
+  Object.freeze({
+    version: 2,
+    name: 'work_item_projection_inputs',
+    sql: WORK_ITEM_PROJECTION_INPUTS_SQL,
   }),
 ])
 

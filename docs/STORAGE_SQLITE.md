@@ -5,9 +5,9 @@
 `@twindesk/storage-sqlite` owns the local TwinDesk business database. It uses
 the Node.js 24 built-in `node:sqlite` driver and does not add a native package
 dependency. The package currently owns schema creation, forward migration,
-database lifecycle, idempotent ExternalEvent ingestion, and durable atomic
-Connector cursors. Other repositories and queries begin in later Stage 1
-tasks.
+database lifecycle, idempotent ExternalEvent ingestion, durable atomic
+Connector cursors, Work Item projections, and Inbox queries. Other repositories
+and write paths begin in later Stage 1 tasks.
 
 This database is not a Harness Session store. It never creates, updates, or
 queries Harness Session tables, JSONL artifacts, or Session query indexes.
@@ -63,7 +63,7 @@ There are no downgrade migrations and no recovery path that deletes a user's
 database. A newer application build must add a new migration rather than edit
 an already released migration.
 
-## Version 1 Tables
+## Schema Tables
 
 | Area | Tables | Purpose |
 |---|---|---|
@@ -71,6 +71,7 @@ an already released migration.
 | Immutable sources | `external_events` | Normalized, idempotent Connector events |
 | Threads | `external_threads`, `thread_external_references`, `thread_events` | Stable source grouping |
 | Inbox projection | `work_items`, `work_item_events` | Rebuildable Work Item state and source links |
+| Projection inputs | `work_item_projection_bases`, `work_item_projection_base_events`, `work_item_user_actions` | Event-anchored bases and immutable explicit user actions |
 | Draft and policy | `drafts`, `action_proposals`, `approval_records` | Persona drafts and exact approval bindings |
 | Connector recovery | `connector_cursors` | Per-account, per-stream durable positions |
 | Execution | `action_receipts` | Success, failure, or uncertain external results |
@@ -82,6 +83,10 @@ checks, JSON validity checks, and chronology checks enforce the invariants that
 can be expressed safely in SQLite. External events and audit records cannot be
 updated. They remain deletable so future explicit retention and Thread deletion
 transactions can satisfy product deletion requirements.
+
+Migration 2 adds versioned Work Item projection inputs and transactionally
+backfills existing version 1 Work Items and event links. It does not delete or
+recreate the existing projection, Thread, event, Draft, or audit tables.
 
 ## Privacy and Retention Review
 
@@ -110,4 +115,5 @@ schema alone does not claim those behaviors are implemented.
 
 [External Event Ingestion](EVENT_INGESTION.md) and
 [Durable Synchronization Cursors](SYNC_CURSORS.md) record the implemented write,
-replay, and restart semantics and their tests.
+replay, and restart semantics and their tests. [Work Item Projections](WORK_ITEM_PROJECTIONS.md)
+records rebuild and Inbox-query behavior.

@@ -10,6 +10,7 @@ import {
   parseDomainRecord,
   parseExternalEvent,
   parseWorkItem,
+  parseWorkItemUserAction,
 } from '../packages/domain/dist/index.js'
 
 const firstTimestamp = '2026-08-26T08:00:00Z'
@@ -137,6 +138,16 @@ const records = [
     details: { decision: 'approved' },
     occurredAt: secondTimestamp,
   },
+  {
+    kind: 'work_item_user_action',
+    schemaVersion: 1,
+    id: 'work-item-action-1',
+    workItemId: 'work-item-1',
+    revision: 1,
+    action: 'set_inbox_state',
+    inboxState: 'waiting',
+    occurredAt: secondTimestamp,
+  },
 ]
 
 /**
@@ -200,6 +211,23 @@ test('derived records require unique source references and valid timestamps', ()
     () => parseWorkItem({ ...copy(fixture), selectedPersonaId: undefined }),
     /selectedPersonaId must be a non-empty string/u,
   )
+})
+
+test('Work Item user actions are versioned, exact, and revisioned', () => {
+  const fixture = records[8]
+  assert.equal(fixture?.kind, 'work_item_user_action')
+  assert.throws(
+    () => parseWorkItemUserAction({ ...copy(fixture), revision: 0 }),
+    /revision must be a positive safe integer/u,
+  )
+  assert.throws(
+    () => parseWorkItemUserAction({ ...copy(fixture), personaId: 'unexpected' }),
+    /personaId is not supported/u,
+  )
+  assert.throws(() => {
+    const { inboxState: _inboxState, ...selectPersona } = copy(fixture)
+    return parseWorkItemUserAction({ ...selectPersona, action: 'select_persona', personaId: '' })
+  }, /personaId must be a non-empty string/u)
 })
 
 test('external action proposals bind identity, target, content digest, and idempotency key', () => {

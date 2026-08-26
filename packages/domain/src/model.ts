@@ -9,6 +9,7 @@ export type IsoTimestamp = Brand<string, 'IsoTimestamp'>
 export type ContentDigest = Brand<string, 'ContentDigest'>
 export type ExternalEventId = Brand<string, 'ExternalEventId'>
 export type WorkItemId = Brand<string, 'WorkItemId'>
+export type WorkItemUserActionId = Brand<string, 'WorkItemUserActionId'>
 export type ExternalThreadId = Brand<string, 'ExternalThreadId'>
 export type DraftId = Brand<string, 'DraftId'>
 export type ActionProposalId = Brand<string, 'ActionProposalId'>
@@ -74,6 +75,28 @@ export interface WorkItem {
   readonly createdAt: IsoTimestamp
   readonly updatedAt: IsoTimestamp
 }
+
+interface WorkItemUserActionBase {
+  readonly kind: 'work_item_user_action'
+  readonly schemaVersion: DomainSchemaVersion
+  readonly id: WorkItemUserActionId
+  readonly workItemId: WorkItemId
+  readonly revision: number
+  readonly occurredAt: IsoTimestamp
+}
+
+export type WorkItemUserAction =
+  | (WorkItemUserActionBase & {
+      readonly action: 'set_inbox_state'
+      readonly inboxState: InboxState
+    })
+  | (WorkItemUserActionBase & {
+      readonly action: 'select_persona'
+      readonly personaId: string
+    })
+  | (WorkItemUserActionBase & {
+      readonly action: 'clear_persona'
+    })
 
 export type DraftState = 'editing' | 'ready_for_review' | 'superseded' | 'cancelled'
 
@@ -196,6 +219,7 @@ export type DomainRecord =
   | ExternalEvent
   | ExternalThread
   | WorkItem
+  | WorkItemUserAction
   | Draft
   | ActionProposal
   | ApprovalRecord

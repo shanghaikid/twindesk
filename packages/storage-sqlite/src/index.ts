@@ -27,3 +27,13 @@ export {
   type SyncCursorErrorCode,
   type SyncIdentityMismatch,
 } from './sync-cursor.ts'
+export {
+  WorkItemProjectionError,
+  type InboxCursor,
+  type InboxPage,
+  type InboxQuery,
+  type WorkItemProjectionErrorCode,
+  type WorkItemProjectionInput,
+  type WorkItemProjectionWriteResult,
+  type WorkItemUserActionWriteResult,
+} from './work-item-projection.ts'
