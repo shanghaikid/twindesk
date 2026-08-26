@@ -18,3 +18,12 @@ export {
   TWIN_DESK_SQLITE_APPLICATION_ID,
   type SqliteMigration,
 } from './schema.ts'
+export {
+  SyncCursorError,
+  type ConnectorCursorKey,
+  type ConnectorSyncCommitRequest,
+  type ConnectorSyncCommitResult,
+  type CursorCommitResult,
+  type SyncCursorErrorCode,
+  type SyncIdentityMismatch,
+} from './sync-cursor.ts'

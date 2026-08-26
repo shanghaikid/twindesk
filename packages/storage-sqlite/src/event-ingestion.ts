@@ -46,6 +46,10 @@ export interface EventIngestionResult {
   readonly items: readonly EventIngestionItem[]
 }
 
+function emptyIngestionResult(): EventIngestionResult {
+  return Object.freeze({ insertedCount: 0, duplicateCount: 0, items: Object.freeze([]) })
+}
+
 interface ExternalEventRow {
   readonly kind: unknown
   readonly schema_version: unknown
@@ -176,15 +180,17 @@ function prepareIngestionStatements(database: DatabaseSync) {
   }
 }
 
-export function ingestExternalEvents(
-  database: DatabaseSync,
-  input: readonly ExternalEvent[],
-): EventIngestionResult {
+export function parseExternalEventBatch(input: readonly ExternalEvent[]): readonly ExternalEvent[] {
   if (!Array.isArray(input)) throw new TypeError('External event batch must be an array.')
-  const events = Array.from(input, (event) => parseExternalEvent(event))
-  if (events.length === 0) {
-    return Object.freeze({ insertedCount: 0, duplicateCount: 0, items: Object.freeze([]) })
-  }
+  return Object.freeze(Array.from(input, (event) => parseExternalEvent(event)))
+}
+
+/** The caller owns the active SQLite transaction. */
+export function ingestExternalEventsInTransaction(
+  database: DatabaseSync,
+  events: readonly ExternalEvent[],
+): EventIngestionResult {
+  if (events.length === 0) return emptyIngestionResult()
 
   const { findExisting, insert } = prepareIngestionStatements(database)
   const items: EventIngestionItem[] = []
@@ -192,11 +198,6 @@ export function ingestExternalEvents(
   let duplicateCount = 0
   let activeInputIndex: number | undefined
 
-  try {
-    database.exec('BEGIN IMMEDIATE')
-  } catch {
-    throw new EventIngestionError('write_failed', 'The external event transaction could not start.')
-  }
   try {
     for (let inputIndex = 0; inputIndex < events.length; inputIndex += 1) {
       activeInputIndex = inputIndex
@@ -253,9 +254,7 @@ export function ingestExternalEvents(
       insertedCount += 1
       items.push(Object.freeze({ inputIndex, eventId: event.id, disposition: 'inserted' }))
     }
-    database.exec('COMMIT')
   } catch (error) {
-    rollback(database)
     if (error instanceof EventIngestionError) throw error
     throw new EventIngestionError(
       'write_failed',
@@ -269,4 +268,26 @@ export function ingestExternalEvents(
     duplicateCount,
     items: Object.freeze(items),
   })
+}
+
+export function ingestExternalEvents(
+  database: DatabaseSync,
+  input: readonly ExternalEvent[],
+): EventIngestionResult {
+  const events = parseExternalEventBatch(input)
+  if (events.length === 0) return emptyIngestionResult()
+
+  try {
+    database.exec('BEGIN IMMEDIATE')
+  } catch {
+    throw new EventIngestionError('write_failed', 'The external event transaction could not start.')
+  }
+  try {
+    const result = ingestExternalEventsInTransaction(database, events)
+    database.exec('COMMIT')
+    return result
+  } catch (error) {
+    rollback(database)
+    throw error
+  }
 }

@@ -266,12 +266,16 @@ interface Connector {
 
 `start()` and `stop()` are idempotent; shutdown stops new work before releasing
 owned resources. Every operation observes cancellation. `sync()` returns an
-uncommitted candidate cursor, and Work Hub persists it only after all preceding
-events are durable. Context reports complete, partial, or unavailable state
-explicitly. `propose()` has no external side effects. `execute()` accepts only
-an opaque `ApprovedAction` created by the policy path and bound to the exact
-approval, identity, target, content digest, and idempotency key. An uncertain
-receipt requires reconciliation before any retry.
+uncommitted candidate cursor, and Work Hub persists it in the same SQLite
+transaction that makes every preceding event durable. Connector, account, and
+stream identity mismatches fail closed. Stable cursor identity conflicts and
+timestamp or source-watermark regressions roll back the whole batch. Cursor
+positions remain Connector-owned opaque values, so the Connector is responsible
+for their semantic ordering. Context reports complete, partial, or unavailable
+state explicitly. `propose()` has no external side effects. `execute()` accepts
+only an opaque `ApprovedAction` created by the policy path and bound to the
+exact approval, identity, target, content digest, and idempotency key. An
+uncertain receipt requires reconciliation before any retry.
 
 ## 8. Security Model
 

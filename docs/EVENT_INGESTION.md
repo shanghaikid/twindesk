@@ -7,9 +7,10 @@ TD-103 adds idempotent, transactional ExternalEvent ingestion to
 every record again at the storage boundary, and writes no Connector raw
 payloads or credentials.
 
-Connector cursor persistence is deliberately excluded. TD-104 will combine
-event commits and candidate-cursor advancement in one transaction; callers
-must not treat a successful Connector fetch as a durable cursor advance yet.
+Standalone ingestion deliberately does not advance a Connector cursor. Work
+Hub synchronization must use the atomic boundary documented in
+[Durable Synchronization Cursors](SYNC_CURSORS.md); a successful Connector
+fetch alone does not make a candidate cursor durable.
 
 ## Batch Contract
 

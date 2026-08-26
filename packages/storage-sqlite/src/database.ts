@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
 
-import type { ExternalEvent } from '@twindesk/domain'
+import type { ConnectorCursor, ExternalEvent } from '@twindesk/domain'
 
 import {
   EventIngestionError,
@@ -14,6 +14,14 @@ import {
   TWIN_DESK_SQLITE_APPLICATION_ID,
   type SqliteMigration,
 } from './schema.ts'
+import {
+  SyncCursorError,
+  commitConnectorSyncBatch,
+  readConnectorCursor,
+  type ConnectorCursorKey,
+  type ConnectorSyncCommitRequest,
+  type ConnectorSyncCommitResult,
+} from './sync-cursor.ts'
 
 export type StorageSchemaErrorCode =
   | 'foreign_database'
@@ -49,6 +57,8 @@ export interface TwinDeskDatabase {
   readonly schemaVersion: number
   readonly isOpen: boolean
   ingestExternalEvents(events: readonly ExternalEvent[]): EventIngestionResult
+  getConnectorCursor(key: ConnectorCursorKey): ConnectorCursor | undefined
+  commitConnectorSyncBatch(request: ConnectorSyncCommitRequest): ConnectorSyncCommitResult
   close(): void
   [Symbol.dispose](): void
 }
@@ -71,6 +81,22 @@ class TwinDeskDatabaseHandle implements TwinDeskDatabase {
       throw new EventIngestionError('database_closed', 'The TwinDesk database is closed.')
     }
     return ingestExternalEvents(database, events)
+  }
+
+  getConnectorCursor(key: ConnectorCursorKey): ConnectorCursor | undefined {
+    const database = this.#database
+    if (database === undefined) {
+      throw new SyncCursorError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return readConnectorCursor(database, key)
+  }
+
+  commitConnectorSyncBatch(request: ConnectorSyncCommitRequest): ConnectorSyncCommitResult {
+    const database = this.#database
+    if (database === undefined) {
+      throw new SyncCursorError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return commitConnectorSyncBatch(database, request)
   }
 
   close(): void {
