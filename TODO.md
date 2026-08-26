@@ -134,10 +134,11 @@ Goal: prove that TwinDesk can be built primarily as out-of-tree DeepSeek Harness
 
 ### Compatibility and Stage Exit
 
-- [ ] **TD-050 — Build the Harness compatibility smoke suite**
+- [x] **TD-050 — Build the Harness compatibility smoke suite**
   - Cover Profile boot, Host plugin activation, Tool registration, Client plugin loading, Persona selection, Session resume, and Codex delegation.
   - Pin expected public interfaces and fail clearly on incompatible upgrades.
   - Depends on: TD-021, TD-030, TD-040, TD-041, TD-042.
+  - Verification record: `pnpm compat:check` builds production artifacts, runs an explicit integrity-tested manifest covering the pinned adapter contracts, Host Tool and Settings activation, production Client loading and Inbox lifecycle, Profile and Preset composition, Persona selection, duplicate-free Session recovery, and real package-local Codex delegation. It then validates the built adapter boundary and boots the effective Profile on loopback. Each stage reports its capability, status or signal, and exact reproduction command; unsupported package versions and capabilities continue to fail before behavioral success can be inferred.
   - Completion check: one command runs all compatibility checks in CI and locally.
 
 - [ ] **TD-051 — Publish the Stage 0 compatibility report**

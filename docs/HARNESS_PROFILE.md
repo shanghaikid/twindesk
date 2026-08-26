@@ -154,6 +154,15 @@ Run the automated composition and startup smoke test with:
 corepack pnpm@11.7.0 run profile:check
 ```
 
+Run this smoke test together with every other selected Harness boundary using:
+
+```sh
+corepack pnpm@11.7.0 run compat:check
+```
+
+The complete manifest and failure contract are documented in
+[`HARNESS_COMPATIBILITY_SUITE.md`](HARNESS_COMPATIBILITY_SUITE.md).
+
 The smoke test checks both dumped entries, starts the Profile on port `0` so the operating system selects an available loopback port, and waits for the Harness URL readiness line. It then loads the production index twice, verifies a stable TwinDesk row in `__DSH_BOOT__`, fetches the bundle and source map through Harness's plugin routes, and requests normal shutdown. A separate bundle execution test materializes the factory across clean and direct-Inbox routes and verifies card and sidebar registration, page switching, restoration, disposal, listener cleanup, and reload isolation. The checks do not open a browser or invoke an Agent. Sandboxed development environments must permit loopback binding for this check.
 
 ## Current Limitations

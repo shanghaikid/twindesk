@@ -11,6 +11,7 @@
     "adapter:check": "node scripts/check-adapter-output.mjs",
     "build": "tsc -b && node scripts/build-client-plugin.mjs",
     "client:build": "node scripts/build-client-plugin.mjs",
+    "compat:check": "node scripts/check-harness-compatibility.mjs",
     "clean": "tsc -b --clean && node scripts/build-client-plugin.mjs clean",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

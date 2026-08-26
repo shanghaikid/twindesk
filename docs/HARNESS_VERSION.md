@@ -180,5 +180,5 @@ For each intentional Harness upgrade:
 3. Replace the exact version, commit, toolchain metadata, integrity value, and
    verification date in this document.
 4. Regenerate the lockfile without changing unrelated dependencies.
-5. Run the TD-050 compatibility suite before accepting the upgrade.
+5. Run `corepack pnpm@11.7.0 run compat:check` before accepting the upgrade.
 6. Commit the upgrade as an isolated compatibility change.

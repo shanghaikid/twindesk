@@ -37,6 +37,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Harness Profile](docs/HARNESS_PROFILE.md): Stage 0 Profile composition, local launch, and configuration inspection.
 - [Session Persistence Spike](docs/SESSION_PERSISTENCE_SPIKE.md): JSONL selection, restart recovery evidence, data boundaries, and limitations.
 - [Codex Subagent Spike](docs/CODEX_SUBAGENT_SPIKE.md): read-only specialist configuration, cancellation, attribution, and capability limits.
+- [Harness Compatibility Suite](docs/HARNESS_COMPATIBILITY_SUITE.md): one-command Stage 0 contract coverage and failure diagnostics.
 - [Inbox Extension Spike](docs/INBOX_EXTENSION_SPIKE.md): out-of-tree route and sidebar findings, limitations, and compatibility seams.
 - [ADR 0001](docs/decisions/0001-upstream-generic-inbox-extension-points.md): Inbox core-patch policy, upstream ownership, and upgrade consequences.
 
@@ -48,8 +49,9 @@ Client diagnostic card, a static `#/inbox` extension spike, and distinct
 technical-lead and communication Agent Presets are available. A JSONL Session
 probe also verifies Persona-aware, duplicate-free cold restart recovery. A
 foreground Codex specialist spike now proves bounded read-only repository
-delegation, cancellation, and traceable results. Work Hub product behavior has
-not been implemented.
+delegation, cancellation, and traceable results. The complete selected Harness
+surface is available through one compatibility command. Work Hub product
+behavior has not been implemented.
 
 ## Development
 
@@ -61,11 +63,18 @@ corepack pnpm@11.7.0 install --frozen-lockfile
 corepack pnpm@11.7.0 run check
 ```
 
+Run only the pinned Harness compatibility surface with:
+
+```sh
+corepack pnpm@11.7.0 run compat:check
+```
+
 The combined check covers formatting, TypeScript validation, unit tests, all
 project-reference builds, the built Harness adapter boundary, production
-Client bundle and source-map delivery, a real Harness Profile startup, and
-repository structure. The Profile smoke test binds only a temporary loopback
-port and does not call a model or external service.
+Client bundle and source-map delivery, the dedicated compatibility suite, a
+real Harness Profile startup, and repository structure. The Profile and Codex
+smoke tests bind only temporary loopback ports and do not call an external model
+or service.
 
 Prepare and inspect the generated local Profile with:
 

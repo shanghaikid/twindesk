@@ -12,6 +12,7 @@ Goal: prove that key capabilities can be implemented through out-of-tree plugins
 - Create two Agent Presets.
 - Enable Session persistence and verify restart recovery.
 - Verify installation of `subagent-codex` and one delegation run.
+- Run every selected extension seam through one pinned compatibility command.
 - Record the minimum list of required Harness core changes.
 
 Exit criterion: the product experience can be built without a fork, using at most one minimal, product-neutral Client navigation and page extension accepted upstream.

@@ -133,6 +133,9 @@ not grant policy authority. The Stage 0 persistence probe keeps the pinned
 base Bundle's append-only JSONL Session backend; SQLite remains a disposable
 search projection, not an authoritative store. The Codex compatibility probe
 stays behind the adapter and moves no TwinDesk business logic into Harness core.
+All selected Stage 0 seams run through the ordered
+[`Harness Compatibility Suite`](HARNESS_COMPATIBILITY_SUITE.md); its manifest
+and built adapter checks fail loudly on an unsupported upstream change.
 
 ## 4. Harness Capability Mapping
 
