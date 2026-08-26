@@ -232,22 +232,35 @@ receive/poll
 
 Every write Tool must support an idempotency key. Retrying must not produce duplicate replies or duplicate Jira comments.
 
-## 7. Connector Interface Draft
+## 7. Connector Contract
+
+`@twindesk/domain` owns Connector contract version 1. Concrete Feishu and Jira
+plugins implement it without exposing their SDK types, credentials, or raw API
+payloads to Work Hub. The Host validates the runtime surface before registry
+installation.
 
 ```ts
 interface Connector {
-  readonly id: string
+  readonly descriptor: ConnectorDescriptor
 
   start(signal: AbortSignal): Promise<void>
-  sync(cursor: ConnectorCursor | undefined, signal: AbortSignal): Promise<SyncBatch>
-  getContext(ref: ExternalRef, request: ContextRequest, signal: AbortSignal): Promise<ContextBundle>
-  propose(action: ActionRequest): Promise<ActionProposal>
-  execute(approved: ApprovedAction, signal: AbortSignal): Promise<ActionReceipt>
-  health(): Promise<ConnectorHealth>
+  stop(signal: AbortSignal): Promise<void>
+  sync(request: ConnectorSyncRequest, signal: AbortSignal): Promise<ConnectorSyncBatch>
+  getContext(request: ConnectorContextRequest, signal: AbortSignal): Promise<ConnectorContextBundle>
+  propose(request: ConnectorActionRequest, signal: AbortSignal): Promise<ActionProposal>
+  execute(action: ApprovedAction, signal: AbortSignal): Promise<ActionReceipt>
+  health(signal: AbortSignal): Promise<ConnectorHealth>
 }
 ```
 
-`propose()` has no external side effects. `execute()` accepts only an `ApprovedAction` bound to an approval record, target, and content digest.
+`start()` and `stop()` are idempotent; shutdown stops new work before releasing
+owned resources. Every operation observes cancellation. `sync()` returns an
+uncommitted candidate cursor, and Work Hub persists it only after all preceding
+events are durable. Context reports complete, partial, or unavailable state
+explicitly. `propose()` has no external side effects. `execute()` accepts only
+an opaque `ApprovedAction` created by the policy path and bound to the exact
+approval, identity, target, content digest, and idempotency key. An uncertain
+receipt requires reconciliation before any retry.
 
 ## 8. Security Model
 

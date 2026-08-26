@@ -9,7 +9,9 @@ import {
   type ExternalEvent,
   type ExternalReference,
   type ExternalThread,
+  type IsoTimestamp,
   type JsonValue,
+  type ContentDigest,
   type WorkItem,
 } from './model.ts'
 
@@ -117,6 +119,16 @@ function digestAt(value: unknown, path: string): string {
     return fail(path, 'must be a lowercase sha256 digest')
   }
   return text
+}
+
+/** Parse a canonical UTC timestamp for Connector and record construction. */
+export function parseIsoTimestamp(value: unknown): IsoTimestamp {
+  return timestampAt(value, 'timestamp') as IsoTimestamp
+}
+
+/** Parse the digest format used to bind exact proposal and approval content. */
+export function parseContentDigest(value: unknown): ContentDigest {
+  return digestAt(value, 'digest') as ContentDigest
 }
 
 function positiveIntegerAt(value: unknown, path: string): number {

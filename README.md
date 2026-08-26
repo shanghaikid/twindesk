@@ -56,10 +56,11 @@ Stage 0 is complete and the project is in Roadmap Stage 1. The standalone
 `@twindesk/web` shell owns Inbox, Personas, Connectors, Audit, and Settings
 routes and runs only on loopback. It shows truthful empty states: Work Hub
 business persistence, fixture ingestion, drafts, approvals, audit records, and
-real Connectors are not implemented yet. The pinned Harness Profile, two
-draft-only Personas, JSONL restart recovery, and bounded Codex specialist remain
-available as runtime compatibility evidence. The Harness Client Inbox spike is
-diagnostic only.
+real Connectors are not implemented yet. Versioned domain records and the
+product-owned Connector contract are implemented. The pinned Harness Profile,
+two draft-only Personas, JSONL restart recovery, and bounded Codex specialist
+remain available as runtime compatibility evidence. The Harness Client Inbox
+spike is diagnostic only.
 
 ## Development
 
