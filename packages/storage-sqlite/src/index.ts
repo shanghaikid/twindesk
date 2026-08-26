@@ -6,6 +6,13 @@ export {
   type TwinDeskDatabaseOptions,
 } from './database.ts'
 export {
+  EventIngestionError,
+  type EventConflictKey,
+  type EventIngestionErrorCode,
+  type EventIngestionItem,
+  type EventIngestionResult,
+} from './event-ingestion.ts'
+export {
   LATEST_TWIN_DESK_SQLITE_SCHEMA_VERSION,
   SQLITE_MIGRATIONS,
   TWIN_DESK_SQLITE_APPLICATION_ID,

@@ -14,6 +14,7 @@
     "strict": true,
     "target": "ES2023",
     "paths": {
+      "@twindesk/domain": ["./packages/domain/src/index.ts"],
       "@twindesk/harness-adapter": ["./packages/harness-adapter/src/index.ts"]
     },
     "verbatimModuleSyntax": true

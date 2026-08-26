@@ -46,6 +46,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Stage 0 Compatibility Report](docs/STAGE_0_COMPATIBILITY_REPORT.md): validated extension points, gaps, upgrade risks, and the Stage 1 gate recommendation.
 - [Stage 0 Exit Gate](docs/STAGE_0_EXIT_GATE.md): the formal TD-052 decision, criterion evidence, selected UI boundary, and remaining limitations.
 - [SQLite Storage](docs/STORAGE_SQLITE.md): TwinDesk database identity, schema, forward migrations, privacy review, and recovery guarantees.
+- [External Event Ingestion](docs/EVENT_INGESTION.md): transactional deduplication, replay, conflict, and out-of-order semantics.
 - [Harness Upstream Navigation Proposal](docs/HARNESS_UPSTREAM_NAVIGATION_PROPOSAL.md): an optional ecosystem reference for generic Harness Client extensibility.
 - [Inbox Extension Spike](docs/INBOX_EXTENSION_SPIKE.md): out-of-tree route and sidebar findings, limitations, and compatibility seams.
 - [ADR 0001](docs/decisions/0001-upstream-generic-inbox-extension-points.md): historical Harness Client investigation and upstream path.
@@ -55,10 +56,11 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 
 Stage 0 is complete and the project is in Roadmap Stage 1. The standalone
 `@twindesk/web` shell owns Inbox, Personas, Connectors, Audit, and Settings
-routes and runs only on loopback. It shows truthful empty states: Work Hub
-business persistence, fixture ingestion, drafts, approvals, audit records, and
-real Connectors are not implemented yet. Versioned domain records and the
-product-owned Connector contract are implemented. The pinned Harness Profile,
+routes and runs only on loopback. The business schema and idempotent
+ExternalEvent ingestion are implemented, but fixture wiring, Work Item
+projections, drafts, approvals, audit records, and real Connectors are not.
+Versioned domain records and the product-owned Connector contract are
+implemented. The pinned Harness Profile,
 two draft-only Personas, JSONL restart recovery, and bounded Codex specialist
 remain available as runtime compatibility evidence. The Harness Client Inbox
 spike is diagnostic only.

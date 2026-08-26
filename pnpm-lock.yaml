@@ -152,7 +152,11 @@ importers:
         specifier: workspace:*
         version: link:../harness-adapter
 
-  packages/storage-sqlite: {}
+  packages/storage-sqlite:
+    dependencies:
+      '@twindesk/domain':
+        specifier: workspace:*
+        version: link:../domain
 
   packages/web: {}
 

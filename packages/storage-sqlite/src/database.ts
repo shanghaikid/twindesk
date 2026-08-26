@@ -1,6 +1,13 @@
 import { createHash } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
 
+import type { ExternalEvent } from '@twindesk/domain'
+
+import {
+  EventIngestionError,
+  ingestExternalEvents,
+  type EventIngestionResult,
+} from './event-ingestion.ts'
 import {
   LATEST_TWIN_DESK_SQLITE_SCHEMA_VERSION,
   SQLITE_MIGRATIONS,
@@ -41,6 +48,7 @@ export interface TwinDeskDatabaseOptions {
 export interface TwinDeskDatabase {
   readonly schemaVersion: number
   readonly isOpen: boolean
+  ingestExternalEvents(events: readonly ExternalEvent[]): EventIngestionResult
   close(): void
   [Symbol.dispose](): void
 }
@@ -55,6 +63,14 @@ class TwinDeskDatabaseHandle implements TwinDeskDatabase {
 
   get isOpen(): boolean {
     return this.#database !== undefined
+  }
+
+  ingestExternalEvents(events: readonly ExternalEvent[]): EventIngestionResult {
+    const database = this.#database
+    if (database === undefined) {
+      throw new EventIngestionError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return ingestExternalEvents(database, events)
   }
 
   close(): void {

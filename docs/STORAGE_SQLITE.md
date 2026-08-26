@@ -4,8 +4,9 @@
 
 `@twindesk/storage-sqlite` owns the local TwinDesk business database. It uses
 the Node.js 24 built-in `node:sqlite` driver and does not add a native package
-dependency. The package currently owns schema creation, forward migration, and
-database lifecycle only. Repository writes and queries begin in TD-103.
+dependency. The package currently owns schema creation, forward migration,
+database lifecycle, and idempotent ExternalEvent ingestion. Other repositories
+and queries begin in later Stage 1 tasks.
 
 This database is not a Harness Session store. It never creates, updates, or
 queries Harness Session tables, JSONL artifacts, or Session query indexes.
@@ -106,6 +107,6 @@ schema alone does not claim those behaviors are implemented.
 - rollback of an interrupted or conflicting migration;
 - immutable external events and safe open-option validation.
 
-TD-103 and TD-104 must add transactional tests for duplicate and out-of-order
-events, replay, interrupted event writes, and cursor advancement only after all
-preceding events are durable.
+[External Event Ingestion](EVENT_INGESTION.md) records the implemented TD-103
+write semantics and tests. TD-104 must add cursor advancement only after all
+preceding events are durable in the same transaction.

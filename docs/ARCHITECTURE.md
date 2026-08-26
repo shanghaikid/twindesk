@@ -202,6 +202,14 @@ connector + tenant/account + object type + external id + version/update time
 
 Received ExternalEvents are append-only. Inbox state, Thread associations, and unread counts are derived from events and explicit user actions.
 
+The SQLite ingestion boundary validates the full batch before opening a write
+transaction, serializes deduplication with `BEGIN IMMEDIATE`, and treats an
+exact replay as a duplicate. Stable ID or idempotency-key reuse with different
+immutable business content fails the whole batch closed. Source-time ordering
+is never inferred from insertion order. A later local receive time on replay
+does not replace the timestamp of the first durable arrival. See
+[External Event Ingestion](EVENT_INGESTION.md).
+
 ### 5.3 Two Persistence Boundaries
 
 - Harness Session Store: model messages, Tool events, approval events, and Subagent or Team history.
