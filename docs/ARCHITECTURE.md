@@ -200,6 +200,16 @@ be stale by execution time; TD-207 still validates every write. Production
 probe composition and the real closed-loop acceptance flow remain TD-209 work.
 See [Feishu Connector Diagnostics](FEISHU_CONNECTOR_DIAGNOSTICS.md).
 
+TD-209 now has a local contract-level acceptance path spanning normalized Bot
+input, atomic Inbox projection, User-bound context, explicit Persona selection,
+an edited Draft revision, exact approval, reconcile-before-send execution,
+durable receipt, restart verification, and reference-validated Audit records. This is
+composition evidence, not a production Connector adapter: no live credential is
+resolved and no real Feishu API is called. The Stage 2 exit remains open until
+the HTTP/Keychain, hosted ingestion or polling, product editing/approval UI,
+model-run linkage, and live-account acceptance boundaries pass. See
+[Stage 2 Exit Gate](STAGE_2_EXIT_GATE.md).
+
 ### `@twindesk/plugin-jira`
 
 - OAuth 2.0 or an API token during personal development;

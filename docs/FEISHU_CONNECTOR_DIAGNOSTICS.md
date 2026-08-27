@@ -101,9 +101,10 @@ checked before probes and after every awaited client call.
 
 - A production HTTP/Keychain and SQLite diagnostics adapter is not wired.
 - A Connector settings UI has not yet been connected to `diagnose()`.
-- TD-209 must compose diagnostics with the real ingestion-to-receipt flow and
-  verify that unhealthy identities block writes while read failures remain
-  explicit.
+- TD-209 now composes healthy diagnostics with the local synthetic
+  ingestion-to-receipt acceptance path. Production probe composition and the
+  live-account write gate remain open; see
+  [Stage 2 Exit Gate](STAGE_2_EXIT_GATE.md).
 
 ## Verification
 

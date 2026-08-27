@@ -55,6 +55,14 @@ Goal: complete the first real end-to-end value loop.
 
 Exit criterion: a real Feishu message can safely produce an approved and sent reply, with a complete trace.
 
+Current gate status (2026-08-27): **NOT PASSED**. The local contract acceptance
+path now completes normalization → Inbox → bounded context → edited Draft →
+one-time approval → idempotent receipt → Audit across restart with synthetic
+clients. The required live-account path is still missing production
+HTTP/Keychain adapters, hosted ingestion or polling, interactive Draft and
+approval UI, and a real Feishu send. See the
+[Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).
+
 ## Stage 3: Jira Context
 
 Goal: allow Feishu drafts to use verified project facts.

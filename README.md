@@ -46,6 +46,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Stage 0 Compatibility Report](docs/STAGE_0_COMPATIBILITY_REPORT.md): validated extension points, gaps, upgrade risks, and the Stage 1 gate recommendation.
 - [Stage 0 Exit Gate](docs/STAGE_0_EXIT_GATE.md): the formal TD-052 decision, criterion evidence, selected UI boundary, and remaining limitations.
 - [Stage 1 Exit Gate](docs/STAGE_1_EXIT_GATE.md): the formal TD-112 local Work Hub decision, end-to-end fixture evidence, and Stage 2 boundary.
+- [Stage 2 Exit Gate](docs/STAGE_2_EXIT_GATE.md): local Feishu contract acceptance evidence and the still-open live-account gate.
 - [Feishu Bot and User Identities](docs/FEISHU_IDENTITIES.md): separate principals, credential-reference persistence, privacy, and current connection limits.
 - [Feishu Bot Event Ingestion](docs/FEISHU_BOT_EVENT_INGESTION.md): signed direct-message and mention callbacks, hash-only durable deduplication, privacy, and hosting limits.
 - [Feishu User Message Discovery](docs/FEISHU_USER_MESSAGE_DISCOVERY.md): bounded user-authorized search windows, replay-safe candidate cursors, partial coverage, and adapter limits.
@@ -111,6 +112,13 @@ production Feishu HTTP/Keychain adapter and composed real-account flow remain
 unimplemented. A presentation-safe diagnostics boundary now reports configured
 Bot/User authorization and scope coverage, rate-limit state, and durable User
 cursor freshness without exposing credentials or opaque cursor positions.
+The local TD-209 contract acceptance path now composes verified-message
+normalization, bounded context, an edited Draft revision, exact approval,
+idempotent execution, receipt persistence, restart verification, and a complete local
+Audit trace. The restart evidence is a deterministic acceptance completion,
+not an automatic repair service. Stage 2 is not declared complete: production Feishu HTTP/Keychain
+composition, hosted ingestion or polling, interactive Draft/approval UI, and a
+live-account send remain unimplemented.
 Versioned domain records and the product-owned Connector contract are
 implemented. The pinned Harness Profile,
 two draft-only Personas, JSONL restart recovery, and bounded Codex specialist

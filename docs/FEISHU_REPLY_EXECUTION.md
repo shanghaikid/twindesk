@@ -119,8 +119,11 @@ data.
   and cursor diagnostics; execution still fails closed when its adapter reports
   missing authorization or scope. See
   [Feishu Connector Diagnostics](FEISHU_CONNECTOR_DIAGNOSTICS.md).
-- TD-209 integrates Inbox, Draft editing, approval UI, execution, receipts, and
-  user-visible Audit records into the real closed-loop acceptance flow.
+- TD-209 now proves the injected-client local contract from Inbox through an
+  edited Draft revision, approval, execution, receipt, restart verification, and Audit.
+  The acceptance test completes the missing deterministic Audit trace; no
+  automatic repair service exists. Product UI and real-account execution remain required for the live exit gate;
+  see [Stage 2 Exit Gate](STAGE_2_EXIT_GATE.md).
 
 ## Verification
 
