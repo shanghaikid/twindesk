@@ -26,6 +26,8 @@ import {
 
 export const FEISHU_REPLY_EXECUTION_VERSION = 1 as const
 const MAX_REMOTE_CLOCK_SKEW_MS = 5 * 60 * 1_000
+const COMPACT_IDEMPOTENCY_KEY_PATTERN = /^tdfr1:([a-f0-9]{40})$/u
+const COMPACT_PROPOSAL_ID_PATTERN = /^proposal-feishu-reply-([a-f0-9]{32})$/u
 
 export type FeishuReplyExecutionErrorCode =
   | 'invalid_action'
@@ -180,6 +182,24 @@ function canonicalDigest(value: unknown): ContentDigest {
   )
 }
 
+function hasValidIdentityBoundIdempotencyKey(
+  proposal: ActionProposal,
+  configuration: FeishuIdentityConfiguration,
+): boolean {
+  const compactKey = COMPACT_IDEMPOTENCY_KEY_PATTERN.exec(proposal.idempotencyKey)
+  const compactProposal = COMPACT_PROPOSAL_ID_PATTERN.exec(proposal.id)
+  return (
+    compactKey !== null &&
+    compactProposal !== null &&
+    compactKey[1] ===
+      computeFeishuReplyIdentityFingerprint(
+        configuration,
+        proposal.identity.identityType,
+        compactProposal[1] as string,
+      ).slice(0, 40)
+  )
+}
+
 function parseAction(
   value: ApprovedAction,
   configuration: FeishuIdentityConfiguration,
@@ -215,9 +235,6 @@ function parseAction(
     throw fail('invalid_action', 'The approved Feishu action is invalid.')
   }
   const configuredIdentity = toFeishuActionIdentity(configuration, proposal.identity.identityType)
-  const keyMatch = /^feishu:reply:([a-f0-9]{64}):identity:([a-f0-9]{64}):v1$/u.exec(
-    proposal.idempotencyKey,
-  )
   if (
     proposal.identity.connectorId !== configuredIdentity.connectorId ||
     proposal.identity.accountId !== configuredIdentity.accountId ||
@@ -227,13 +244,7 @@ function parseAction(
     proposal.target.objectType !== 'message' ||
     proposal.target.sourceTimestamp === undefined ||
     proposal.content.mediaType !== 'text/plain' ||
-    keyMatch === null ||
-    keyMatch[2] !==
-      computeFeishuReplyIdentityFingerprint(
-        configuration,
-        proposal.identity.identityType,
-        keyMatch[1] as string,
-      )
+    !hasValidIdentityBoundIdempotencyKey(proposal, configuration)
   ) {
     throw fail('identity_mismatch', 'The approved Feishu identity or target no longer matches.')
   }

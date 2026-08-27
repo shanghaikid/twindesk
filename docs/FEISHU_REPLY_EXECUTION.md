@@ -33,10 +33,16 @@ Before any client call, the executor revalidates:
 - the deterministic execution-attempt ID derived from the Approval ID.
 
 The proposal idempotency key contains a salted SHA-256 fingerprint of the
-configured app, principal, and complete SecretReference metadata. The executor
-recomputes it before obtaining the client request, so a principal or credential
-rotation invalidates the old approved action even when account, identity type,
-and display name are unchanged. Only the hash is persisted with the proposal.
+proposal ID, configured app, principal, and complete SecretReference metadata.
+New proposals persist a 46-character `tdfr1:` key, which fits the Feishu reply
+request limit of 50 characters. The executor recomputes the fingerprint before
+obtaining the client request, so a principal or credential rotation invalidates
+the old approved action even when account, identity type, and display name are
+unchanged. Only the hash is persisted with the proposal. The executor retains
+no fallback for the longer format emitted before this constraint was enforced:
+those proposals cannot satisfy the platform limit and must be replaced by a new
+preview and explicit approval. Over-limit, malformed, or proposal-mismatched
+keys fail before the credential-resolving client is accessed.
 Successful reconciliation also requires an exact Connector/account response and
 a remote message timestamp no earlier than proposal creation and no more than a
 bounded five-minute clock skew ahead of local observation.

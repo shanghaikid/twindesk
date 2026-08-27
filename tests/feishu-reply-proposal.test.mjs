@@ -8,6 +8,7 @@ import test from 'node:test'
 import { parseDraft, parseWorkItemUserAction } from '../packages/domain/dist/index.js'
 import {
   FEISHU_REPLY_ACTION_TYPE,
+  FEISHU_REPLY_IDEMPOTENCY_KEY_MAX_CHARACTERS,
   FEISHU_REPLY_PROPOSAL_VERSION,
   FeishuMessageNormalizer,
   FeishuReplyProposalError,
@@ -183,7 +184,8 @@ test('a Feishu reply preview binds the exact Draft, identity, target, and conten
   assert.deepEqual(proposal.identity, toFeishuActionIdentity(configuration(), 'user'))
   assert.deepEqual(proposal.target, fixture.event.source)
   assert.equal(proposal.contentDigest, computeDraftContentDigest(fixture.content))
-  assert.match(proposal.idempotencyKey, /^feishu:reply:[a-f0-9]{64}:identity:[a-f0-9]{64}:v1$/u)
+  assert.match(proposal.idempotencyKey, /^tdfr1:[a-f0-9]{40}$/u)
+  assert.ok(proposal.idempotencyKey.length <= FEISHU_REPLY_IDEMPOTENCY_KEY_MAX_CHARACTERS)
   assert.equal(database.createActionProposal(proposal).disposition, 'inserted')
   database.close()
 

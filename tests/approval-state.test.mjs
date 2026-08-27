@@ -84,6 +84,33 @@ async function approveAction(database, clock, suffix) {
   return { proposal, action: consumed.action }
 }
 
+test('execution rejects over-limit and proposal-mismatched keys before client access', async (context) => {
+  const path = await temporaryDatabase(context)
+  const clock = policyClock()
+  const database = openTwinDeskDatabase(path, clock.options)
+  const { action } = await approveAction(database, clock, 'execution-invalid-key')
+  const client = replyClient()
+  const executor = new FeishuReplyExecutor(configuration(), client, clock.options)
+  for (const idempotencyKey of [
+    `feishu:reply:${'a'.repeat(64)}:identity:${'b'.repeat(64)}:v1`,
+    `tdfr1:${'f'.repeat(40)}`,
+  ]) {
+    await assert.rejects(
+      executor.execute(
+        { ...action, proposal: { ...action.proposal, idempotencyKey } },
+        new AbortController().signal,
+      ),
+      (error) =>
+        error instanceof Error &&
+        error.name === 'FeishuReplyExecutionError' &&
+        'code' in error &&
+        error.code === 'identity_mismatch',
+    )
+  }
+  assert.deepEqual(client.diagnostics(), { reconcileCalls: 0, sendCalls: 0 })
+  database.close()
+})
+
 /**
  * @param {{ sendFailure?: 'network' | 'rate_limited' | 'scope_missing' | 'invalid_response', reconcileFailure?: boolean, sentAt?: string }} [options]
  * @returns {import('../packages/plugin-feishu/src/reply-execution.ts').FeishuReplyExecutionClient & {

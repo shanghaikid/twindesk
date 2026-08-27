@@ -19,9 +19,12 @@ import {
 
 export const FEISHU_REPLY_PROPOSAL_VERSION = 1 as const
 export const FEISHU_REPLY_ACTION_TYPE = 'feishu.reply' as const
+export const FEISHU_REPLY_IDEMPOTENCY_KEY_MAX_CHARACTERS = 50 as const
 
 const MAX_REPLY_TEXT_CHARACTERS = 20_000
 const MAX_REPLY_TEXT_BYTES = 64 * 1024
+const COMPACT_IDEMPOTENCY_KEY_PREFIX = 'tdfr1:'
+const COMPACT_IDEMPOTENCY_FINGERPRINT_CHARACTERS = 40
 
 type UnknownRecord = Readonly<Record<string, unknown>>
 
@@ -229,7 +232,7 @@ export function computeFeishuReplyIdentityFingerprint(
   proposalDigest: string,
 ): string {
   const identity = configuration[identityType]
-  if (identity === undefined || !/^[a-f0-9]{64}$/u.test(proposalDigest)) {
+  if (identity === undefined || !/^[a-f0-9]{32}$/u.test(proposalDigest)) {
     throw fail('identity_mismatch', 'The Feishu reply identity binding is invalid.')
   }
   return createHash('sha256')
@@ -277,15 +280,16 @@ export class FeishuReplyProposer {
       .update('\u0000')
       .update(nonce)
       .digest('hex')
+    const proposalDigest = digest.slice(0, 32)
     const identityFingerprint = computeFeishuReplyIdentityFingerprint(
       this.#configuration,
       request.identity.identityType,
-      digest,
+      proposalDigest,
     )
     return parseActionProposal({
       kind: 'action_proposal',
       schemaVersion: FEISHU_REPLY_PROPOSAL_VERSION,
-      id: `proposal-feishu-reply-${digest.slice(0, 32)}`,
+      id: `proposal-feishu-reply-${proposalDigest}`,
       workItemId: request.workItemId,
       draftId: request.draftId,
       actionType: FEISHU_REPLY_ACTION_TYPE,
@@ -294,7 +298,10 @@ export class FeishuReplyProposer {
       target: request.target,
       content: request.content,
       contentDigest: contentDigest(request.content),
-      idempotencyKey: `feishu:reply:${digest}:identity:${identityFingerprint}:v1`,
+      idempotencyKey: `${COMPACT_IDEMPOTENCY_KEY_PREFIX}${identityFingerprint.slice(
+        0,
+        COMPACT_IDEMPOTENCY_FINGERPRINT_CHARACTERS,
+      )}`,
       state: 'proposed',
       createdAt,
       updatedAt: createdAt,
