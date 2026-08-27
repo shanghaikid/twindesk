@@ -5,6 +5,8 @@ import type {
   ActionProposal,
   ActionProposalId,
   ActionProposalStateTransition,
+  AuditRecord,
+  AuditRecordId,
   ConnectorCursor,
   Draft,
   DraftId,
@@ -14,6 +16,16 @@ import type {
   WorkItemId,
   WorkItemUserAction,
 } from '@twindesk/domain'
+
+import {
+  AuditTimelineError,
+  appendAuditRecords as storeAuditRecords,
+  queryAuditTimeline as queryStoredAuditTimeline,
+  readAuditRecord,
+  type AuditAppendResult,
+  type AuditTimelinePage,
+  type AuditTimelineQuery,
+} from './audit-timeline.ts'
 
 import {
   DraftActionStateError,
@@ -111,6 +123,9 @@ export interface TwinDeskDatabase {
     transition: ActionProposalStateTransition,
   ): ActionProposalTransitionWriteResult
   getActionProposal(id: ActionProposalId): ActionProposal | undefined
+  appendAuditRecords(records: readonly AuditRecord[]): AuditAppendResult
+  getAuditRecord(id: AuditRecordId): AuditRecord | undefined
+  queryAuditTimeline(query?: AuditTimelineQuery): AuditTimelinePage
   close(): void
   [Symbol.dispose](): void
 }
@@ -239,6 +254,30 @@ class TwinDeskDatabaseHandle implements TwinDeskDatabase {
       throw new DraftActionStateError('database_closed', 'The TwinDesk database is closed.')
     }
     return readActionProposal(database, id)
+  }
+
+  appendAuditRecords(records: readonly AuditRecord[]): AuditAppendResult {
+    const database = this.#database
+    if (database === undefined) {
+      throw new AuditTimelineError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return storeAuditRecords(database, records)
+  }
+
+  getAuditRecord(id: AuditRecordId): AuditRecord | undefined {
+    const database = this.#database
+    if (database === undefined) {
+      throw new AuditTimelineError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return readAuditRecord(database, id)
+  }
+
+  queryAuditTimeline(query: AuditTimelineQuery = {}): AuditTimelinePage {
+    const database = this.#database
+    if (database === undefined) {
+      throw new AuditTimelineError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return queryStoredAuditTimeline(database, query)
   }
 
   close(): void {

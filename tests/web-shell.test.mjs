@@ -67,11 +67,16 @@ test('the local Web server serves product routes and restarts on the same port',
   const appSource = await appResponse.text()
   assert.match(appSource, /history\.pushState/u)
   assert.match(appSource, /\/api\/inbox\?state=/u)
+  assert.match(appSource, /\/api\/audit/u)
   assert.match(appSource, /function escapeHtml/u)
 
   const contractResponse = await request(`${running.url}/inbox-contract.js`)
   assert.equal(contractResponse.status, 200)
   assert.match(await contractResponse.text(), /function parseInboxSnapshot/u)
+
+  const auditContractResponse = await request(`${running.url}/audit-contract.js`)
+  assert.equal(auditContractResponse.status, 200)
+  assert.match(await auditContractResponse.text(), /function parseAuditSnapshot/u)
 
   const stylesResponse = await request(`${running.url}/styles.css`)
   assert.equal(stylesResponse.status, 200)
@@ -106,10 +111,32 @@ test('the local Web server serves product routes and restarts on the same port',
   assert.equal((await request(`${running.url}/api/inbox?state=unknown`)).status, 400)
   assert.equal((await request(`${running.url}/api/inbox?state=done&extra=true`)).status, 400)
 
+  const auditResponse = await request(`${running.url}/api/audit`)
+  assert.equal(auditResponse.status, 200)
+  assert.match(auditResponse.headers.get('content-type') ?? '', /^application\/json/u)
+  const audit = await auditResponse.json()
+  assert.equal(audit.fixture, true)
+  assert.equal(audit.items.length, 4)
+  assert.equal(
+    audit.items.every(
+      (/** @type {{ actorLabel: string, referenceKinds: string[] }} */ item) =>
+        item.actorLabel === 'TwinDesk' &&
+        item.referenceKinds.includes('work_item') &&
+        !Object.hasOwn(item, 'details') &&
+        !Object.hasOwn(item, 'id'),
+    ),
+    true,
+  )
+  const headAudit = await request(`${running.url}/api/audit`, { method: 'HEAD' })
+  assert.equal(headAudit.status, 200)
+  assert.equal(await headAudit.text(), '')
+  assert.equal((await request(`${running.url}/api/audit?extra=true`)).status, 400)
+
   const postResponse = await request(`${running.url}/health`, { method: 'POST' })
   assert.equal(postResponse.status, 405)
   assert.equal(postResponse.headers.get('allow'), 'GET, HEAD')
   assert.equal((await request(`${running.url}/api/inbox`, { method: 'POST' })).status, 405)
+  assert.equal((await request(`${running.url}/api/audit`, { method: 'POST' })).status, 405)
   assert.equal((await request(`${running.url}/unknown`)).status, 404)
 
   const port = running.port

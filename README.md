@@ -52,6 +52,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Fixture-driven Inbox](docs/FIXTURE_INBOX.md): synthetic four-state Work Hub data, loopback read API, UI behavior, and restart limits.
 - [Persona to Harness Preset Mapping](docs/PERSONA_PRESET_MAPPING.md): versioned built-in behavior mapping and its non-authority boundary.
 - [Draft and ActionProposal Transitions](docs/DRAFT_ACTION_TRANSITIONS.md): local state machines, exact content binding, replay, and no-side-effect boundary.
+- [Local Audit Timeline](docs/AUDIT_TIMELINE.md): immutable business records, cross-store references, pagination, and presentation redaction.
 - [Harness Upstream Navigation Proposal](docs/HARNESS_UPSTREAM_NAVIGATION_PROPOSAL.md): an optional ecosystem reference for generic Harness Client extensibility.
 - [Inbox Extension Spike](docs/INBOX_EXTENSION_SPIKE.md): out-of-tree route and sidebar findings, limitations, and compatibility seams.
 - [ADR 0001](docs/decisions/0001-upstream-generic-inbox-extension-points.md): historical Harness Client investigation and upstream path.
@@ -64,8 +65,9 @@ Stage 0 is complete and the project is in Roadmap Stage 1. The standalone
 routes and runs only on loopback. The business schema, idempotent ExternalEvent
 ingestion, durable synchronization cursors, Work Item projections, Inbox
 queries, the fixture-driven four-state Inbox page, fail-closed mapping for the
-two built-in Personas, and durable Draft/ActionProposal transitions are
-implemented. Draft generation and editing UI, approvals, audit records,
+two built-in Personas, durable Draft/ActionProposal transitions, and the local
+Audit Timeline are implemented. The Audit page currently shows synthetic
+routing records. Draft generation and editing UI, approval decisions,
 user-created Personas, and real Connectors are not.
 Versioned domain records and the product-owned Connector contract are
 implemented. The pinned Harness Profile,

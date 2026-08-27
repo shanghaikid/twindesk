@@ -564,6 +564,24 @@ BEGIN
 END;
 `
 
+const LOCAL_AUDIT_TIMELINE_SQL = `
+CREATE INDEX audit_references_lookup_index
+  ON audit_references (reference_kind, reference_id, audit_record_id);
+
+CREATE TRIGGER audit_references_no_update
+BEFORE UPDATE ON audit_references
+BEGIN
+  SELECT RAISE(ABORT, 'Audit references are immutable');
+END;
+
+CREATE TRIGGER audit_records_valid_timestamp
+BEFORE INSERT ON audit_records
+WHEN julianday(NEW.occurred_at) IS NULL
+BEGIN
+  SELECT RAISE(ABORT, 'Audit timestamp is invalid');
+END;
+`
+
 export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
   Object.freeze({
     version: 1,
@@ -579,6 +597,11 @@ export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
     version: 3,
     name: 'local_draft_action_transitions',
     sql: LOCAL_DRAFT_ACTION_TRANSITIONS_SQL,
+  }),
+  Object.freeze({
+    version: 4,
+    name: 'local_audit_timeline',
+    sql: LOCAL_AUDIT_TIMELINE_SQL,
   }),
 ])
 

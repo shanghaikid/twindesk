@@ -219,8 +219,21 @@ export interface AuditActor {
   readonly id?: string
 }
 
+export type AuditReferenceKind =
+  | 'external_event'
+  | 'external_thread'
+  | 'work_item'
+  | 'session'
+  | 'run'
+  | 'tool_call'
+  | 'draft'
+  | 'action_proposal'
+  | 'approval_record'
+  | 'action_receipt'
+  | 'connector_cursor'
+
 export interface AuditReference {
-  readonly kind: string
+  readonly kind: AuditReferenceKind
   readonly id: string
 }
 

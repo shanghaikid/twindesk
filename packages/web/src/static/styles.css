@@ -507,6 +507,11 @@ td {
   vertical-align: middle;
 }
 
+.muted {
+  color: var(--muted);
+  font-weight: 400;
+}
+
 tbody tr:last-child td {
   border-bottom: 0;
 }

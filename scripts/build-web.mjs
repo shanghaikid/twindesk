@@ -15,6 +15,7 @@ if (process.argv[2] === 'clean') {
 
 for (const compiledEntry of [
   'app.js',
+  'audit-contract.js',
   'cli.js',
   'inbox-contract.js',
   'index.js',

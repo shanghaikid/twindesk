@@ -7,8 +7,9 @@ the Node.js 24 built-in `node:sqlite` driver and does not add a native package
 dependency. The package currently owns schema creation, forward migration,
 database lifecycle, idempotent ExternalEvent ingestion, durable atomic
 Connector cursors, Work Item projections, Inbox queries, and local Draft and
-ActionProposal transitions. Approval, audit, retention, and external execution
-write paths begin in later tasks.
+ActionProposal transitions, plus immutable business Audit records and timeline
+queries. Approval decisions, retention, and external execution write paths
+begin in later tasks.
 
 This database is not a Harness Session store. It never creates, updates, or
 queries Harness Session tables, JSONL artifacts, or Session query indexes.
@@ -96,6 +97,13 @@ at their current state during migration; new writes preserve their true initial
 state. The transition API updates history and current state in one transaction.
 See [Draft and ActionProposal Transitions](DRAFT_ACTION_TRANSITIONS.md).
 
+Migration 4 adds the Audit reference lookup index, prevents Audit reference
+updates, and rejects invalid timestamps before insert. The narrow Audit API
+validates local reference existence, ownership, and chronology before its
+transaction commits. Harness Session, Run, and Tool-call payloads remain in
+the separate Harness Session store; TwinDesk persists only their opaque IDs as
+business timeline links. See [Local Audit Timeline](AUDIT_TIMELINE.md).
+
 ## Privacy and Retention Review
 
 The schema contains no token, API key, cookie, private-key, or credential
@@ -124,4 +132,5 @@ schema alone does not claim those behaviors are implemented.
 [External Event Ingestion](EVENT_INGESTION.md) and
 [Durable Synchronization Cursors](SYNC_CURSORS.md) record the implemented write,
 replay, and restart semantics and their tests. [Work Item Projections](WORK_ITEM_PROJECTIONS.md)
-records rebuild and Inbox-query behavior.
+records rebuild and Inbox-query behavior. [Local Audit Timeline](AUDIT_TIMELINE.md)
+records immutable append, cross-store reference, and query behavior.

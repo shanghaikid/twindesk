@@ -9,9 +9,10 @@ without connecting a real account or enabling an external write.
 synthetic definitions
   -> validated ExternalEvent / ExternalThread / WorkItem records
   -> idempotent TwinDesk SQLite ingestion and projections
-  -> Work Hub fixture Inbox service
-  -> loopback GET /api/inbox
-  -> TwinDesk Web Inbox
+  -> optional immutable synthetic routing AuditRecords
+  -> Work Hub fixture presentation service
+  -> loopback GET /api/inbox and /api/audit
+  -> TwinDesk Web Inbox and Audit pages
 ```
 
 `@twindesk/plugin-work-hub` owns fixture seeding and the presentation-safe read
@@ -36,6 +37,14 @@ status, and update time. The browser validates the version, counts, state,
 identity metadata, context completeness, source count, canonical timestamp, and
 item uniqueness before rendering. All API-derived strings are escaped before
 insertion into the page.
+
+For the Web shell, the same service idempotently seeds one synthetic routing
+AuditRecord per fixture Work Item. `GET /api/audit` returns only category,
+outcome, a safe actor label, summary, reference kinds, and time. It omits Audit
+record IDs, referenced IDs, actor IDs, and details. The browser validates the
+entire versioned response before rendering it. This is fixture evidence for
+the local Audit Timeline, not a claim that a model Run or external action has
+occurred.
 
 The API is read-only. The existing server-wide `GET` and `HEAD` restriction
 rejects mutation methods, and the UI explicitly states that fixture data cannot
@@ -62,7 +71,7 @@ local TwinDesk database and `--port <port>` to change the port.
 
 - The service deliberately returns only the four stable fixture IDs, even if
   its database later contains non-fixture Work Items.
-- The page does not edit state, select Personas, create drafts, or execute
-  actions. Those behaviors belong to later Stage 1 tasks.
+- The pages do not edit state, select Personas, create drafts, approve, or
+  execute actions. Those behaviors belong to later tasks.
 - Fixture timestamps and content are synthetic repository data. No company
   messages, credentials, or real external identifiers are included.

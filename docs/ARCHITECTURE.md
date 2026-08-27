@@ -103,7 +103,7 @@ The core Host-side service:
 - Connector registry;
 - event normalization and deduplication;
 - Work Item routing;
-- Stage 1 fixture ingestion and presentation-safe Inbox reads;
+- Stage 1 fixture ingestion and presentation-safe Inbox and Audit reads;
 - Persona selection;
 - fail-closed mapping of versioned built-in Persona configuration to installed Presets;
 - association between Runs and external objects;
@@ -113,7 +113,9 @@ The core Host-side service:
 The Stage 0 Host lifecycle effect remains as compatibility evidence. TD-106
 adds a product-owned fixture Inbox service that seeds normalized synthetic
 records through `@twindesk/storage-sqlite` and exposes a narrow read model to
-the local Web server. TD-107 maps the exact two installed Persona
+the local Web server. TD-109 extends that boundary with immutable synthetic
+business Audit records and a presentation-safe timeline while keeping Harness
+Session data in its own store. TD-107 maps the exact two installed Persona
 configurations to TwinDesk-owned Preset identifiers and observable composition
 metadata without importing Harness types or producing authority. Connector
 registry, real event routing, Run association, dynamic Personas, and action
@@ -151,7 +153,8 @@ The local product presentation boundary:
 
 - owns Inbox, Personas, Connectors, Audit, and Settings routes;
 - serves only on loopback and applies restrictive browser security headers;
-- consumes the loopback Work Hub Inbox API rather than Harness or database internals;
+- consumes the loopback Work Hub Inbox and Audit APIs rather than Harness or
+  database internals;
 - presents drafts, approvals, execution receipts, and partial context without
   implying authority from Persona or page visibility.
 

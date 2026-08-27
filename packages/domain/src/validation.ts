@@ -668,12 +668,33 @@ export function parseAuditRecord(value: unknown): AuditRecord {
   if (actorType !== 'system' && actorId === undefined) {
     fail(`${path}.actor.id`, `is required when actor type is ${actorType}`)
   }
+  if (actorType === 'system' && actorId !== undefined) {
+    fail(`${path}.actor.id`, 'is not allowed when actor type is system')
+  }
   stringAt(record.summary, `${path}.summary`)
-  if (!Array.isArray(record.references)) fail(`${path}.references`, 'must be an array')
+  if (!Array.isArray(record.references) || record.references.length === 0) {
+    fail(`${path}.references`, 'must be a non-empty array')
+  }
   const references = record.references.map((entry, index) => {
     const reference = objectAt(entry, `${path}.references[${index}]`)
     exactKeys(reference, `${path}.references[${index}]`, ['kind', 'id'])
-    const kind = stringAt(reference.kind, `${path}.references[${index}].kind`)
+    const kind = enumAt(
+      reference.kind,
+      [
+        'external_event',
+        'external_thread',
+        'work_item',
+        'session',
+        'run',
+        'tool_call',
+        'draft',
+        'action_proposal',
+        'approval_record',
+        'action_receipt',
+        'connector_cursor',
+      ],
+      `${path}.references[${index}].kind`,
+    )
     const id = stringAt(reference.id, `${path}.references[${index}].id`)
     return `${kind}\u0000${id}`
   })

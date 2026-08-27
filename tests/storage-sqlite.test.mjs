@@ -114,6 +114,7 @@ test('a new database receives the isolated TwinDesk schema and durable settings'
       { version: 1, name: 'initial_business_schema' },
       { version: 2, name: 'work_item_projection_inputs' },
       { version: 3, name: 'local_draft_action_transitions' },
+      { version: 4, name: 'local_audit_timeline' },
     ],
   )
   for (const { checksum, applied_at: appliedAt } of migrations) {

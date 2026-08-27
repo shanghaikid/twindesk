@@ -10,6 +10,7 @@ import {
   type InboxSnapshot,
   type InboxState,
 } from './inbox-contract.ts'
+import { parseAuditSnapshot, type AuditSnapshot } from './audit-contract.ts'
 
 const INBOX_STATES: readonly { readonly id: InboxState; readonly label: string }[] = [
   { id: 'needs_reply', label: 'Needs reply' },
@@ -33,6 +34,10 @@ let selectedWorkItemId: string | undefined
 let inboxLoading = false
 let inboxError: string | undefined
 let inboxRequest = 0
+let auditSnapshot: AuditSnapshot | undefined
+let auditLoading = false
+let auditError: string | undefined
+let auditRequest = 0
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/gu, (character) => {
@@ -196,17 +201,39 @@ function connectorsContent(): string {
 }
 
 function auditContent(): string {
+  let body: string
+  if (auditLoading) {
+    body = `<tr class="empty-row"><td colspan="5"><div class="empty-state compact"><h2>Loading audit records…</h2><p>Reading the local TwinDesk timeline.</p></div></td></tr>`
+  } else if (auditError !== undefined) {
+    body = `<tr class="empty-row"><td colspan="5"><div class="empty-state compact"><h2>Audit timeline unavailable</h2><p>${escapeHtml(auditError)}</p><button class="secondary-button" type="button" data-audit-retry>Retry</button></div></td></tr>`
+  } else if (auditSnapshot === undefined || auditSnapshot.items.length === 0) {
+    body = `<tr class="empty-row"><td colspan="5"><div class="empty-state compact"><h2>No audit records</h2><p>Source events, drafts, approvals, receipts, errors, and retries will appear here.</p></div></td></tr>`
+  } else {
+    body = auditSnapshot.items
+      .map(
+        (item) => `<tr>
+          <td>${escapeHtml(formatTimestamp(item.occurredAt))}</td>
+          <td><span class="badge neutral">${escapeHtml(item.category)}</span></td>
+          <td><strong>${escapeHtml(item.summary)}</strong><br><span class="muted">Links: ${escapeHtml(item.referenceKinds.join(', '))}</span></td>
+          <td>${escapeHtml(item.actorLabel)}</td>
+          <td><span class="badge${item.outcome === 'success' ? ' success' : ' neutral'}">${escapeHtml(item.outcome)}</span></td>
+        </tr>`,
+      )
+      .join('')
+  }
   return `
     <section class="panel">
       <div class="panel-header">
-        <div><h2>Audit log</h2><p>User-visible decisions and external action history.</p></div>
+        <div><h2>Audit timeline</h2><p>User-visible decisions and local action history.</p></div>
+        <span class="fixture-label">Synthetic fixtures</span>
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Time</th><th>Source</th><th>Action</th><th>Persona</th><th>Status</th></tr></thead>
-          <tbody><tr class="empty-row"><td colspan="5"><div class="empty-state compact"><h2>No audit records</h2><p>Source events, drafts, approvals, receipts, errors, and retries will appear here.</p></div></td></tr></tbody>
+          <thead><tr><th>Time</th><th>Category</th><th>Summary and links</th><th>Actor</th><th>Outcome</th></tr></thead>
+          <tbody>${body}</tbody>
         </table>
       </div>
+      <div class="notice"><strong>Separate stores.</strong> Session, run, and tool-call links remain opaque references; Harness Session events are not copied into TwinDesk SQLite.</div>
     </section>`
 }
 
@@ -294,9 +321,34 @@ async function loadInbox(state: InboxState): Promise<void> {
   }
 }
 
+async function loadAudit(): Promise<void> {
+  const request = ++auditRequest
+  auditLoading = true
+  auditError = undefined
+  render()
+  try {
+    const response = await fetch('/api/audit', { headers: { accept: 'application/json' } })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseAuditSnapshot(await response.json())
+    if (request !== auditRequest) return
+    auditSnapshot = snapshot
+  } catch (error) {
+    if (request !== auditRequest) return
+    auditSnapshot = undefined
+    auditError = error instanceof Error ? error.message : 'The local Audit request failed.'
+  } finally {
+    if (request === auditRequest) {
+      auditLoading = false
+      render()
+    }
+  }
+}
+
 function renderRouteAndLoad(): void {
   render()
-  if (currentRoute().id === 'inbox') void loadInbox(activeInboxState)
+  const route = currentRoute()
+  if (route.id === 'inbox') void loadInbox(activeInboxState)
+  if (route.id === 'audit') void loadAudit()
 }
 
 document.addEventListener('click', (event) => {
@@ -322,6 +374,7 @@ document.addEventListener('click', (event) => {
     return
   }
   if (target.closest('[data-inbox-retry]') !== null) void loadInbox(activeInboxState)
+  if (target.closest('[data-audit-retry]') !== null) void loadAudit()
 })
 window.addEventListener('popstate', renderRouteAndLoad)
 renderRouteAndLoad()

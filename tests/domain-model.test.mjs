@@ -361,6 +361,18 @@ test('audit validation requires attributable actors and does not echo rejected v
     /actor\.id is required when actor type is connector/u,
   )
   assert.throws(
+    () => parseAuditRecord({ ...copy(fixture), actor: { type: 'system', id: 'unexpected' } }),
+    /actor\.id is not allowed when actor type is system/u,
+  )
+  assert.throws(
+    () =>
+      parseAuditRecord({
+        ...copy(fixture),
+        references: [{ kind: 'unsupported', id: 'fixture-reference' }],
+      }),
+    /references\[0\]\.kind must be one of/u,
+  )
+  assert.throws(
     () =>
       parseAuditRecord({
         ...copy(fixture),

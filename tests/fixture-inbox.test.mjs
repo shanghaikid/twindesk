@@ -23,8 +23,9 @@ async function temporaryDatabase(context) {
 
 test('the fixture Inbox seeds all four states through durable projections', async (context) => {
   const path = await temporaryDatabase(context)
-  const service = createFixtureInboxService(path)
+  const service = createFixtureInboxService(path, { includeAudit: true })
   const snapshot = service.read()
+  const audit = service.readAudit()
 
   assert.equal(snapshot.version, 1)
   assert.equal(snapshot.fixture, true)
@@ -48,6 +49,19 @@ test('the fixture Inbox seeds all four states through durable projections', asyn
     snapshot.items.some(({ context }) => context.status === 'partial'),
     true,
   )
+  assert.equal(audit.version, 1)
+  assert.equal(audit.fixture, true)
+  assert.equal(audit.items.length, 4)
+  assert.equal(
+    audit.items.every(
+      (item) =>
+        item.actorLabel === 'TwinDesk' &&
+        item.referenceKinds.includes('work_item') &&
+        !Object.hasOwn(item, 'details') &&
+        !Object.hasOwn(item, 'id'),
+    ),
+    true,
+  )
   service.close()
 
   const database = openTwinDeskDatabase(path)
@@ -68,8 +82,9 @@ test('the fixture Inbox seeds all four states through durable projections', asyn
   database.applyWorkItemUserAction(selectCustomPersona)
   database.close()
 
-  const restarted = createFixtureInboxService(path)
+  const restarted = createFixtureInboxService(path, { includeAudit: true })
   assert.deepEqual(restarted.read().counts, snapshot.counts)
+  assert.deepEqual(restarted.readAudit(), audit)
   for (const state of FIXTURE_INBOX_STATES) {
     const filtered = restarted.read(state)
     assert.equal(filtered.items.length, 1)
@@ -85,6 +100,7 @@ test('the fixture Inbox seeds all four states through durable projections', asyn
   context.after(() => inspection.close())
   assert.equal(inspection.prepare('SELECT count(*) AS count FROM external_events').get()?.count, 4)
   assert.equal(inspection.prepare('SELECT count(*) AS count FROM work_items').get()?.count, 4)
+  assert.equal(inspection.prepare('SELECT count(*) AS count FROM audit_records').get()?.count, 4)
 })
 
 test('the fixture Inbox closes explicitly and rejects invalid runtime state', () => {
@@ -97,4 +113,5 @@ test('the fixture Inbox closes explicitly and rejects invalid runtime state', ()
   service.close()
   service.close()
   assert.throws(() => service.read(), /service is closed/u)
+  assert.throws(() => service.readAudit(), /service is closed/u)
 })

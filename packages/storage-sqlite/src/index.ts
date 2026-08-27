@@ -1,4 +1,13 @@
 export {
+  AuditTimelineError,
+  type AuditAppendItem,
+  type AuditAppendResult,
+  type AuditTimelineCursor,
+  type AuditTimelineErrorCode,
+  type AuditTimelinePage,
+  type AuditTimelineQuery,
+} from './audit-timeline.ts'
+export {
   StorageSchemaError,
   openTwinDeskDatabase,
   type StorageSchemaErrorCode,

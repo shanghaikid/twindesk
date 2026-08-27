@@ -1,7 +1,11 @@
 import {
   parseExternalEvent,
   parseExternalThread,
+  parseAuditRecord,
   parseWorkItem,
+  type AuditCategory,
+  type AuditOutcome,
+  type AuditRecord,
   type ExternalEvent,
   type ExternalThread,
   type InboxState,
@@ -51,7 +55,29 @@ export interface FixtureInboxSnapshot {
 
 export interface FixtureInboxService {
   read(state?: InboxState): FixtureInboxSnapshot
+  readAudit(): FixtureAuditSnapshot
   close(): void
+}
+
+export interface FixtureAuditItem {
+  readonly category: AuditCategory
+  readonly outcome: AuditOutcome
+  readonly actorType: AuditRecord['actor']['type']
+  readonly actorLabel: string
+  readonly summary: string
+  readonly referenceKinds: readonly AuditRecord['references'][number]['kind'][]
+  readonly occurredAt: string
+}
+
+export interface FixtureAuditSnapshot {
+  readonly version: 1
+  readonly fixture: true
+  readonly items: readonly FixtureAuditItem[]
+}
+
+export interface FixtureInboxServiceOptions {
+  /** Seed presentation-safe synthetic Audit records for the product Web shell. */
+  readonly includeAudit?: boolean
 }
 
 interface FixtureDefinition {
@@ -171,11 +197,46 @@ function fixtureRecords(definition: FixtureDefinition): FixtureRecords {
 
 const FIXTURE_RECORDS = Object.freeze(DEFINITIONS.map(fixtureRecords))
 
-function seed(database: TwinDeskDatabase): void {
+const FIXTURE_AUDIT_RECORDS = Object.freeze(
+  DEFINITIONS.map((definition, index) => {
+    const records = FIXTURE_RECORDS[index]
+    if (records === undefined) throw new Error('Fixture Audit definition is missing its records.')
+    const persona =
+      definition.personaId === undefined
+        ? undefined
+        : findBuiltInPersonaConfiguration(definition.personaId)
+    return parseAuditRecord({
+      kind: 'audit_record',
+      schemaVersion: 1,
+      id: `fixture-audit-routing-${definition.suffix}`,
+      category: 'routing',
+      outcome: 'success',
+      actor: { type: 'system' },
+      summary:
+        persona === undefined
+          ? 'Synthetic Work Item routing completed without a selected Persona.'
+          : `Synthetic Work Item routed to ${persona.name}.`,
+      references: [
+        { kind: 'work_item', id: records.workItem.id },
+        { kind: 'external_thread', id: records.thread.id },
+        { kind: 'external_event', id: records.event.id },
+      ],
+      details: {
+        fixture: true,
+        contextStatus: definition.context.status,
+        personaSelected: persona !== undefined,
+      },
+      occurredAt: definition.timestamp,
+    })
+  }),
+)
+
+function seed(database: TwinDeskDatabase, includeAudit: boolean): void {
   database.ingestExternalEvents(FIXTURE_RECORDS.map(({ event }) => event))
   for (const { thread, workItem } of FIXTURE_RECORDS) {
     database.putWorkItemProjection({ thread, workItem })
   }
+  if (includeAudit) database.appendAuditRecords(FIXTURE_AUDIT_RECORDS)
 }
 
 function readFixtureItems(database: TwinDeskDatabase): readonly WorkItem[] {
@@ -227,14 +288,35 @@ function projectItem(item: WorkItem): FixtureInboxItem {
   })
 }
 
+function projectAuditRecord(record: AuditRecord): FixtureAuditItem {
+  const actorLabel: Readonly<Record<AuditRecord['actor']['type'], string>> = {
+    system: 'TwinDesk',
+    user: 'Local user',
+    persona: 'Persona',
+    connector: 'Connector',
+  }
+  return Object.freeze({
+    category: record.category,
+    outcome: record.outcome,
+    actorType: record.actor.type,
+    actorLabel: actorLabel[record.actor.type],
+    summary: record.summary,
+    referenceKinds: Object.freeze(record.references.map(({ kind }) => kind)),
+    occurredAt: record.occurredAt,
+  })
+}
+
 /**
  * Open an idempotently seeded, read-only-at-the-API-boundary Stage 1 Inbox service.
  * The caller chooses whether the SQLite database is in-memory or durable.
  */
-export function createFixtureInboxService(databasePath = ':memory:'): FixtureInboxService {
+export function createFixtureInboxService(
+  databasePath = ':memory:',
+  options: FixtureInboxServiceOptions = {},
+): FixtureInboxService {
   const database = openTwinDeskDatabase(databasePath)
   try {
-    seed(database)
+    seed(database, options.includeAudit === true)
   } catch (error) {
     database.close()
     throw error
@@ -255,6 +337,16 @@ export function createFixtureInboxService(databasePath = ':memory:'): FixtureInb
         fixture: true,
         counts: counts(allItems),
         items: Object.freeze(visibleItems.map(projectItem)),
+      })
+    },
+    readAudit() {
+      if (closed) throw new Error('The fixture Inbox service is closed.')
+      return Object.freeze({
+        version: 1,
+        fixture: true,
+        items: Object.freeze(
+          database.queryAuditTimeline({ limit: 100 }).records.map(projectAuditRecord),
+        ),
       })
     },
     close() {

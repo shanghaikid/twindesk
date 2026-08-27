@@ -14,6 +14,7 @@ import { resolveTwinDeskRoute } from './routes.ts'
 const outputRoot = dirname(fileURLToPath(import.meta.url))
 const ASSETS = new Map([
   ['/app.js', { file: 'app.js', type: 'text/javascript; charset=utf-8' }],
+  ['/audit-contract.js', { file: 'audit-contract.js', type: 'text/javascript; charset=utf-8' }],
   ['/inbox-contract.js', { file: 'inbox-contract.js', type: 'text/javascript; charset=utf-8' }],
   ['/routes.js', { file: 'routes.js', type: 'text/javascript; charset=utf-8' }],
   ['/styles.css', { file: 'styles.css', type: 'text/css; charset=utf-8' }],
@@ -96,6 +97,24 @@ function serveInboxApi(
   response.end(headOnly ? undefined : body)
 }
 
+function serveAuditApi(
+  response: ServerResponse,
+  requestUrl: URL,
+  headOnly: boolean,
+  inbox: FixtureInboxService,
+): void {
+  if (requestUrl.search.length > 0) {
+    send(response, 400, headOnly ? '' : 'Invalid Audit query.\n', 'text/plain; charset=utf-8')
+    return
+  }
+  const body = JSON.stringify(inbox.readAudit())
+  response.writeHead(200, {
+    ...commonHeaders('application/json; charset=utf-8'),
+    'content-length': String(Buffer.byteLength(body)),
+  })
+  response.end(headOnly ? undefined : body)
+}
+
 async function serveAsset(
   response: ServerResponse,
   pathname: string,
@@ -148,7 +167,7 @@ export async function startTwinDeskWebServer(
     throw new Error('TwinDesk Web port must be an integer from 0 through 65535')
   }
 
-  const inbox = createFixtureInboxService(options.databasePath)
+  const inbox = createFixtureInboxService(options.databasePath, { includeAudit: true })
 
   const server = createServer((request, response) => {
     void (async () => {
@@ -167,6 +186,10 @@ export async function startTwinDeskWebServer(
       }
       if (requestUrl.pathname === '/api/inbox') {
         serveInboxApi(response, requestUrl, method === 'HEAD', inbox)
+        return
+      }
+      if (requestUrl.pathname === '/api/audit') {
+        serveAuditApi(response, requestUrl, method === 'HEAD', inbox)
         return
       }
       if (ASSETS.has(requestUrl.pathname)) {
