@@ -51,7 +51,9 @@ validation diagnostics.
 
 The implementation stores canonical normalized JSON only. The privacy and
 retention constraints in [TwinDesk SQLite Storage](STORAGE_SQLITE.md) continue
-to apply; diagnostic logging and export still require the TD-110 redactor.
+to apply. The TD-110 shared redactor now removes normalized business content
+from diagnostics and credentials from every boundary; this ingestion module
+does not itself emit a diagnostic or export payload.
 
 ## Verification
 

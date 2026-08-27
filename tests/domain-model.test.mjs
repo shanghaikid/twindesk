@@ -15,6 +15,7 @@ import {
   parseDraft,
   parseExternalEvent,
   parseDraftStateTransition,
+  parseSecretReference,
   parseWorkItem,
   parseWorkItemUserAction,
 } from '../packages/domain/dist/index.js'
@@ -172,6 +173,13 @@ const records = [
     fromState: 'awaiting_approval',
     toState: 'rejected',
     occurredAt: thirdTimestamp,
+  },
+  {
+    kind: 'secret_reference',
+    schemaVersion: 1,
+    id: 'secret-ref:synthetic-feishu-user-oauth',
+    store: 'system_keychain',
+    purpose: 'connector_oauth',
   },
 ]
 
@@ -404,5 +412,43 @@ test('audit validation requires attributable actors and does not echo rejected v
   assert.throws(
     () => parseAuditRecord(accessorFixture),
     /audit_record\.summary must be a data field/u,
+  )
+})
+
+test('secret references accept only opaque locators and never secret material', () => {
+  const fixture = records[11]
+  assert.equal(fixture?.kind, 'secret_reference')
+  assert.equal(parseSecretReference(copy(fixture)).id, fixture.id)
+
+  const secret = 'synthetic-secret-material-that-must-not-echo'
+  for (const malformed of [
+    { ...copy(fixture), id: secret },
+    { ...copy(fixture), id: 'secret-ref:Uppercase' },
+    { ...copy(fixture), store: 'plaintext' },
+    { ...copy(fixture), purpose: 'grants_connector_scope' },
+    { ...copy(fixture), value: secret },
+  ]) {
+    assert.throws(
+      () => parseSecretReference(malformed),
+      (error) => {
+        assert.ok(error instanceof DomainValidationError)
+        assert.equal(error.message.includes(secret), false)
+        return true
+      },
+    )
+  }
+
+  const symbolField = /** @type {any} */ (copy(fixture))
+  symbolField[Symbol('secret')] = secret
+  assert.throws(() => parseSecretReference(symbolField), /must not contain symbol fields/u)
+
+  const proxy = new Proxy(copy(fixture), {
+    getPrototypeOf() {
+      throw new Error(secret)
+    },
+  })
+  assert.throws(
+    () => parseSecretReference(proxy),
+    (error) => error instanceof DomainValidationError && !error.message.includes(secret),
   )
 })

@@ -1,4 +1,5 @@
 export * from './connector.ts'
 export * from './model.ts'
+export * from './redaction.ts'
 export * from './state-transitions.ts'
 export * from './validation.ts'

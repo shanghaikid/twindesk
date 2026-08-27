@@ -54,6 +54,7 @@ or model SDK dependency:
 - ApprovalRecord
 - ConnectorCursor
 - AuditRecord
+- SecretReference
 
 Every persisted business record starts with `kind` and `schemaVersion: 1`.
 `@twindesk/domain` exposes boundary parsers that reject unknown fields,
@@ -64,6 +65,12 @@ immutable. Validation errors identify only the rejected field path and
 expectation; they do not serialize the input value. Pure Draft and
 ActionProposal transition functions enforce the local TD-108 state graphs;
 approval and execution states remain unavailable without separate evidence.
+The same package owns the dependency-free shared redactor. Diagnostic policies
+retain only bounded structured metadata text; model-context and export policies
+may retain authorized business content, but every policy removes credentials,
+opaque secret locators, supplied secret values, and hidden reasoning. Current
+Work Hub Tool renderers use this boundary before returning model context. See
+[Secret References and Shared Redaction](SECRET_REFERENCES_AND_REDACTION.md).
 
 ### `@twindesk/harness-adapter`
 
@@ -313,6 +320,14 @@ uncertain receipt requires reconciliation before any retry.
 - Store only secret references in databases.
 - Pass logs, errors, model context, and exports through a shared redactor.
 - Configure and display Bot and User identities separately.
+
+`SecretReference` records contain no secret material and do not grant data or
+Tool scope. They identify either the system Keychain or a dedicated encrypted
+store plus a purpose. Resolving those references remains a Connector-owned
+operation; actual values must be short-lived and supplied to the redactor as
+known secrets before any outbound boundary. Telemetry follows the same
+diagnostic policy as logs and errors. The redactor is a final safety boundary,
+not a substitute for data minimization or explicit model/export authorization.
 
 ### 8.2 Tool Risk
 

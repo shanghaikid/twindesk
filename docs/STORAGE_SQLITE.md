@@ -108,15 +108,21 @@ business timeline links. See [Local Audit Timeline](AUDIT_TIMELINE.md).
 
 The schema contains no token, API key, cookie, private-key, or credential
 column. Connector credentials must remain in Keychain or a dedicated encrypted
-secret store; future tables may persist only opaque secret references.
+secret store. The versioned domain `SecretReference` can identify such a store
+without containing its value, but TD-110 adds no credential table to this
+business database. Future Connector configuration may persist only the opaque
+reference.
 
 The following fields may contain synthetic or authorized company/personal
-content and therefore require the TD-110 shared redactor before diagnostic
+content and must pass through the TD-110 shared redactor before diagnostic
 logging or export: normalized event JSON, Work Item text, draft content and
 rationale, target display names, receipt issue summaries, and audit summaries
-or details. Version 1 stores normalized fields rather than raw Connector
-payloads. TD-111 will define deletion, export, and retention transactions; the
-schema alone does not claim those behaviors are implemented.
+or details. Diagnostic policies remove these business-content fields; an
+authorized future export may retain them while still removing credentials,
+secret locators, and hidden reasoning. Version 1 stores normalized fields
+rather than raw Connector payloads. TD-111 will define deletion, export, and
+retention transactions; the schema alone does not claim those behaviors are
+implemented.
 
 ## Verification
 

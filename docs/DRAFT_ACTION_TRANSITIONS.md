@@ -74,11 +74,14 @@ Typed failures expose bounded codes and generic messages without record IDs,
 targets, or content. Content digest validation rejects accessor properties
 without invoking them.
 
-TD-110 must apply the shared redactor before diagnostics or export. TD-111 must
-delete creation snapshots and transition rows through their parent Draft or
-ActionProposal relationships as part of the explicit Thread deletion
-transaction. This task does not claim redaction, retention, approval, or
-execution is complete.
+The TD-110 shared redactor is now available for every future diagnostic or
+export boundary. Diagnostic policies remove these business-content fields;
+authorized model context or export may retain them only after credentials,
+secret locators, and hidden reasoning are removed. This module itself emits no
+diagnostic or export payload. TD-111 must delete creation snapshots and
+transition rows through their parent Draft or ActionProposal relationships as
+part of the explicit Thread deletion transaction. This task does not claim
+retention, approval, or execution is complete.
 
 ## Verification
 

@@ -18,6 +18,7 @@ export type ActionProposalStateTransitionId = Brand<string, 'ActionProposalState
 export type ApprovalRecordId = Brand<string, 'ApprovalRecordId'>
 export type ConnectorCursorId = Brand<string, 'ConnectorCursorId'>
 export type AuditRecordId = Brand<string, 'AuditRecordId'>
+export type SecretReferenceId = Brand<string, 'SecretReferenceId'>
 
 export type JsonPrimitive = boolean | number | string | null
 export type JsonValue = JsonPrimitive | JsonObject | readonly JsonValue[]
@@ -250,6 +251,18 @@ export interface AuditRecord {
   readonly occurredAt: IsoTimestamp
 }
 
+export type SecretStore = 'system_keychain' | 'encrypted_secret_store'
+export type SecretPurpose = 'connector_oauth' | 'connector_api_key' | 'model_api_key' | 'other'
+
+/** Opaque locator for a secret that remains outside ordinary TwinDesk data stores. */
+export interface SecretReference {
+  readonly kind: 'secret_reference'
+  readonly schemaVersion: DomainSchemaVersion
+  readonly id: SecretReferenceId
+  readonly store: SecretStore
+  readonly purpose: SecretPurpose
+}
+
 export type DomainRecord =
   | ExternalEvent
   | ExternalThread
@@ -262,5 +275,6 @@ export type DomainRecord =
   | ApprovalRecord
   | ConnectorCursor
   | AuditRecord
+  | SecretReference
 
 export type DomainRecordKind = DomainRecord['kind']

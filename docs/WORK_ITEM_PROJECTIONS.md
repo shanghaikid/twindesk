@@ -78,11 +78,14 @@ cannot precede the latest event-derived base or previous action.
 
 Titles, summaries, attention reasons, Persona IDs, Thread subjects, and source
 references may contain authorized company or personal data. They remain local
-business data and require the TD-110 shared redactor before diagnostics or
-export. Error objects expose only bounded codes and generic messages, never
-identifiers or content. TD-111 must delete projection bases and user actions as
-part of the same explicit Thread-retention transaction; this task does not
-claim retention or export is complete.
+business data. The TD-110 diagnostic policies redact these fields; an
+authorized model-context or export policy may retain required business text
+while still removing credentials, secret locators, and hidden reasoning. Error
+objects expose only bounded codes and generic messages, never identifiers or
+content. This projection module emits no diagnostic or export payload. TD-111
+must delete projection bases and user actions as part of the same explicit
+Thread-retention transaction; this task does not claim retention or export is
+complete.
 
 ## Verification
 

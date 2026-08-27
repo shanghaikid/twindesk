@@ -1,5 +1,7 @@
 import { registerReadonlyHarnessTool, type HarnessHostContext } from '@twindesk/harness-adapter'
 
+import { renderRedactedModelContext } from './model-context.ts'
+
 /** Stable preset-scoped Tool plugin name. */
 export const name = 'twindesk-technical-context'
 
@@ -31,7 +33,7 @@ export function apply(ctx: HarnessHostContext): void {
           return TWIN_DESK_TECHNICAL_CONTEXT
         },
         render(value) {
-          return JSON.stringify(value)
+          return renderRedactedModelContext(value)
         },
       }),
     'twindesk-work-hub.twindesk-technical-context()',

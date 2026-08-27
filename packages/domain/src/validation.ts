@@ -13,6 +13,7 @@ import {
   type ExternalThread,
   type IsoTimestamp,
   type JsonValue,
+  type SecretReference,
   type ContentDigest,
   type WorkItem,
   type WorkItemUserAction,
@@ -39,14 +40,22 @@ function objectAt(value: unknown, path: string): UnknownRecord {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return fail(path, 'must be an object')
   }
-  const prototype = Object.getPrototypeOf(value) as unknown
-  if (prototype !== Object.prototype && prototype !== null) {
-    return fail(path, 'must be a plain object')
-  }
-  for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(value))) {
-    if (descriptor.get !== undefined || descriptor.set !== undefined) {
-      fail(`${path}.${key}`, 'must be a data field')
+  try {
+    const prototype = Object.getPrototypeOf(value) as unknown
+    if (prototype !== Object.prototype && prototype !== null) {
+      return fail(path, 'must be a plain object')
     }
+    if (Object.getOwnPropertySymbols(value).length > 0) {
+      return fail(path, 'must not contain symbol fields')
+    }
+    for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(value))) {
+      if (descriptor.get !== undefined || descriptor.set !== undefined) {
+        fail(`${path}.${key}`, 'must be a data field')
+      }
+    }
+  } catch (error) {
+    if (error instanceof DomainValidationError) throw error
+    return fail(path, 'must be a plain data object')
   }
   return value as UnknownRecord
 }
@@ -132,6 +141,25 @@ export function parseIsoTimestamp(value: unknown): IsoTimestamp {
 /** Parse the digest format used to bind exact proposal and approval content. */
 export function parseContentDigest(value: unknown): ContentDigest {
   return digestAt(value, 'digest') as ContentDigest
+}
+
+/** Parse an opaque reference; actual secret material is never accepted here. */
+export function parseSecretReference(value: unknown): SecretReference {
+  const path = 'secret_reference'
+  const record = objectAt(value, path)
+  exactKeys(record, path, ['kind', 'schemaVersion', 'id', 'store', 'purpose'])
+  commonRecordAt(record, 'secret_reference', path)
+  const id = stringAt(record.id, `${path}.id`)
+  if (!/^secret-ref:[a-z0-9][a-z0-9._-]{0,127}$/u.test(id)) {
+    fail(`${path}.id`, 'must be an opaque lowercase secret-ref locator')
+  }
+  enumAt(record.store, ['system_keychain', 'encrypted_secret_store'], `${path}.store`)
+  enumAt(
+    record.purpose,
+    ['connector_oauth', 'connector_api_key', 'model_api_key', 'other'],
+    `${path}.purpose`,
+  )
+  return deepFreeze(record as unknown as SecretReference)
 }
 
 function positiveIntegerAt(value: unknown, path: string): number {
@@ -733,6 +761,8 @@ export function parseDomainRecord(value: unknown): DomainRecord {
       return parseConnectorCursor(value)
     case 'audit_record':
       return parseAuditRecord(value)
+    case 'secret_reference':
+      return parseSecretReference(value)
     default:
       return fail('record.kind', 'is not a supported TwinDesk record kind')
   }

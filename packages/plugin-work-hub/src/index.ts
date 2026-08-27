@@ -4,6 +4,10 @@ import {
   type HarnessHostContext,
 } from '@twindesk/harness-adapter'
 
+import { renderRedactedModelContext } from './model-context.ts'
+
+export { renderRedactedModelContext } from './model-context.ts'
+
 /** Stable Host plugin name. */
 export const name = 'twindesk-work-hub'
 
@@ -55,7 +59,7 @@ export function apply(ctx: HarnessHostContext): void {
           return statusWithoutRoadmapStage
         },
         render(value) {
-          return JSON.stringify(value)
+          return renderRedactedModelContext(value)
         },
       }),
     'twindesk-work-hub.twindesk-status()',

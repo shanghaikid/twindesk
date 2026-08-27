@@ -68,10 +68,13 @@ place.
 
 Audit summaries and details may eventually contain authorized company or
 personal data. They stay inside the TwinDesk business store and are never
-included in validation error messages, but TD-110 must add the shared redactor
-before logs, model context, telemetry, diagnostics, or exports can consume
-them. TD-111 must define explicit Thread export, deletion, and retention
-transactions. Hidden chain-of-thought must never be stored.
+included in validation error messages. The TD-110 shared redactor now removes
+them from logs, errors, and telemetry; an authorized model-context or export
+policy may retain necessary business text while still removing credentials,
+secret locators, and hidden reasoning. The current presentation-safe Audit API
+continues to use its narrower explicit projection. TD-111 must define explicit
+Thread export, deletion, and retention transactions. Hidden chain-of-thought
+must never be stored.
 
 The Stage 1 exit gate still requires the fixture Inbox → Persona → Draft →
 Audit flow to be connected end to end; the current fixture Audit entries record
