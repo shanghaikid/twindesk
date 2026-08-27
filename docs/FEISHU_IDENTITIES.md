@@ -72,6 +72,10 @@ secret deletion.
   candidate cursors, but no OAuth resolver, concrete search adapter, or polling
   scheduler is wired. See
   [Feishu User Message Discovery](FEISHU_USER_MESSAGE_DISCOVERY.md).
+- TD-203 implements the User-bound, bounded context adapter contract for
+  conversation messages, document excerpts, and attachment text or metadata,
+  but no concrete Feishu API adapter is wired. See
+  [Feishu Context Retrieval](FEISHU_CONTEXT_RETRIEVAL.md).
 - No reply proposal, approval, send, or other external write is implemented.
 
 ## Verification

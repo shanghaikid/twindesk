@@ -112,8 +112,8 @@ reply, send request, or other Feishu write.
 
 - A concrete Feishu HTTP/SDK search adapter, OAuth secret resolution, and
   polling scheduler are not wired yet.
-- TD-203 retrieves bounded thread, conversation, document, and attachment
-  context with explicit partial states.
+- TD-203 now defines bounded conversation, document-excerpt, and attachment
+  context retrieval; its concrete SDK/HTTP adapter is not wired yet.
 - TD-204 normalizes Bot and User sources into durable ExternalEvents and Work
   Items and atomically commits these candidate cursors.
 - TD-208 exposes identity, scope, cursor, rate-limit, and health diagnostics.
