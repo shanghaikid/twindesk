@@ -58,8 +58,8 @@ Exit criterion: a real Feishu message can safely produce an approved and sent re
 Current gate status (2026-08-27): **NOT PASSED**. The local contract acceptance
 path now completes normalization → Inbox → bounded context → edited Draft →
 one-time approval → idempotent receipt → Audit across restart with synthetic
-clients. The required live-account path is still missing production
-HTTP/Keychain adapters, hosted ingestion or polling, interactive Draft and
+clients. The required live-account path is still missing credential parsing,
+refresh, HTTP and durable dispatch adapters, hosted ingestion or polling, interactive Draft and
 approval UI, and a real Feishu send. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).
 

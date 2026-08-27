@@ -56,6 +56,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [One-Time Action Approval Policy](docs/ACTION_APPROVAL_POLICY.md): exact identity/target/content binding, expiration, responder decisions, one-time consumption, and execution separation.
 - [Feishu Reply Execution](docs/FEISHU_REPLY_EXECUTION.md): reconcile-before-send execution, exact idempotency, normalized receipts, restart recovery, and uncertain-result handling.
 - [Feishu Connector Diagnostics](docs/FEISHU_CONNECTOR_DIAGNOSTICS.md): per-identity authorization/scopes, normalized rate limits, redacted cursor freshness, and overall health.
+- [Feishu System Keychain Resolution](docs/FEISHU_SYSTEM_KEYCHAIN.md): fixed macOS SecretReference lookup, bounded short-lived bytes, cancellation, and payload-free failures.
 - [SQLite Storage](docs/STORAGE_SQLITE.md): TwinDesk database identity, schema, forward migrations, privacy review, and recovery guarantees.
 - [External Event Ingestion](docs/EVENT_INGESTION.md): transactional deduplication, replay, conflict, and out-of-order semantics.
 - [Durable Synchronization Cursors](docs/SYNC_CURSORS.md): atomic event/checkpoint commits, restart recovery, and regression rules.
@@ -108,7 +109,10 @@ explicit responder decision and expiration, then consume the approval once
 into one stable execution attempt. The Feishu execution boundary now
 reconciles that attempt before every possible send and persists a normalized
 success, failure, or uncertain receipt atomically with proposal state. The
-production Feishu HTTP/Keychain adapter and composed real-account flow remain
+production Feishu HTTP adapter and composed real-account flow remain
+unimplemented. The first Connector-owned macOS Keychain reader now resolves
+validated Bot/User SecretReferences into callback-scoped, zeroed byte buffers,
+but credential-bundle parsing, refresh, scopes, and HTTP composition remain
 unimplemented. A presentation-safe diagnostics boundary now reports configured
 Bot/User authorization and scope coverage, rate-limit state, and durable User
 cursor freshness without exposing credentials or opaque cursor positions.
@@ -116,7 +120,7 @@ The local TD-209 contract acceptance path now composes verified-message
 normalization, bounded context, an edited Draft revision, exact approval,
 idempotent execution, receipt persistence, restart verification, and a complete local
 Audit trace. The restart evidence is a deterministic acceptance completion,
-not an automatic repair service. Stage 2 is not declared complete: production Feishu HTTP/Keychain
+not an automatic repair service. Stage 2 is not declared complete: production Feishu credential/HTTP
 composition, hosted ingestion or polling, interactive Draft/approval UI, and a
 live-account send remain unimplemented.
 Versioned domain records and the product-owned Connector contract are

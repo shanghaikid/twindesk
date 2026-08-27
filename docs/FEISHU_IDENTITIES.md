@@ -64,8 +64,11 @@ secret deletion.
 ## Current Limitations
 
 - No default configuration path or Connectors UI is wired yet.
-- Secret resolution, short-lived in-memory handling, refresh, revocation, and
-  Keychain integration are not implemented.
+- A macOS system-Keychain reader now resolves validated Bot/User references
+  into callback-scoped byte buffers and zeroes them afterward. Credential-bundle
+  parsing, OAuth refresh, revocation, writes/deletion, and runtime composition
+  are not implemented. See
+  [Feishu System Keychain Resolution](FEISHU_SYSTEM_KEYCHAIN.md).
 - Required and granted scopes are not persisted by this identity record.
   TD-208 now defines a runtime-only scope, rate, health, and cursor diagnostics
   boundary; its production probe and settings UI remain unwired. See
@@ -83,8 +86,9 @@ secret deletion.
   but no concrete Feishu API adapter is wired. See
   [Feishu Context Retrieval](FEISHU_CONTEXT_RETRIEVAL.md).
 - TD-205 through TD-207 implement the proposal, approval, and
-  reconcile-before-send boundaries with synthetic clients. No production
-  Feishu HTTP/Keychain adapter or composed real-account write path is wired.
+  reconcile-before-send boundaries with synthetic clients. The isolated
+  Keychain reader does not make those clients production-ready; no Feishu HTTP,
+  durable dispatch-journal, or composed real-account write path is wired.
 
 ## Verification
 

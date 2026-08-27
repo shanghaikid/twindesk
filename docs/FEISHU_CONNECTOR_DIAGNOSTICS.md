@@ -16,8 +16,9 @@ The service implements `health(signal)` with the product-owned
 future Connector settings and support surfaces. It is independent of Persona,
 Skill, model, approval, and execution logic.
 
-The repository still has no production Feishu HTTP/Keychain diagnostics
-adapter. The injected client contract is the runtime composition point for
+The repository still has no production Feishu HTTP/credential diagnostics
+adapter. The isolated system-Keychain reader does not parse credentials or
+probe scopes. The injected client contract is the runtime composition point for
 resolving a SecretReference, checking authorization/scopes, normalizing rate
 headers, and reading SQLite cursor snapshots.
 
@@ -99,7 +100,8 @@ checked before probes and after every awaited client call.
 
 ## Remaining Work
 
-- A production HTTP/Keychain and SQLite diagnostics adapter is not wired.
+- Production credential parsing/refresh, HTTP, and SQLite diagnostics adapters
+  are not wired.
 - A Connector settings UI has not yet been connected to `diagnose()`.
 - TD-209 now composes healthy diagnostics with the local synthetic
   ingestion-to-receipt acceptance path. Production probe composition and the

@@ -15,10 +15,11 @@ and durable execution state separate:
 - `@twindesk/storage-sqlite` atomically records the normalized ActionReceipt and
   advances the ActionProposal execution state.
 
-The repository does not contain a production Feishu HTTP or Keychain adapter.
-Tests use a synthetic client. A real adapter must resolve the supplied
-`SecretReference`, recheck the minimum send scope for the selected Bot or User
-identity, and preserve the exact request key.
+The repository contains an isolated production macOS Keychain reader but no
+credential-bundle parser, refresh path, durable dispatch journal, or Feishu HTTP
+client. Execution tests use a synthetic client. A composed adapter must resolve
+the supplied `SecretReference`, recheck the minimum send scope for the selected
+Bot or User identity, and preserve the exact request key.
 
 ## Exact Execution Binding
 
@@ -119,8 +120,9 @@ data.
 
 ## Remaining Work
 
-- A production Feishu API/Keychain adapter and runtime composition are still
-  required before a real account can send a reply.
+- Production credential parsing/refresh, Feishu HTTP, durable dispatch, and
+  runtime composition are still required; the system-Keychain reader alone is
+  not an execution adapter.
 - TD-208 now adds identity health, exact scope visibility, rate-limit state,
   and cursor diagnostics; execution still fails closed when its adapter reports
   missing authorization or scope. See

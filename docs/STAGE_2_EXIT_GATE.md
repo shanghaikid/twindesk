@@ -60,8 +60,9 @@ local business records; credentials and raw connector responses do not.
 | Reply request key fits Feishu's 50-character limit | Contract passed | New proposals use a 46-character identity-bound key; the production adapter is still missing |
 | Complete local business trace exists | Passed | Six attributable, reference-validated Audit records |
 | Real Bot callback/subscription reaches the runtime | Not proven | No hosted callback or long-connection composition |
-| Real User polling/context uses OAuth from Keychain | Not proven | No production HTTP/Keychain adapter or scheduler |
-| Real Feishu reply succeeds | Not proven | No live account or production execution adapter |
+| Real User polling/context uses OAuth from Keychain | Not proven | No OAuth bundle parser, refresh path, HTTP adapter, or scheduler |
+| SecretReference resolves from macOS Keychain | Contract passed | Fixed read-only command and zeroed bytes are tested with an injected runner; no live item is read |
+| Real Feishu reply succeeds | Not proven | No credential parser, durable dispatch journal, HTTP client, or live account |
 | User edits and approves in the product UI | Not implemented | Current Web shell remains read-only fixture UI |
 | Model-backed Draft and Harness trace are linked | Not implemented | The acceptance Draft is deterministic and `modelInvocation: false` |
 
@@ -70,12 +71,12 @@ local business records; credentials and raw connector responses do not.
 The product source of truth requires a **real Feishu message** to produce an
 approved and sent reply with a complete trace. Passing injected-client tests is
 necessary but not equivalent to that requirement. Declaring Stage 2 complete
-would incorrectly imply support for credential resolution, live Feishu API
+would incorrectly imply support for complete credential parsing/refresh, live Feishu API
 semantics, callback or polling lifecycle, interactive approval, and a real
 external receipt.
 
-TD-209 therefore remains open until the production Feishu HTTP/Keychain and
-SQLite composition, hosted ingestion or polling lifecycle, product Draft and
+TD-209 therefore remains open until the production Feishu credential, HTTP,
+durable SQLite dispatch composition, hosted ingestion or polling lifecycle, product Draft and
 approval UI, and an authorized live-account acceptance run are implemented and
 verified. Stage 3 must not rely on a claimed Stage 2 exit before those checks
 pass.

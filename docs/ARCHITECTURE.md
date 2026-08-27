@@ -187,8 +187,11 @@ ApprovedAction and configured identity, then reconciles the proposal's stable
 idempotency key before every possible send. SQLite records the normalized
 receipt and proposal outcome atomically; consumed non-terminal attempts recover
 across restart, while expired recovery permits reconciliation but no new send.
-The production HTTP/Keychain execution adapter and composed Audit flow remain
-TD-209 work. See
+TD-209 now includes a Connector-owned macOS Keychain reader that resolves only
+validated Feishu Bot/User SecretReferences through a fixed generic-password
+service and zeroes the bounded byte buffer after callback use. Credential-bundle
+parsing, refresh, HTTP execution, durable dispatch reconciliation, and composed
+Audit flow remain TD-209 work. See
 [Feishu Reply Execution](FEISHU_REPLY_EXECUTION.md).
 
 TD-208 adds a read-only Feishu diagnostics service behind the Connector health
@@ -204,9 +207,11 @@ TD-209 now has a local contract-level acceptance path spanning normalized Bot
 input, atomic Inbox projection, User-bound context, explicit Persona selection,
 an edited Draft revision, exact approval, reconcile-before-send execution,
 durable receipt, restart verification, and reference-validated Audit records. This is
-composition evidence, not a production Connector adapter: no live credential is
-resolved and no real Feishu API is called. The Stage 2 exit remains open until
-the HTTP/Keychain, hosted ingestion or polling, product editing/approval UI,
+composition evidence, not a production Connector adapter: its synthetic path
+resolves no live credential and calls no real Feishu API. The isolated system
+Keychain reader is not yet composed with that path. The Stage 2 exit remains
+open until the credential/HTTP dispatch path, hosted ingestion or polling,
+product editing/approval UI,
 model-run linkage, and live-account acceptance boundaries pass. See
 [Stage 2 Exit Gate](STAGE_2_EXIT_GATE.md).
 

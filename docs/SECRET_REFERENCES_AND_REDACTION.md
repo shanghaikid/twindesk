@@ -85,9 +85,11 @@ never persisted or returned. See
 TD-200 uses the same SecretReference boundary for Feishu identity
 configuration. The Bot slot accepts only an application-credential reference,
 the User slot accepts only a distinct OAuth reference, and the configuration
-store persists neither resolved value. Keychain resolution, credential refresh,
-revocation, and short-lived known-secret registration with the redactor remain
-future work. See [Feishu Bot and User Identities](FEISHU_IDENTITIES.md).
+store persists neither resolved value. TD-209 adds a Connector-owned macOS
+generic-password reader with callback-scoped, zeroed bytes. Credential-bundle
+parsing, refresh, revocation, and short-lived known-secret registration with the
+redactor remain future work. See
+[Feishu System Keychain Resolution](FEISHU_SYSTEM_KEYCHAIN.md).
 
 ## Verification
 
