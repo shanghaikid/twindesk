@@ -147,13 +147,18 @@ dynamic Personas, and action dispatch remain later-stage work.
 - Feishu Tools and Skills;
 - scope checks, rate limiting, and synchronization diagnostics.
 
-TD-200 implements only the identity configuration boundary. Its atomic local
+TD-200 implements the identity configuration boundary. Its atomic local
 store rejects secret values, mixed identity slots, incompatible credential
 purposes, symbolic links, and unsupported versions. A credential-free
 ActionIdentity projection records the selected principal without granting
-scope or execution authority. Secret resolution, Feishu SDK calls, scopes,
-events, context, and writes remain later Stage 2 work. See
-[Feishu Bot and User Identities](FEISHU_IDENTITIES.md).
+scope or execution authority. TD-201 adds a separate Bot message callback
+boundary: raw-body signature verification, encrypted-envelope support, exact
+direct-message/mention filtering, and an append-only hash receipt journal. It
+does not host a callback, resolve its Encrypt Key, normalize ExternalEvents, or
+grant execution authority. Feishu API calls, User discovery, context, scopes,
+and writes remain later Stage 2 work. See
+[Feishu Bot and User Identities](FEISHU_IDENTITIES.md) and
+[Feishu Bot Event Ingestion](FEISHU_BOT_EVENT_INGESTION.md).
 
 ### `@twindesk/plugin-jira`
 

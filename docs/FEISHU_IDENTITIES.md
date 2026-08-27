@@ -64,8 +64,11 @@ secret deletion.
   Keychain integration are not implemented.
 - Required and granted scopes are not persisted by this identity record;
   runtime scope and health diagnostics belong to TD-208.
-- Bot event consumption begins in TD-201. User-visible incremental discovery
-  begins in TD-202.
+- TD-201 implements the verified in-memory Bot message consumer and hash-only
+  receipt journal, but no callback host, subscription setup, or Encrypt Key
+  resolver is wired. See
+  [Feishu Bot Event Ingestion](FEISHU_BOT_EVENT_INGESTION.md).
+- User-visible incremental discovery begins in TD-202.
 - No reply proposal, approval, send, or other external write is implemented.
 
 ## Verification
