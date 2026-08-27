@@ -187,9 +187,18 @@ ApprovedAction and configured identity, then reconciles the proposal's stable
 idempotency key before every possible send. SQLite records the normalized
 receipt and proposal outcome atomically; consumed non-terminal attempts recover
 across restart, while expired recovery permits reconciliation but no new send.
-The production HTTP/Keychain adapter, health diagnostics, and composed Audit
-flow remain TD-208/TD-209 work. See
+The production HTTP/Keychain execution adapter and composed Audit flow remain
+TD-209 work. See
 [Feishu Reply Execution](FEISHU_REPLY_EXECUTION.md).
+
+TD-208 adds a read-only Feishu diagnostics service behind the Connector health
+contract. It probes configured Bot/User identities independently, computes
+missing operation scopes, normalizes rate-limit observations, and classifies
+durable cursor freshness without exposing credentials, principals, raw
+responses, or opaque cursor positions. Health does not grant authority and may
+be stale by execution time; TD-207 still validates every write. Production
+probe composition and the real closed-loop acceptance flow remain TD-209 work.
+See [Feishu Connector Diagnostics](FEISHU_CONNECTOR_DIAGNOSTICS.md).
 
 ### `@twindesk/plugin-jira`
 

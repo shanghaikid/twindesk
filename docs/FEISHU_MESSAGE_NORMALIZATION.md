@@ -88,7 +88,9 @@ echoing rejected identities or content.
   around normalization and the atomic commit call.
 - TD-205 now packages an existing ready-for-review Draft as a preview-only
   reply proposal. It does not generate or send the reply.
-- TD-208 will expose identity, scope, cursor, rate-limit, and health diagnostics.
+- TD-208 now exposes the identity, scope, cursor, rate-limit, and health
+  diagnostics contract without changing normalization authority. See
+  [Feishu Connector Diagnostics](FEISHU_CONNECTOR_DIAGNOSTICS.md).
 
 ## Verification
 

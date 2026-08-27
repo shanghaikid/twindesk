@@ -66,8 +66,10 @@ secret deletion.
 - No default configuration path or Connectors UI is wired yet.
 - Secret resolution, short-lived in-memory handling, refresh, revocation, and
   Keychain integration are not implemented.
-- Required and granted scopes are not persisted by this identity record;
-  runtime scope and health diagnostics belong to TD-208.
+- Required and granted scopes are not persisted by this identity record.
+  TD-208 now defines a runtime-only scope, rate, health, and cursor diagnostics
+  boundary; its production probe and settings UI remain unwired. See
+  [Feishu Connector Diagnostics](FEISHU_CONNECTOR_DIAGNOSTICS.md).
 - TD-201 implements the verified in-memory Bot message consumer and hash-only
   receipt journal, but no callback host, subscription setup, or Encrypt Key
   resolver is wired. See

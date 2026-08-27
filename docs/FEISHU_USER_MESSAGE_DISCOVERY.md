@@ -33,7 +33,9 @@ future concrete adapter is expected to require the minimum scopes for search,
 message detail retrieval, and chat context (currently `search:message`,
 `im:message:readonly`, and `im:chat:read`) and to surface authorization or scope
 failures rather than returning an empty successful page. Scope health and
-diagnostics remain TD-208 work.
+diagnostics are defined by
+[Feishu Connector Diagnostics](FEISHU_CONNECTOR_DIAGNOSTICS.md); the production
+probe remains unwired.
 
 ## Bounded Incremental Windows
 
@@ -117,7 +119,9 @@ reply, send request, or other Feishu write.
 - TD-204 now normalizes Bot and User sources into durable ExternalEvents and
   Work Items and atomically commits User events, projections, and candidate
   cursors; polling/runtime composition remains unwired.
-- TD-208 exposes identity, scope, cursor, rate-limit, and health diagnostics.
+- TD-208 now exposes the runtime identity, scope, cursor, rate-limit, and health
+  diagnostics contract. Its concrete Feishu/SQLite probe remains unwired. See
+  [Feishu Connector Diagnostics](FEISHU_CONNECTOR_DIAGNOSTICS.md).
 
 ## Verification
 

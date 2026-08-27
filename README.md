@@ -54,6 +54,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Feishu Reply Proposal](docs/FEISHU_REPLY_PROPOSAL.md): Draft-bound preview construction, explicit sending identity and target binding, idempotency, and no-side-effect limits.
 - [One-Time Action Approval Policy](docs/ACTION_APPROVAL_POLICY.md): exact identity/target/content binding, expiration, responder decisions, one-time consumption, and execution separation.
 - [Feishu Reply Execution](docs/FEISHU_REPLY_EXECUTION.md): reconcile-before-send execution, exact idempotency, normalized receipts, restart recovery, and uncertain-result handling.
+- [Feishu Connector Diagnostics](docs/FEISHU_CONNECTOR_DIAGNOSTICS.md): per-identity authorization/scopes, normalized rate limits, redacted cursor freshness, and overall health.
 - [SQLite Storage](docs/STORAGE_SQLITE.md): TwinDesk database identity, schema, forward migrations, privacy review, and recovery guarantees.
 - [External Event Ingestion](docs/EVENT_INGESTION.md): transactional deduplication, replay, conflict, and out-of-order semantics.
 - [Durable Synchronization Cursors](docs/SYNC_CURSORS.md): atomic event/checkpoint commits, restart recovery, and regression rules.
@@ -107,7 +108,9 @@ into one stable execution attempt. The Feishu execution boundary now
 reconciles that attempt before every possible send and persists a normalized
 success, failure, or uncertain receipt atomically with proposal state. The
 production Feishu HTTP/Keychain adapter and composed real-account flow remain
-unimplemented.
+unimplemented. A presentation-safe diagnostics boundary now reports configured
+Bot/User authorization and scope coverage, rate-limit state, and durable User
+cursor freshness without exposing credentials or opaque cursor positions.
 Versioned domain records and the product-owned Connector contract are
 implemented. The pinned Harness Profile,
 two draft-only Personas, JSONL restart recovery, and bounded Codex specialist

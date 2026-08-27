@@ -97,7 +97,8 @@ remain separate tasks:
   bounded discovery and candidate-cursor semantics;
 - runtime composition with the completed bounded context and durable
   normalization boundaries (TD-203 and TD-204);
-- scope, rate-limit, health, and cursor diagnostics (TD-208).
+- production scope, rate-limit, health, and cursor probe composition; TD-208 now
+  defines the presentation-safe diagnostics contract.
 
 ## Verification
 

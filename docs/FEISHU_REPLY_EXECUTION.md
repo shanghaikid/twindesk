@@ -115,9 +115,10 @@ data.
 
 - A production Feishu API/Keychain adapter and runtime composition are still
   required before a real account can send a reply.
-- TD-208 adds identity health, exact scope visibility, rate-limit state, and
-  cursor diagnostics; execution already fails closed when its adapter reports
-  missing authorization or scope.
+- TD-208 now adds identity health, exact scope visibility, rate-limit state,
+  and cursor diagnostics; execution still fails closed when its adapter reports
+  missing authorization or scope. See
+  [Feishu Connector Diagnostics](FEISHU_CONNECTOR_DIAGNOSTICS.md).
 - TD-209 integrates Inbox, Draft editing, approval UI, execution, receipts, and
   user-visible Audit records into the real closed-loop acceptance flow.
 

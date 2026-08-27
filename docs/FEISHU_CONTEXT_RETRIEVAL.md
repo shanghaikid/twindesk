@@ -107,7 +107,8 @@ attachments remain outside this boundary.
 A concrete Feishu SDK/HTTP adapter, OAuth secret resolver, resource-type parser,
 and polling/runtime wiring are still not installed. The adapter will need the
 minimum User scopes for the selected message, conversation, document, and
-resource operations. Exact scope health remains TD-208 work. Embedded Sheets,
+resource operations. TD-208 now defines exact runtime scope-health reporting;
+the concrete probe remains unwired. Embedded Sheets,
 Base, whiteboards, and other structured document objects are reported as partial
 or unsupported until a separately bounded reader exists; they are not flattened
 into invented text.
