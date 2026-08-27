@@ -223,6 +223,32 @@ function proposalNonce(value: unknown): string {
   return value
 }
 
+export function computeFeishuReplyIdentityFingerprint(
+  configuration: FeishuIdentityConfiguration,
+  identityType: 'bot' | 'user',
+  proposalDigest: string,
+): string {
+  const identity = configuration[identityType]
+  if (identity === undefined || !/^[a-f0-9]{64}$/u.test(proposalDigest)) {
+    throw fail('identity_mismatch', 'The Feishu reply identity binding is invalid.')
+  }
+  return createHash('sha256')
+    .update(proposalDigest)
+    .update('\u0000')
+    .update(
+      JSON.stringify({
+        connectorId: configuration.connectorId,
+        accountId: configuration.accountId,
+        appId: configuration.appId,
+        identityType: identity.identityType,
+        principalId: identity.principalId,
+        credentialReference: identity.credentialReference,
+      }),
+      'utf8',
+    )
+    .digest('hex')
+}
+
 export class FeishuReplyProposer {
   readonly #configuration: FeishuIdentityConfiguration
   readonly #now: () => number
@@ -251,6 +277,11 @@ export class FeishuReplyProposer {
       .update('\u0000')
       .update(nonce)
       .digest('hex')
+    const identityFingerprint = computeFeishuReplyIdentityFingerprint(
+      this.#configuration,
+      request.identity.identityType,
+      digest,
+    )
     return parseActionProposal({
       kind: 'action_proposal',
       schemaVersion: FEISHU_REPLY_PROPOSAL_VERSION,
@@ -263,7 +294,7 @@ export class FeishuReplyProposer {
       target: request.target,
       content: request.content,
       contentDigest: contentDigest(request.content),
-      idempotencyKey: `feishu:reply:${digest}:v1`,
+      idempotencyKey: `feishu:reply:${digest}:identity:${identityFingerprint}:v1`,
       state: 'proposed',
       createdAt,
       updatedAt: createdAt,

@@ -668,7 +668,7 @@ export function decideActionApproval(
   }
 }
 
-function executionAttemptId(approvalId: ApprovalRecordId): string {
+export function computeApprovalExecutionAttemptId(approvalId: ApprovalRecordId): string {
   return `execution-approval-${createHash('sha256').update(approvalId).digest('hex').slice(0, 32)}`
 }
 
@@ -707,7 +707,7 @@ function approvedAction(proposal: ActionProposal, approval: ApprovalRecord): App
   return Object.freeze({
     proposal: approvedProposalSnapshot(proposal, approval),
     approval: unconsumedApproval(approval),
-    executionAttemptId: executionAttemptId(approval.id),
+    executionAttemptId: computeApprovalExecutionAttemptId(approval.id),
   }) as unknown as ApprovedAction
 }
 

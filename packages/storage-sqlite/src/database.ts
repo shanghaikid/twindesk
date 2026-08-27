@@ -35,6 +35,21 @@ import {
 } from './approval-state.ts'
 
 import {
+  ActionExecutionStateError,
+  beginActionExecution as beginStoredActionExecution,
+  readActionExecutionReceipt,
+  recoverActionExecution as recoverStoredActionExecution,
+  recordActionExecutionReceipt as recordStoredActionExecutionReceipt,
+  type ActionExecutionRecoveryRequest,
+  type ActionExecutionRecoveryResult,
+  type ActionExecutionReceiptWrite,
+  type ActionExecutionReceiptWriteResult,
+  type ActionExecutionStart,
+  type ActionExecutionStartResult,
+  type StoredActionReceipt,
+} from './action-execution-state.ts'
+
+import {
   AuditTimelineError,
   appendAuditRecords as storeAuditRecords,
   queryAuditTimeline as queryStoredAuditTimeline,
@@ -157,6 +172,12 @@ export interface TwinDeskDatabase {
   decideActionApproval(decision: ActionApprovalDecision): ActionApprovalDecisionResult
   consumeActionApproval(consumption: ActionApprovalConsumption): ActionApprovalConsumptionResult
   getActionApproval(id: ApprovalRecordId): ApprovalRecord | undefined
+  beginActionExecution(start: ActionExecutionStart): ActionExecutionStartResult
+  recordActionExecutionReceipt(
+    write: ActionExecutionReceiptWrite,
+  ): ActionExecutionReceiptWriteResult
+  getActionExecutionReceipt(executionAttemptId: string): StoredActionReceipt | undefined
+  recoverActionExecution(request: ActionExecutionRecoveryRequest): ActionExecutionRecoveryResult
   appendAuditRecords(records: readonly AuditRecord[]): AuditAppendResult
   getAuditRecord(id: AuditRecordId): AuditRecord | undefined
   queryAuditTimeline(query?: AuditTimelineQuery): AuditTimelinePage
@@ -332,6 +353,40 @@ class TwinDeskDatabaseHandle implements TwinDeskDatabase {
       throw new ApprovalStateError('database_closed', 'The TwinDesk database is closed.')
     }
     return readActionApproval(database, id)
+  }
+
+  beginActionExecution(start: ActionExecutionStart): ActionExecutionStartResult {
+    const database = this.#database
+    if (database === undefined) {
+      throw new ActionExecutionStateError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return beginStoredActionExecution(database, start, this.#readPolicyClock())
+  }
+
+  recordActionExecutionReceipt(
+    write: ActionExecutionReceiptWrite,
+  ): ActionExecutionReceiptWriteResult {
+    const database = this.#database
+    if (database === undefined) {
+      throw new ActionExecutionStateError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return recordStoredActionExecutionReceipt(database, write, this.#readPolicyClock())
+  }
+
+  getActionExecutionReceipt(executionAttemptId: string): StoredActionReceipt | undefined {
+    const database = this.#database
+    if (database === undefined) {
+      throw new ActionExecutionStateError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return readActionExecutionReceipt(database, executionAttemptId)
+  }
+
+  recoverActionExecution(request: ActionExecutionRecoveryRequest): ActionExecutionRecoveryResult {
+    const database = this.#database
+    if (database === undefined) {
+      throw new ActionExecutionStateError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return recoverStoredActionExecution(database, request)
   }
 
   #readPolicyClock(): number {

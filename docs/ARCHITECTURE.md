@@ -168,12 +168,11 @@ presentation. Concrete Feishu API adapters, runtime composition, scopes, and
 writes remain later Stage 2 work. TD-205 adds a side-effect-free reply proposal
 boundary: it requires an existing Draft identity, exact configured Bot/User
 identity, current message target, plain-text content digest, and opaque
-idempotency key, then stops at `proposed`. Approval is isolated in TD-206 and
-execution remains TD-207 work. TD-206 adds the Connector-neutral policy boundary: a pending
-ApprovalRecord binds canonical identity, target, and content digests plus an
-expiration; responder decisions atomically advance the proposal; one-time
-consumption yields only one stable execution-attempt identity. It performs no
-Connector call, and TD-207 must still validate scope and receipt state. See
+idempotency key, then stops at `proposed`. TD-206 adds the Connector-neutral
+policy boundary: a pending ApprovalRecord binds canonical identity, target, and
+content digests plus an expiration; responder decisions atomically advance the
+proposal; one-time consumption yields only one stable execution-attempt
+identity and performs no Connector call. See
 [Feishu Bot and User Identities](FEISHU_IDENTITIES.md) and
 [Feishu Bot Event Ingestion](FEISHU_BOT_EVENT_INGESTION.md), and
 [Feishu User Message Discovery](FEISHU_USER_MESSAGE_DISCOVERY.md), and
@@ -181,6 +180,16 @@ Connector call, and TD-207 must still validate scope and receipt state. See
 [Feishu Message Normalization](FEISHU_MESSAGE_NORMALIZATION.md), and
 [Feishu Reply Proposal](FEISHU_REPLY_PROPOSAL.md), and
 [One-Time Action Approval Policy](ACTION_APPROVAL_POLICY.md).
+
+TD-207 adds the Feishu execution adapter and durable result boundary without
+coupling either to Persona behavior. The executor revalidates the exact
+ApprovedAction and configured identity, then reconciles the proposal's stable
+idempotency key before every possible send. SQLite records the normalized
+receipt and proposal outcome atomically; consumed non-terminal attempts recover
+across restart, while expired recovery permits reconciliation but no new send.
+The production HTTP/Keychain adapter, health diagnostics, and composed Audit
+flow remain TD-208/TD-209 work. See
+[Feishu Reply Execution](FEISHU_REPLY_EXECUTION.md).
 
 ### `@twindesk/plugin-jira`
 

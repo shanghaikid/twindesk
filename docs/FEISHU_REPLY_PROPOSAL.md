@@ -42,7 +42,10 @@ narrower verified platform limit before any send attempt.
 
 Each new preview receives a random opaque nonce. TwinDesk hashes the nonce with
 the account identity to derive non-content-bearing proposal and idempotency
-identities. Creating another preview intentionally creates another proposal.
+identities. The idempotency key also carries a salted SHA-256 fingerprint of
+the configured app, principal, and credential reference, allowing TD-207 to
+reject identity-slot changes without persisting those values in the proposal.
+Creating another preview intentionally creates another proposal.
 Once a proposal is persisted, TD-207 must reuse its exact idempotency key for
 every retry of that approved action; it must never call `propose` again to make
 a retry key.
@@ -54,9 +57,9 @@ ready_for_review Draft -> proposed ActionProposal -> stop
 ```
 
 It creates no `awaiting_approval` transition, `ApprovalRecord`, approved-action
-capability, execution attempt, `ActionReceipt`, or external effect. TD-206 now
-owns the separate one-time approval binding. TD-207 will own execution and
-uncertain-result handling.
+capability, execution attempt, `ActionReceipt`, or external effect. TD-206 owns
+the separate one-time approval binding, and TD-207 owns the later
+reconcile-before-send execution boundary.
 
 ## Validation, Privacy, and Failure
 
@@ -81,8 +84,9 @@ Draft, Work Item, principal, or content values.
   current Thread target, invoke `propose`, and persist the returned proposal.
 - TD-206 now binds one-time approval to the exact proposal identity, target,
   content digest, responder, and expiration.
-- TD-207 will add the credential-resolving send adapter, idempotent execution,
-  reconciliation, and uncertain-result receipts.
+- TD-207 now defines and tests the credential-resolving client contract,
+  idempotent execution, reconciliation, and uncertain-result receipts. The
+  production HTTP/Keychain adapter remains integration work.
 
 ## Verification
 

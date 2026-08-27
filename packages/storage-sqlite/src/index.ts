@@ -13,6 +13,18 @@ export {
   type ApprovalStateErrorCode,
 } from './approval-state.ts'
 export {
+  ACTION_EXECUTION_STATE_VERSION,
+  ActionExecutionStateError,
+  type ActionExecutionReceiptWrite,
+  type ActionExecutionReceiptWriteResult,
+  type ActionExecutionRecoveryRequest,
+  type ActionExecutionRecoveryResult,
+  type ActionExecutionStart,
+  type ActionExecutionStartResult,
+  type ActionExecutionStateErrorCode,
+  type StoredActionReceipt,
+} from './action-execution-state.ts'
+export {
   AuditTimelineError,
   type AuditAppendItem,
   type AuditAppendResult,

@@ -53,6 +53,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Feishu Message Normalization](docs/FEISHU_MESSAGE_NORMALIZATION.md): canonical Bot/User events, Inbox routing, replay, privacy, and atomic event/projection/cursor commits.
 - [Feishu Reply Proposal](docs/FEISHU_REPLY_PROPOSAL.md): Draft-bound preview construction, explicit sending identity and target binding, idempotency, and no-side-effect limits.
 - [One-Time Action Approval Policy](docs/ACTION_APPROVAL_POLICY.md): exact identity/target/content binding, expiration, responder decisions, one-time consumption, and execution separation.
+- [Feishu Reply Execution](docs/FEISHU_REPLY_EXECUTION.md): reconcile-before-send execution, exact idempotency, normalized receipts, restart recovery, and uncertain-result handling.
 - [SQLite Storage](docs/STORAGE_SQLITE.md): TwinDesk database identity, schema, forward migrations, privacy review, and recovery guarantees.
 - [External Event Ingestion](docs/EVENT_INGESTION.md): transactional deduplication, replay, conflict, and out-of-order semantics.
 - [Durable Synchronization Cursors](docs/SYNC_CURSORS.md): atomic event/checkpoint commits, restart recovery, and regression rules.
@@ -102,8 +103,11 @@ polling scheduler. A Draft-bound Feishu reply can now be packaged as a local
 plain-text ActionProposal with an explicit Bot or User identity and exact
 message target. The local approval policy can now bind that proposal to an
 explicit responder decision and expiration, then consume the approval once
-into one stable execution attempt. No current path calls Feishu or stores an
-execution receipt.
+into one stable execution attempt. The Feishu execution boundary now
+reconciles that attempt before every possible send and persists a normalized
+success, failure, or uncertain receipt atomically with proposal state. The
+production Feishu HTTP/Keychain adapter and composed real-account flow remain
+unimplemented.
 Versioned domain records and the product-owned Connector contract are
 implemented. The pinned Harness Profile,
 two draft-only Personas, JSONL restart recovery, and bounded Codex specialist

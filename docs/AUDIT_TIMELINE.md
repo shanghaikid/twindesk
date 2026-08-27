@@ -44,6 +44,9 @@ Approval and receipt references are supported when those records exist, but
 TD-109 does not itself implement approval decisions or Connector execution.
 TD-206 now owns ApprovalRecord decisions and one-time consumption; callers must
 still append their user-visible approval Audit records through this timeline.
+TD-207 owns Feishu execution and normalized receipt persistence but likewise
+does not append Audit records automatically; TD-209 must preserve execution and
+reconciliation history here while the receipt projection advances.
 The tests
 use synthetic rows and cause no external side effect.
 

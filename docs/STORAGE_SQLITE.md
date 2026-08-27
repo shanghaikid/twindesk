@@ -77,7 +77,7 @@ an already released migration.
 | Draft and proposal state | `drafts`, `draft_creation_records`, `draft_state_transitions`, `action_proposals`, `action_proposal_creation_records`, `action_proposal_state_transitions` | Original requests, current local state, and immutable transition history |
 | Policy | `approval_records` | Exact identity, target, content, expiry, decision, and one-time consumption bindings |
 | Connector recovery | `connector_cursors` | Per-account, per-stream durable positions |
-| Execution | `action_receipts` | Success, failure, or uncertain external results |
+| Execution | `action_receipts` | One stable attempt's normalized success, failure, or uncertain result projection; recoverable outcomes may advance after same-key retry or reconciliation |
 | Audit | `audit_records`, `audit_references` | User-visible business timeline and references |
 | Retention | `thread_deletion_receipts` | Immutable hash-and-count-only deletion tombstones |
 

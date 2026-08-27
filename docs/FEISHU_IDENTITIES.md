@@ -23,7 +23,11 @@ not make the Bot act as the user.
 credential-free `ActionIdentity` boundary. The projection contains only the
 Connector ID, TwinDesk account ID, identity type, and display name. Selecting
 that identity records who would act; it grants no Tool, scope, approval, or
-execution authority.
+execution authority. Feishu reply proposals additionally place a salted hash of
+the selected app, principal, and SecretReference metadata in their idempotency
+key. TD-207 recomputes that fingerprint before execution so a configuration
+rotation cannot silently reuse an older approval; the principal and credential
+reference are not copied into the proposal itself.
 
 ## Persisted Configuration
 
@@ -76,7 +80,9 @@ secret deletion.
   conversation messages, document excerpts, and attachment text or metadata,
   but no concrete Feishu API adapter is wired. See
   [Feishu Context Retrieval](FEISHU_CONTEXT_RETRIEVAL.md).
-- No reply proposal, approval, send, or other external write is implemented.
+- TD-205 through TD-207 implement the proposal, approval, and
+  reconcile-before-send boundaries with synthetic clients. No production
+  Feishu HTTP/Keychain adapter or composed real-account write path is wired.
 
 ## Verification
 

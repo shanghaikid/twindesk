@@ -102,7 +102,10 @@ Thread export and deletes them atomically with their owning Thread. Approval
 and receipt descendants follow the same transaction. See
 [Thread Export and Deletion](THREAD_EXPORT_AND_DELETION.md). Approval decisions
 and external execution are now split across the TD-206 policy boundary and
-later TD-207 execution boundary.
+TD-207 execution boundary. Execution-derived `executing`, `succeeded`, `failed`,
+and `uncertain` projections are backed by a consumed ApprovalRecord and the
+normalized ActionReceipt rather than a model-authored local transition. See
+[Feishu Reply Execution](FEISHU_REPLY_EXECUTION.md).
 
 ## Verification
 

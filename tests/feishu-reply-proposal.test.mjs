@@ -183,7 +183,7 @@ test('a Feishu reply preview binds the exact Draft, identity, target, and conten
   assert.deepEqual(proposal.identity, toFeishuActionIdentity(configuration(), 'user'))
   assert.deepEqual(proposal.target, fixture.event.source)
   assert.equal(proposal.contentDigest, computeDraftContentDigest(fixture.content))
-  assert.match(proposal.idempotencyKey, /^feishu:reply:[a-f0-9]{64}:v1$/u)
+  assert.match(proposal.idempotencyKey, /^feishu:reply:[a-f0-9]{64}:identity:[a-f0-9]{64}:v1$/u)
   assert.equal(database.createActionProposal(proposal).disposition, 'inserted')
   database.close()
 

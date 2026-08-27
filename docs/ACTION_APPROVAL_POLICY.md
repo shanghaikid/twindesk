@@ -83,9 +83,10 @@ idempotent recovery of an interruption or uncertain result. After expiration,
 the policy returns no executable capability; TD-207 may only inspect receipts
 or reconcile an already uncertain external result.
 
-Consumption does not move the proposal to `executing` and does not call
-Feishu. TD-207 owns execution-state transitions, credential/scope checks,
-Connector invocation, receipt persistence, and uncertain-result handling.
+Consumption itself does not move the proposal to `executing` and does not call
+Feishu. TD-207 now owns the separate execution-state, credential/scope client,
+Connector invocation, receipt persistence, recovery, and uncertain-result
+boundaries. See [Feishu Reply Execution](FEISHU_REPLY_EXECUTION.md).
 
 ## Privacy, Retention, and Audit
 
@@ -105,10 +106,8 @@ Audit records, and TD-209 must verify the complete source-to-receipt trace.
 
 - Product UI for displaying the exact proposal and collecting the responder's
   decision is not implemented here.
-- TD-207 must revalidate the configured identity, credential reference, scopes,
-  current target, approval binding, and receipt state before execution.
-- TD-207 must persist success, failure, or uncertain receipts before changing
-  the final proposal state and must reconcile uncertain attempts before retry.
+- The production Feishu HTTP/Keychain adapter and runtime composition remain
+  unimplemented; TD-207 defines and tests their fail-closed client contract.
 - TD-209 will integrate approval Audit records into the complete Feishu loop.
 
 ## Verification
@@ -116,7 +115,8 @@ Audit records, and TD-209 must verify the complete source-to-receipt trace.
 `tests/approval-state.test.mjs` starts with a synthetic Feishu message,
 ready-for-review Draft, and preview proposal. It covers atomic approval request,
 restart replay, exact identity/target/content bindings, approval and one-time
-consumption, stable execution-attempt recovery, zero external receipts,
+consumption, stable execution-attempt recovery, zero receipts at the approval
+boundary,
 rejection, cancellation, automatic expiration, missing responders, expired
 and backdated decisions or consumption, binding mismatch, hostile accessors,
 interrupted decision rollback, closed handles, and payload-free errors. All
