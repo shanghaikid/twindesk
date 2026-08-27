@@ -3,7 +3,7 @@
 ## Scope
 
 TD-108 implements the local persistence boundary between Persona output and
-future approval or Connector execution. `TwinDeskDatabase` can create and read
+the separate approval or Connector execution paths. `TwinDeskDatabase` can create and read
 Drafts and ActionProposals, then append a versioned state-transition record and
 update the current projection in one SQLite transaction.
 
@@ -22,6 +22,13 @@ ActionProposal. A Feishu reply preview requires a Draft ID and returns only
 `proposed`; `createActionProposal()` remains the authoritative check that the
 Draft is ready, current, and content-identical and that its exact message target
 belongs to the Work Item. See [Feishu Reply Proposal](FEISHU_REPLY_PROPOSAL.md).
+
+TD-206 owns approval-derived states. `requestActionApproval()` atomically
+creates the bound pending ApprovalRecord and records the local
+`proposed -> awaiting_approval` transition. A later approval decision updates
+the ApprovalRecord and proposal together; the ApprovalRecord, rather than a
+model- or UI-authored local transition, is the evidence for `approved`. See
+[One-Time Action Approval Policy](ACTION_APPROVAL_POLICY.md).
 
 ## State Machines
 
@@ -94,7 +101,8 @@ ActionProposals, creation snapshots, and transition histories in the redacted
 Thread export and deletes them atomically with their owning Thread. Approval
 and receipt descendants follow the same transaction. See
 [Thread Export and Deletion](THREAD_EXPORT_AND_DELETION.md). Approval decisions
-and external execution remain later work.
+and external execution are now split across the TD-206 policy boundary and
+later TD-207 execution boundary.
 
 ## Verification
 

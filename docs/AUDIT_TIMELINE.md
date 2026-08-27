@@ -41,7 +41,10 @@ before writing and uses one `BEGIN IMMEDIATE` transaction for the batch.
   the batch.
 
 Approval and receipt references are supported when those records exist, but
-TD-109 does not implement approval decisions or Connector execution. The tests
+TD-109 does not itself implement approval decisions or Connector execution.
+TD-206 now owns ApprovalRecord decisions and one-time consumption; callers must
+still append their user-visible approval Audit records through this timeline.
+The tests
 use synthetic rows and cause no external side effect.
 
 ## Queries and presentation

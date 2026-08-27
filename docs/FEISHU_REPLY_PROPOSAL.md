@@ -54,9 +54,9 @@ ready_for_review Draft -> proposed ActionProposal -> stop
 ```
 
 It creates no `awaiting_approval` transition, `ApprovalRecord`, approved-action
-capability, execution attempt, `ActionReceipt`, or external effect. TD-206 owns
-the one-time approval binding. TD-207 will own execution and uncertain-result
-handling.
+capability, execution attempt, `ActionReceipt`, or external effect. TD-206 now
+owns the separate one-time approval binding. TD-207 will own execution and
+uncertain-result handling.
 
 ## Validation, Privacy, and Failure
 
@@ -79,8 +79,8 @@ Draft, Work Item, principal, or content values.
   this boundary.
 - A composed Feishu Connector and Work Hub service still need to retrieve the
   current Thread target, invoke `propose`, and persist the returned proposal.
-- TD-206 will bind one-time approval to the exact proposal identity, target,
-  content digest, and expiration.
+- TD-206 now binds one-time approval to the exact proposal identity, target,
+  content digest, responder, and expiration.
 - TD-207 will add the credential-resolving send adapter, idempotent execution,
   reconciliation, and uncertain-result receipts.
 

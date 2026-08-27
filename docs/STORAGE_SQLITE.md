@@ -75,7 +75,7 @@ an already released migration.
 | Inbox projection | `work_items`, `work_item_events` | Rebuildable Work Item state and source links |
 | Projection inputs | `work_item_projection_bases`, `work_item_projection_base_events`, `work_item_user_actions` | Event-anchored bases and immutable explicit user actions |
 | Draft and proposal state | `drafts`, `draft_creation_records`, `draft_state_transitions`, `action_proposals`, `action_proposal_creation_records`, `action_proposal_state_transitions` | Original requests, current local state, and immutable transition history |
-| Policy | `approval_records` | Exact future approval bindings |
+| Policy | `approval_records` | Exact identity, target, content, expiry, decision, and one-time consumption bindings |
 | Connector recovery | `connector_cursors` | Per-account, per-stream durable positions |
 | Execution | `action_receipts` | Success, failure, or uncertain external results |
 | Audit | `audit_records`, `audit_references` | User-visible business timeline and references |

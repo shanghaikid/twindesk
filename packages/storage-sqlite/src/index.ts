@@ -1,4 +1,18 @@
 export {
+  APPROVAL_POLICY_VERSION,
+  MAX_APPROVAL_TTL_MS,
+  ApprovalStateError,
+  computeActionApprovalBindings,
+  type ActionApprovalBindings,
+  type ActionApprovalConsumption,
+  type ActionApprovalConsumptionResult,
+  type ActionApprovalDecision,
+  type ActionApprovalDecisionResult,
+  type ActionApprovalRequest,
+  type ActionApprovalRequestResult,
+  type ApprovalStateErrorCode,
+} from './approval-state.ts'
+export {
   AuditTimelineError,
   type AuditAppendItem,
   type AuditAppendResult,

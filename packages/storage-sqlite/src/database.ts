@@ -5,6 +5,8 @@ import type {
   ActionProposal,
   ActionProposalId,
   ActionProposalStateTransition,
+  ApprovalRecord,
+  ApprovalRecordId,
   AuditRecord,
   AuditRecordId,
   ConnectorCursor,
@@ -17,6 +19,20 @@ import type {
   WorkItemId,
   WorkItemUserAction,
 } from '@twindesk/domain'
+
+import {
+  ApprovalStateError,
+  consumeActionApproval as consumeStoredActionApproval,
+  decideActionApproval as decideStoredActionApproval,
+  readActionApproval,
+  requestActionApproval as requestStoredActionApproval,
+  type ActionApprovalConsumption,
+  type ActionApprovalConsumptionResult,
+  type ActionApprovalDecision,
+  type ActionApprovalDecisionResult,
+  type ActionApprovalRequest,
+  type ActionApprovalRequestResult,
+} from './approval-state.ts'
 
 import {
   AuditTimelineError,
@@ -113,6 +129,8 @@ export class StorageSchemaError extends Error {
 export interface TwinDeskDatabaseOptions {
   /** SQLite lock wait in milliseconds. */
   readonly timeoutMs?: number
+  /** Trusted local clock used by time-bound policy checks. */
+  readonly now?: () => number
 }
 
 export interface TwinDeskDatabase {
@@ -135,6 +153,10 @@ export interface TwinDeskDatabase {
     transition: ActionProposalStateTransition,
   ): ActionProposalTransitionWriteResult
   getActionProposal(id: ActionProposalId): ActionProposal | undefined
+  requestActionApproval(request: ActionApprovalRequest): ActionApprovalRequestResult
+  decideActionApproval(decision: ActionApprovalDecision): ActionApprovalDecisionResult
+  consumeActionApproval(consumption: ActionApprovalConsumption): ActionApprovalConsumptionResult
+  getActionApproval(id: ApprovalRecordId): ApprovalRecord | undefined
   appendAuditRecords(records: readonly AuditRecord[]): AuditAppendResult
   getAuditRecord(id: AuditRecordId): AuditRecord | undefined
   queryAuditTimeline(query?: AuditTimelineQuery): AuditTimelinePage
@@ -147,9 +169,11 @@ export interface TwinDeskDatabase {
 class TwinDeskDatabaseHandle implements TwinDeskDatabase {
   readonly schemaVersion = LATEST_TWIN_DESK_SQLITE_SCHEMA_VERSION
   #database: DatabaseSync | undefined
+  readonly #now: () => number
 
-  constructor(database: DatabaseSync) {
+  constructor(database: DatabaseSync, now: () => number) {
     this.#database = database
+    this.#now = now
   }
 
   get isOpen(): boolean {
@@ -276,6 +300,46 @@ class TwinDeskDatabaseHandle implements TwinDeskDatabase {
       throw new DraftActionStateError('database_closed', 'The TwinDesk database is closed.')
     }
     return readActionProposal(database, id)
+  }
+
+  requestActionApproval(request: ActionApprovalRequest): ActionApprovalRequestResult {
+    const database = this.#database
+    if (database === undefined) {
+      throw new ApprovalStateError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return requestStoredActionApproval(database, request, this.#readPolicyClock())
+  }
+
+  decideActionApproval(decision: ActionApprovalDecision): ActionApprovalDecisionResult {
+    const database = this.#database
+    if (database === undefined) {
+      throw new ApprovalStateError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return decideStoredActionApproval(database, decision, this.#readPolicyClock())
+  }
+
+  consumeActionApproval(consumption: ActionApprovalConsumption): ActionApprovalConsumptionResult {
+    const database = this.#database
+    if (database === undefined) {
+      throw new ApprovalStateError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return consumeStoredActionApproval(database, consumption, this.#readPolicyClock())
+  }
+
+  getActionApproval(id: ApprovalRecordId): ApprovalRecord | undefined {
+    const database = this.#database
+    if (database === undefined) {
+      throw new ApprovalStateError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return readActionApproval(database, id)
+  }
+
+  #readPolicyClock(): number {
+    try {
+      return this.#now()
+    } catch {
+      throw new ApprovalStateError('invalid_request', 'The approval policy clock is invalid.')
+    }
   }
 
   appendAuditRecords(records: readonly AuditRecord[]): AuditAppendResult {
@@ -518,6 +582,10 @@ export function openTwinDeskDatabase(
   if (!Number.isSafeInteger(timeout) || timeout < 0) {
     throw new TypeError('SQLite timeoutMs must be a non-negative safe integer.')
   }
+  const now = options.now ?? Date.now
+  if (typeof now !== 'function') {
+    throw new TypeError('SQLite now must be a function.')
+  }
 
   const database = new DatabaseSync(path, {
     allowExtension: false,
@@ -532,7 +600,7 @@ export function openTwinDeskDatabase(
     database.exec('PRAGMA synchronous = FULL')
     migrate(database)
     database.exec('PRAGMA journal_mode = WAL')
-    return new TwinDeskDatabaseHandle(database)
+    return new TwinDeskDatabaseHandle(database, now)
   } catch (error) {
     try {
       database.close()
