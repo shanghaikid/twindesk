@@ -86,8 +86,8 @@ echoing rejected identities or content.
   and scheduler wiring are not installed.
 - The Bot callback handler and User polling loop still need runtime composition
   around normalization and the atomic commit call.
-- TD-205 will combine a selected Work Item with bounded context to create a
-  preview-only reply proposal. It will not send the reply.
+- TD-205 now packages an existing ready-for-review Draft as a preview-only
+  reply proposal. It does not generate or send the reply.
 - TD-208 will expose identity, scope, cursor, rate-limit, and health diagnostics.
 
 ## Verification

@@ -113,8 +113,9 @@ or unsupported until a separately bounded reader exists; they are not flattened
 into invented text.
 
 TD-204 now normalizes Bot and User sources into durable events and Work Items.
-TD-205 will build a preview-only reply proposal from selected context, still
-without sending it.
+TD-205 now packages an existing ready-for-review Draft as a preview-only reply
+proposal, still without sending it. Draft generation from selected context
+remains separate runtime/UI work.
 
 ## Verification
 

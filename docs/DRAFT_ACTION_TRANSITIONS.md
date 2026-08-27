@@ -17,6 +17,12 @@ TD-112 exercises this boundary with two deterministic fixture Drafts in
 immutable Audit references recover across restart. This fixture path invokes
 no model or Harness Run and creates no ActionProposal.
 
+TD-205 now supplies the first Connector-specific producer of an
+ActionProposal. A Feishu reply preview requires a Draft ID and returns only
+`proposed`; `createActionProposal()` remains the authoritative check that the
+Draft is ready, current, and content-identical and that its exact message target
+belongs to the Work Item. See [Feishu Reply Proposal](FEISHU_REPLY_PROPOSAL.md).
+
 ## State Machines
 
 A new Draft starts in `editing` or `ready_for_review`. The local transition

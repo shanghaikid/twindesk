@@ -165,12 +165,17 @@ bounded User messages into replay-safe ExternalEvents and conversation-scoped
 Work Items. Event ingestion, projections, and the optional User cursor commit
 atomically; late source states extend history without regressing Inbox
 presentation. Concrete Feishu API adapters, runtime composition, scopes, and
-writes remain later Stage 2 work. See
+writes remain later Stage 2 work. TD-205 adds a side-effect-free reply proposal
+boundary: it requires an existing Draft identity, exact configured Bot/User
+identity, current message target, plain-text content digest, and opaque
+idempotency key, then stops at `proposed`. Approval and execution remain TD-206
+and TD-207 work. See
 [Feishu Bot and User Identities](FEISHU_IDENTITIES.md) and
 [Feishu Bot Event Ingestion](FEISHU_BOT_EVENT_INGESTION.md), and
 [Feishu User Message Discovery](FEISHU_USER_MESSAGE_DISCOVERY.md), and
 [Feishu Context Retrieval](FEISHU_CONTEXT_RETRIEVAL.md), and
-[Feishu Message Normalization](FEISHU_MESSAGE_NORMALIZATION.md).
+[Feishu Message Normalization](FEISHU_MESSAGE_NORMALIZATION.md), and
+[Feishu Reply Proposal](FEISHU_REPLY_PROPOSAL.md).
 
 ### `@twindesk/plugin-jira`
 
