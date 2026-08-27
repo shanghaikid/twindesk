@@ -13,6 +13,13 @@ event requires attention. TD-106 supplies the first fixture routing path, and
 later Connector plugins remain responsible for normalized event content. The
 projection boundary never reads raw Connector payloads or credentials.
 
+Connector synchronization may provide a bounded projection batch to
+`commitConnectorSyncBatch()`. The storage layer validates every projection
+before beginning the write, then ingests events, updates projections, and
+advances the optional cursor in one transaction. Standalone
+`putWorkItemProjection()` remains available when no Connector checkpoint is
+involved.
+
 ## Rebuild Model
 
 SQLite separates three layers:
@@ -46,7 +53,7 @@ Skill, Tool, Connector, scope, or external-write authority.
 
 ## Inbox Query Contract
 
-`getWorkItem()` returns one deeply immutable domain record.
+`getThread()` and `getWorkItem()` return deeply immutable domain records.
 `queryInbox()` accepts an optional non-empty state filter, a limit from 1 to
 100, and an optional keyset cursor. Results order by the actual timestamp value
 descending and then stable Work Item ID ascending. Timestamp comparison uses

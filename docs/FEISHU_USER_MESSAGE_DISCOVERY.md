@@ -47,7 +47,7 @@ The default discovery schedule is deliberately bounded:
 
 These values are validated configuration, not completeness guarantees. The
 overlap makes recent delayed indexing and edits replayable, while message-level
-idempotency in TD-204 will make those replays harmless. An edit to a message
+TD-204 idempotency makes those replays harmless. An edit to a message
 created outside the overlap may still be missed. A longer or periodic backfill
 policy must be an explicit future product decision with measured cost and
 retention behavior.
@@ -114,8 +114,9 @@ reply, send request, or other Feishu write.
   polling scheduler are not wired yet.
 - TD-203 now defines bounded conversation, document-excerpt, and attachment
   context retrieval; its concrete SDK/HTTP adapter is not wired yet.
-- TD-204 normalizes Bot and User sources into durable ExternalEvents and Work
-  Items and atomically commits these candidate cursors.
+- TD-204 now normalizes Bot and User sources into durable ExternalEvents and
+  Work Items and atomically commits User events, projections, and candidate
+  cursors; polling/runtime composition remains unwired.
 - TD-208 exposes identity, scope, cursor, rate-limit, and health diagnostics.
 
 ## Verification

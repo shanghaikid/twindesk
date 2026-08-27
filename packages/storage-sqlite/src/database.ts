@@ -12,6 +12,7 @@ import type {
   DraftId,
   DraftStateTransition,
   ExternalEvent,
+  ExternalThread,
   WorkItem,
   WorkItemId,
   WorkItemUserAction,
@@ -74,6 +75,7 @@ import {
   applyWorkItemUserAction as storeWorkItemUserAction,
   putWorkItemProjection as storeWorkItemProjection,
   queryInbox as queryStoredInbox,
+  readThread,
   readWorkItem,
   rebuildWorkItemProjection as rebuildStoredWorkItemProjection,
   type InboxPage,
@@ -123,6 +125,7 @@ export interface TwinDeskDatabase {
   applyWorkItemUserAction(action: WorkItemUserAction): WorkItemUserActionWriteResult
   rebuildWorkItemProjection(id: WorkItemId): WorkItem
   getWorkItem(id: WorkItemId): WorkItem | undefined
+  getThread(id: string): ExternalThread | undefined
   queryInbox(query?: InboxQuery): InboxPage
   createDraft(draft: Draft): DraftWriteResult
   transitionDraft(transition: DraftStateTransition): DraftTransitionWriteResult
@@ -207,6 +210,14 @@ class TwinDeskDatabaseHandle implements TwinDeskDatabase {
       throw new WorkItemProjectionError('database_closed', 'The TwinDesk database is closed.')
     }
     return readWorkItem(database, id)
+  }
+
+  getThread(id: string): ExternalThread | undefined {
+    const database = this.#database
+    if (database === undefined) {
+      throw new WorkItemProjectionError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return readThread(database, id)
   }
 
   queryInbox(query: InboxQuery = {}): InboxPage {

@@ -64,8 +64,8 @@ path in a Node.js process, including across separate Consumer instances. For a
 new message it invokes the downstream handler first, then appends and `fsync`s
 the receipt. A failed handler creates no receipt and remains retryable.
 Concurrent duplicates invoke the handler once. A crash after downstream commit
-but before receipt commit can cause one replay, so the future TD-204
-normalization handler must use its existing durable ExternalEvent idempotency
+but before receipt commit can cause one replay, so the TD-204 normalization
+handler uses durable ExternalEvent idempotency
 boundary. The consumer does not claim exactly-once delivery across two
 independent processes.
 
@@ -95,8 +95,8 @@ remain separate tasks:
   callback acknowledgement wiring;
 - the concrete User search adapter and polling scheduler; TD-202 now defines its
   bounded discovery and candidate-cursor semantics;
-- bounded conversation, document, and attachment retrieval (TD-203);
-- durable `ExternalEvent` and Work Item normalization (TD-204);
+- runtime composition with the completed bounded context and durable
+  normalization boundaries (TD-203 and TD-204);
 - scope, rate-limit, health, and cursor diagnostics (TD-208).
 
 ## Verification

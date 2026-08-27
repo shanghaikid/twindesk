@@ -160,12 +160,17 @@ opaque candidate cursor positions; it always reports partial coverage and
 leaves durable event/cursor commit to TD-204. TD-203 adds a User-bound context
 adapter boundary for bounded conversation messages, simple document excerpts,
 and attachment text or metadata; partial and unavailable sources remain
-explicit and binary values are rejected. Concrete Feishu API adapters, scopes,
-and writes remain later Stage 2 work. See
+explicit and binary values are rejected. TD-204 canonicalizes verified Bot and
+bounded User messages into replay-safe ExternalEvents and conversation-scoped
+Work Items. Event ingestion, projections, and the optional User cursor commit
+atomically; late source states extend history without regressing Inbox
+presentation. Concrete Feishu API adapters, runtime composition, scopes, and
+writes remain later Stage 2 work. See
 [Feishu Bot and User Identities](FEISHU_IDENTITIES.md) and
 [Feishu Bot Event Ingestion](FEISHU_BOT_EVENT_INGESTION.md), and
 [Feishu User Message Discovery](FEISHU_USER_MESSAGE_DISCOVERY.md), and
-[Feishu Context Retrieval](FEISHU_CONTEXT_RETRIEVAL.md).
+[Feishu Context Retrieval](FEISHU_CONTEXT_RETRIEVAL.md), and
+[Feishu Message Normalization](FEISHU_MESSAGE_NORMALIZATION.md).
 
 ### `@twindesk/plugin-jira`
 

@@ -13,6 +13,14 @@ import {
   parseExternalEventBatch,
   type EventIngestionResult,
 } from './event-ingestion.ts'
+import {
+  WorkItemProjectionError,
+  parseWorkItemProjectionBatch,
+  putWorkItemProjectionInTransaction,
+  type ParsedWorkItemProjectionInput,
+  type WorkItemProjectionInput,
+  type WorkItemProjectionWriteResult,
+} from './work-item-projection.ts'
 
 export type SyncCursorErrorCode =
   | 'database_closed'
@@ -56,6 +64,7 @@ export interface ConnectorCursorKey {
 export interface ConnectorSyncCommitRequest extends ConnectorCursorKey {
   readonly events: readonly ExternalEvent[]
   readonly candidateCursor?: ConnectorCursor
+  readonly projections?: readonly WorkItemProjectionInput[]
 }
 
 export type CursorCommitResult =
@@ -67,6 +76,7 @@ export type CursorCommitResult =
 
 export interface ConnectorSyncCommitResult {
   readonly ingestion: EventIngestionResult
+  readonly projections: readonly WorkItemProjectionWriteResult[]
   readonly cursor: CursorCommitResult
 }
 
@@ -85,6 +95,7 @@ interface ConnectorCursorRow {
 interface ParsedCommitRequest extends ConnectorCursorKey {
   readonly events: readonly ExternalEvent[]
   readonly candidateCursor: ConnectorCursor | undefined
+  readonly projections: readonly ParsedWorkItemProjectionInput[]
 }
 
 function dataRecord(
@@ -201,7 +212,7 @@ function parseCommitRequest(value: ConnectorSyncCommitRequest): ParsedCommitRequ
   const record = dataRecord(
     value,
     ['connectorId', 'accountId', 'stream', 'events'],
-    ['candidateCursor'],
+    ['candidateCursor', 'projections'],
   )
   const key = {
     connectorId: nonEmptyString(record.connectorId),
@@ -212,9 +223,12 @@ function parseCommitRequest(value: ConnectorSyncCommitRequest): ParsedCommitRequ
   const candidateCursor = Object.hasOwn(record, 'candidateCursor')
     ? parseConnectorCursor(record.candidateCursor)
     : undefined
+  const projections = Object.hasOwn(record, 'projections')
+    ? parseWorkItemProjectionBatch(record.projections)
+    : Object.freeze([])
   if (candidateCursor !== undefined) assertCursorIdentity(candidateCursor, key)
   assertEventIdentities(events, key)
-  return Object.freeze({ ...key, events, candidateCursor })
+  return Object.freeze({ ...key, events, candidateCursor, projections })
 }
 
 function parseStoredCursor(row: ConnectorCursorRow): ConnectorCursor {
@@ -394,15 +408,26 @@ export function commitConnectorSyncBatch(
 
   try {
     const ingestion = ingestExternalEventsInTransaction(database, request.events)
+    const projections = Object.freeze(
+      request.projections.map((projection) =>
+        putWorkItemProjectionInTransaction(database, projection),
+      ),
+    )
     const cursor =
       request.candidateCursor === undefined
         ? Object.freeze({ disposition: 'not_provided' as const })
         : writeCursorInTransaction(database, request.candidateCursor)
     database.exec('COMMIT')
-    return Object.freeze({ ingestion, cursor })
+    return Object.freeze({ ingestion, projections, cursor })
   } catch (error) {
     rollback(database)
-    if (error instanceof EventIngestionError || error instanceof SyncCursorError) throw error
+    if (
+      error instanceof EventIngestionError ||
+      error instanceof SyncCursorError ||
+      error instanceof WorkItemProjectionError
+    ) {
+      throw error
+    }
     throw new SyncCursorError('storage_error', 'The synchronization batch could not be committed.')
   }
 }

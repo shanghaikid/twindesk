@@ -3,9 +3,10 @@
 ## Scope
 
 TD-104 adds the Work Hub persistence boundary for a Connector synchronization
-batch. `@twindesk/storage-sqlite` stores normalized ExternalEvents and the
-Connector's candidate cursor in one transaction. It does not store raw
-Connector payloads, credentials, or SDK objects.
+batch. `@twindesk/storage-sqlite` stores normalized ExternalEvents, optional
+event-anchored Work Item projections, and the Connector's candidate cursor in
+one transaction. It does not store raw Connector payloads, credentials, or SDK
+objects.
 
 Standalone `ingestExternalEvents()` remains available for sources that do not
 produce a cursor. A cursor-producing synchronization path must use
@@ -15,20 +16,23 @@ separate operations.
 ## Atomic Commit Contract
 
 `TwinDeskDatabase.commitConnectorSyncBatch()` accepts an explicit Connector,
-account, and stream identity, an event batch, and an optional candidate cursor.
-It:
+account, and stream identity, an event batch, optional Work Item projections,
+and an optional candidate cursor. It:
 
-1. validates the complete request and all normalized records;
+1. validates the complete request, normalized events, and projections;
 2. verifies that every event and the candidate cursor match the request
    identity;
 3. begins a serialized `BEGIN IMMEDIATE` transaction;
 4. performs idempotent event ingestion;
-5. inserts or advances the candidate cursor;
-6. commits both durable states together.
+5. writes the event-anchored Thread and Work Item projections;
+6. inserts or advances the candidate cursor;
+7. commits all durable states together.
 
-Validation, event conflict, cursor conflict, regression, SQLite failure, or
-commit failure rolls back the entire transaction. A fetched candidate is not
-durable merely because the Connector returned it.
+Validation, event or projection conflict, cursor conflict, regression, SQLite
+failure, or commit failure rolls back the entire transaction. A fetched
+candidate is not durable merely because the Connector returned it. This
+prevents restart from observing an advanced cursor without the corresponding
+Inbox state.
 
 An absent candidate returns `not_provided` and does not alter the stored
 cursor. An empty event batch may still insert or advance a candidate because a
@@ -76,4 +80,5 @@ to apply.
 - request accessor rejection without invoking the accessor;
 - event conflicts, stable cursor identity conflicts, and watermark removal or regression;
 - rollback when the cursor write is interrupted after event insertion;
+- rollback of events, projections, and cursor when a projection is interrupted;
 - closed database handles and payload-free typed failures.

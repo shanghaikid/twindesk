@@ -112,7 +112,7 @@ Base, whiteboards, and other structured document objects are reported as partial
 or unsupported until a separately bounded reader exists; they are not flattened
 into invented text.
 
-TD-204 will normalize Bot and User sources into durable events and Work Items.
+TD-204 now normalizes Bot and User sources into durable events and Work Items.
 TD-205 will build a preview-only reply proposal from selected context, still
 without sending it.
 

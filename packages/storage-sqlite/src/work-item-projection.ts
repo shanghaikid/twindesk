@@ -127,7 +127,7 @@ interface ActionRow {
   readonly occurred_at: unknown
 }
 
-interface ParsedProjectionInput {
+export interface ParsedWorkItemProjectionInput {
   readonly thread: ExternalThread
   readonly workItem: WorkItem
 }
@@ -174,6 +174,46 @@ function dataRecord(
   )
 }
 
+function dataArray(value: unknown): readonly unknown[] {
+  try {
+    if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) {
+      throw new WorkItemProjectionError('invalid_request', 'The projection batch must be an array.')
+    }
+    const descriptors = Object.getOwnPropertyDescriptors(value) as Record<
+      string,
+      PropertyDescriptor
+    >
+    const lengthDescriptor = descriptors.length
+    const length = lengthDescriptor?.value
+    if (
+      lengthDescriptor === undefined ||
+      !Object.hasOwn(lengthDescriptor, 'value') ||
+      !Number.isSafeInteger(length) ||
+      (length as number) < 0 ||
+      (length as number) > 1_000 ||
+      Object.getOwnPropertySymbols(value).length !== 0 ||
+      Object.keys(descriptors).some((key) => key !== 'length' && !/^(?:0|[1-9][0-9]*)$/u.test(key))
+    ) {
+      throw new WorkItemProjectionError('invalid_request', 'The projection batch is invalid.')
+    }
+    const result: unknown[] = []
+    for (let index = 0; index < (length as number); index += 1) {
+      const descriptor = descriptors[String(index)]
+      if (descriptor === undefined || !Object.hasOwn(descriptor, 'value')) {
+        throw new WorkItemProjectionError('invalid_request', 'The projection batch is invalid.')
+      }
+      result.push(descriptor.value)
+    }
+    if (Object.keys(descriptors).length !== result.length + 1) {
+      throw new WorkItemProjectionError('invalid_request', 'The projection batch is invalid.')
+    }
+    return Object.freeze(result)
+  } catch (error) {
+    if (error instanceof WorkItemProjectionError) throw error
+    throw new WorkItemProjectionError('invalid_request', 'The projection batch is invalid.')
+  }
+}
+
 function nonEmptyString(value: unknown): string {
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new WorkItemProjectionError('invalid_request', 'The identifier must be non-empty.')
@@ -207,7 +247,7 @@ function sameValues(left: unknown, right: unknown): boolean {
   return canonicalValue(left) === canonicalValue(right)
 }
 
-function parseProjectionInput(input: WorkItemProjectionInput): ParsedProjectionInput {
+function parseProjectionInput(input: WorkItemProjectionInput): ParsedWorkItemProjectionInput {
   const record = dataRecord(input, ['thread', 'workItem'])
   const thread = parseExternalThread(record.thread)
   const workItem = parseWorkItem(record.workItem)
@@ -225,6 +265,23 @@ function parseProjectionInput(input: WorkItemProjectionInput): ParsedProjectionI
     )
   }
   return Object.freeze({ thread, workItem })
+}
+
+export function parseWorkItemProjectionBatch(
+  value: unknown,
+): readonly ParsedWorkItemProjectionInput[] {
+  const projections = dataArray(value).map((entry) =>
+    parseProjectionInput(entry as WorkItemProjectionInput),
+  )
+  if (
+    new Set(projections.map((projection) => projection.workItem.id)).size !== projections.length
+  ) {
+    throw new WorkItemProjectionError(
+      'invalid_request',
+      'A projection batch must not repeat a Work Item identity.',
+    )
+  }
+  return Object.freeze(projections)
 }
 
 function parseStoredReference(row: ReferenceRow): ExternalReference {
@@ -722,6 +779,24 @@ function wrapStorageError(error: unknown, message: string): never {
   throw new WorkItemProjectionError('storage_error', message)
 }
 
+export function putWorkItemProjectionInTransaction(
+  database: DatabaseSync,
+  projection: ParsedWorkItemProjectionInput,
+): WorkItemProjectionWriteResult {
+  assertThreadNotDeleted(database, projection.thread.id)
+  validateSourceEvents(database, projection.thread)
+  const threadDisposition = writeThread(database, projection.thread)
+  const baseDisposition = writeBase(database, projection.workItem)
+  const workItem = rebuildInTransaction(database, projection.workItem.id)
+  const disposition =
+    threadDisposition === 'inserted' || baseDisposition === 'inserted'
+      ? 'inserted'
+      : threadDisposition === 'updated' || baseDisposition === 'updated'
+        ? 'updated'
+        : 'unchanged'
+  return Object.freeze({ disposition, workItem })
+}
+
 export function putWorkItemProjection(
   database: DatabaseSync,
   input: WorkItemProjectionInput,
@@ -736,19 +811,9 @@ export function putWorkItemProjection(
     )
   }
   try {
-    assertThreadNotDeleted(database, projection.thread.id)
-    validateSourceEvents(database, projection.thread)
-    const threadDisposition = writeThread(database, projection.thread)
-    const baseDisposition = writeBase(database, projection.workItem)
-    const workItem = rebuildInTransaction(database, projection.workItem.id)
+    const result = putWorkItemProjectionInTransaction(database, projection)
     database.exec('COMMIT')
-    const disposition =
-      threadDisposition === 'inserted' || baseDisposition === 'inserted'
-        ? 'inserted'
-        : threadDisposition === 'updated' || baseDisposition === 'updated'
-          ? 'updated'
-          : 'unchanged'
-    return Object.freeze({ disposition, workItem })
+    return result
   } catch (error) {
     rollback(database)
     return wrapStorageError(error, 'The Work Item projection could not be stored.')
@@ -907,6 +972,23 @@ export function readWorkItem(database: DatabaseSync, id: WorkItemId): WorkItem |
   } catch (error) {
     rollback(database)
     return wrapStorageError(error, 'The Work Item projection could not be read.')
+  }
+}
+
+export function readThread(database: DatabaseSync, id: string): ExternalThread | undefined {
+  const threadId = nonEmptyString(id)
+  try {
+    database.exec('BEGIN')
+  } catch {
+    throw new WorkItemProjectionError('storage_error', 'The Thread read could not start.')
+  }
+  try {
+    const thread = readThreadInSnapshot(database, threadId)
+    database.exec('COMMIT')
+    return thread
+  } catch (error) {
+    rollback(database)
+    return wrapStorageError(error, 'The Thread projection could not be read.')
   }
 }
 

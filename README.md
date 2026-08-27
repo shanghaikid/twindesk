@@ -50,6 +50,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Feishu Bot Event Ingestion](docs/FEISHU_BOT_EVENT_INGESTION.md): signed direct-message and mention callbacks, hash-only durable deduplication, privacy, and hosting limits.
 - [Feishu User Message Discovery](docs/FEISHU_USER_MESSAGE_DISCOVERY.md): bounded user-authorized search windows, replay-safe candidate cursors, partial coverage, and adapter limits.
 - [Feishu Context Retrieval](docs/FEISHU_CONTEXT_RETRIEVAL.md): bounded User-identity conversation, document-excerpt, and attachment context with explicit partial states.
+- [Feishu Message Normalization](docs/FEISHU_MESSAGE_NORMALIZATION.md): canonical Bot/User events, Inbox routing, replay, privacy, and atomic event/projection/cursor commits.
 - [SQLite Storage](docs/STORAGE_SQLITE.md): TwinDesk database identity, schema, forward migrations, privacy review, and recovery guarantees.
 - [External Event Ingestion](docs/EVENT_INGESTION.md): transactional deduplication, replay, conflict, and out-of-order semantics.
 - [Durable Synchronization Cursors](docs/SYNC_CURSORS.md): atomic event/checkpoint commits, restart recovery, and regression rules.
@@ -91,9 +92,11 @@ exact-mention callbacks, then records restart-durable hash-only message receipts
 It also produces replay-safe candidate cursors for bounded message search under
 the separate User identity while explicitly reporting partial coverage, and it
 validates bounded conversation, document-excerpt, and attachment context without
-returning binary files. It is not connected to a real account, resolves no
-secrets, hosts no callback or polling scheduler, and does not yet normalize
-those messages into Inbox Work Items.
+returning binary files. Verified Bot messages and bounded User discovery batches
+now normalize into canonical ExternalEvents and event-anchored Inbox Work Items;
+User events, projections, and candidate cursors share one transaction. It is not
+connected to a real account, resolves no secrets, and hosts no callback or
+polling scheduler.
 Versioned domain records and the product-owned Connector contract are
 implemented. The pinned Harness Profile,
 two draft-only Personas, JSONL restart recovery, and bounded Codex specialist
