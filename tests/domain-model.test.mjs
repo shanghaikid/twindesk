@@ -4,17 +4,24 @@ import test from 'node:test'
 import {
   DOMAIN_SCHEMA_VERSION,
   DomainValidationError,
+  DomainStateTransitionError,
+  applyActionProposalStateTransition,
+  applyDraftStateTransition,
   parseActionProposal,
+  parseActionProposalStateTransition,
   parseApprovalRecord,
   parseAuditRecord,
   parseDomainRecord,
+  parseDraft,
   parseExternalEvent,
+  parseDraftStateTransition,
   parseWorkItem,
   parseWorkItemUserAction,
 } from '../packages/domain/dist/index.js'
 
 const firstTimestamp = '2026-08-26T08:00:00Z'
 const secondTimestamp = '2026-08-26T08:01:00Z'
+const thirdTimestamp = '2026-08-26T08:02:00Z'
 const digest = `sha256:${'0'.repeat(64)}`
 const source = {
   connectorId: 'feishu',
@@ -148,6 +155,24 @@ const records = [
     inboxState: 'waiting',
     occurredAt: secondTimestamp,
   },
+  {
+    kind: 'draft_state_transition',
+    schemaVersion: 1,
+    id: 'draft-transition-1',
+    draftId: 'draft-1',
+    fromState: 'ready_for_review',
+    toState: 'cancelled',
+    occurredAt: thirdTimestamp,
+  },
+  {
+    kind: 'action_proposal_state_transition',
+    schemaVersion: 1,
+    id: 'proposal-transition-1',
+    proposalId: 'proposal-1',
+    fromState: 'awaiting_approval',
+    toState: 'rejected',
+    occurredAt: thirdTimestamp,
+  },
 ]
 
 /**
@@ -248,6 +273,40 @@ test('external action proposals bind identity, target, content digest, and idemp
   assert.throws(
     () => parseActionProposal({ ...copy(fixture), idempotencyKey: ' ' }),
     /idempotencyKey must be a non-empty string/u,
+  )
+})
+
+test('local state transitions are exact, chronological, and cannot imply approval', () => {
+  const draft = parseDraftStateTransition(copy(records[9]))
+  const proposal = parseActionProposalStateTransition(copy(records[10]))
+  const draftRecord = parseDraft(copy(records[3]))
+  const proposalRecord = parseActionProposal(copy(records[4]))
+  assert.equal(applyDraftStateTransition(draftRecord, draft).state, 'cancelled')
+  assert.equal(applyActionProposalStateTransition(proposalRecord, proposal).state, 'rejected')
+
+  assert.throws(
+    () =>
+      parseActionProposalStateTransition({
+        ...copy(records[10]),
+        toState: 'approved',
+      }),
+    /not available without the required approval or execution evidence/u,
+  )
+  assert.throws(
+    () =>
+      applyDraftStateTransition(
+        draftRecord,
+        parseDraftStateTransition({ ...draft, draftId: 'different-draft' }),
+      ),
+    (error) => error instanceof DomainStateTransitionError && error.code === 'identity_mismatch',
+  )
+  assert.throws(
+    () =>
+      applyActionProposalStateTransition(
+        proposalRecord,
+        parseActionProposalStateTransition({ ...proposal, occurredAt: firstTimestamp }),
+      ),
+    (error) => error instanceof DomainStateTransitionError && error.code === 'chronology',
   )
 })
 

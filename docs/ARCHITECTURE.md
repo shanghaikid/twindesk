@@ -61,8 +61,9 @@ unsupported versions, invalid UTC timestamps, duplicate stable references,
 non-finite JSON values, accessor properties, and internally inconsistent
 identity, target, approval, or partial-context data. Parsed records are deeply
 immutable. Validation errors identify only the rejected field path and
-expectation; they do not serialize the input value. State transition functions
-remain TD-108 work rather than being implied by these record shapes.
+expectation; they do not serialize the input value. Pure Draft and
+ActionProposal transition functions enforce the local TD-108 state graphs;
+approval and execution states remain unavailable without separate evidence.
 
 ### `@twindesk/harness-adapter`
 
@@ -218,6 +219,13 @@ dependent business records. A later event-derived base supersedes older user
 actions; actions at or after the base revision apply in strict revision order.
 Persona selection changes routing identity only and never grants Tool or
 Connector authority. See [Work Item Projections](WORK_ITEM_PROJECTIONS.md).
+
+Draft and ActionProposal creation records preserve the original request while
+immutable transition rows advance the current projection atomically. The local
+API accepts no Connector or Tool and rejects approval or execution states.
+ActionProposals bind exact content, Work Item, optional Draft, Connector
+identity, target, digest, and idempotency key before later policy handling. See
+[Draft and ActionProposal Transitions](DRAFT_ACTION_TRANSITIONS.md).
 
 The SQLite ingestion boundary validates the full batch before opening a write
 transaction, serializes deduplication with `BEGIN IMMEDIATE`, and treats an

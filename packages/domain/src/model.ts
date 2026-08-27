@@ -12,7 +12,9 @@ export type WorkItemId = Brand<string, 'WorkItemId'>
 export type WorkItemUserActionId = Brand<string, 'WorkItemUserActionId'>
 export type ExternalThreadId = Brand<string, 'ExternalThreadId'>
 export type DraftId = Brand<string, 'DraftId'>
+export type DraftStateTransitionId = Brand<string, 'DraftStateTransitionId'>
 export type ActionProposalId = Brand<string, 'ActionProposalId'>
+export type ActionProposalStateTransitionId = Brand<string, 'ActionProposalStateTransitionId'>
 export type ApprovalRecordId = Brand<string, 'ApprovalRecordId'>
 export type ConnectorCursorId = Brand<string, 'ConnectorCursorId'>
 export type AuditRecordId = Brand<string, 'AuditRecordId'>
@@ -121,6 +123,16 @@ export interface Draft {
   readonly updatedAt: IsoTimestamp
 }
 
+export interface DraftStateTransition {
+  readonly kind: 'draft_state_transition'
+  readonly schemaVersion: DomainSchemaVersion
+  readonly id: DraftStateTransitionId
+  readonly draftId: DraftId
+  readonly fromState: DraftState
+  readonly toState: DraftState
+  readonly occurredAt: IsoTimestamp
+}
+
 export type ActionRisk = 'write' | 'destructive'
 export type ActionProposalState =
   | 'proposed'
@@ -156,6 +168,16 @@ export interface ActionProposal {
   readonly state: ActionProposalState
   readonly createdAt: IsoTimestamp
   readonly updatedAt: IsoTimestamp
+}
+
+export interface ActionProposalStateTransition {
+  readonly kind: 'action_proposal_state_transition'
+  readonly schemaVersion: DomainSchemaVersion
+  readonly id: ActionProposalStateTransitionId
+  readonly proposalId: ActionProposalId
+  readonly fromState: ActionProposalState
+  readonly toState: ActionProposalState
+  readonly occurredAt: IsoTimestamp
 }
 
 export type ApprovalDecision = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'expired'
@@ -221,7 +243,9 @@ export type DomainRecord =
   | WorkItem
   | WorkItemUserAction
   | Draft
+  | DraftStateTransition
   | ActionProposal
+  | ActionProposalStateTransition
   | ApprovalRecord
   | ConnectorCursor
   | AuditRecord

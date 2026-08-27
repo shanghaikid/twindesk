@@ -6,8 +6,9 @@
 the Node.js 24 built-in `node:sqlite` driver and does not add a native package
 dependency. The package currently owns schema creation, forward migration,
 database lifecycle, idempotent ExternalEvent ingestion, durable atomic
-Connector cursors, Work Item projections, and Inbox queries. Other repositories
-and write paths begin in later Stage 1 tasks.
+Connector cursors, Work Item projections, Inbox queries, and local Draft and
+ActionProposal transitions. Approval, audit, retention, and external execution
+write paths begin in later tasks.
 
 This database is not a Harness Session store. It never creates, updates, or
 queries Harness Session tables, JSONL artifacts, or Session query indexes.
@@ -72,7 +73,8 @@ an already released migration.
 | Threads | `external_threads`, `thread_external_references`, `thread_events` | Stable source grouping |
 | Inbox projection | `work_items`, `work_item_events` | Rebuildable Work Item state and source links |
 | Projection inputs | `work_item_projection_bases`, `work_item_projection_base_events`, `work_item_user_actions` | Event-anchored bases and immutable explicit user actions |
-| Draft and policy | `drafts`, `action_proposals`, `approval_records` | Persona drafts and exact approval bindings |
+| Draft and proposal state | `drafts`, `draft_creation_records`, `draft_state_transitions`, `action_proposals`, `action_proposal_creation_records`, `action_proposal_state_transitions` | Original requests, current local state, and immutable transition history |
+| Policy | `approval_records` | Exact future approval bindings |
 | Connector recovery | `connector_cursors` | Per-account, per-stream durable positions |
 | Execution | `action_receipts` | Success, failure, or uncertain external results |
 | Audit | `audit_records`, `audit_references` | User-visible business timeline and references |
@@ -87,6 +89,12 @@ transactions can satisfy product deletion requirements.
 Migration 2 adds versioned Work Item projection inputs and transactionally
 backfills existing version 1 Work Items and event links. It does not delete or
 recreate the existing projection, Thread, event, Draft, or audit tables.
+
+Migration 3 adds versioned, immutable Draft and ActionProposal creation
+snapshots plus their local transition histories. Existing rows are snapshotted
+at their current state during migration; new writes preserve their true initial
+state. The transition API updates history and current state in one transaction.
+See [Draft and ActionProposal Transitions](DRAFT_ACTION_TRANSITIONS.md).
 
 ## Privacy and Retention Review
 

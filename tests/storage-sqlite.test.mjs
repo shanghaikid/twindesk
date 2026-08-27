@@ -15,12 +15,16 @@ import {
 } from '../packages/storage-sqlite/dist/index.js'
 
 const expectedTables = [
+  'action_proposal_creation_records',
+  'action_proposal_state_transitions',
   'action_proposals',
   'action_receipts',
   'approval_records',
   'audit_records',
   'audit_references',
   'connector_cursors',
+  'draft_creation_records',
+  'draft_state_transitions',
   'drafts',
   'external_events',
   'external_threads',
@@ -109,6 +113,7 @@ test('a new database receives the isolated TwinDesk schema and durable settings'
     [
       { version: 1, name: 'initial_business_schema' },
       { version: 2, name: 'work_item_projection_inputs' },
+      { version: 3, name: 'local_draft_action_transitions' },
     ],
   )
   for (const { checksum, applied_at: appliedAt } of migrations) {
@@ -197,7 +202,7 @@ test('restart preserves business data without reapplying migration history', asy
   assert.equal(migrationCount.count, LATEST_TWIN_DESK_SQLITE_SCHEMA_VERSION)
 })
 
-test('version 2 forward migration backfills existing Work Item projection bases', async (context) => {
+test('forward migrations backfill existing Work Item projection bases', async (context) => {
   const path = await temporaryDatabase(context)
   const legacy = new DatabaseSync(path, { enableForeignKeyConstraints: true })
   const initialMigration = SQLITE_MIGRATIONS[0]
@@ -254,11 +259,34 @@ test('version 2 forward migration backfills existing Work Item projection bases'
     );
     INSERT INTO work_item_events (work_item_id, event_id, ordinal)
     VALUES ('legacy-work-item', 'legacy-event', 0);
+    INSERT INTO drafts (
+      kind, schema_version, id, work_item_id, persona_id, revision, state,
+      media_type, content_text, created_at, updated_at
+    ) VALUES (
+      'draft', 1, 'legacy-draft', 'legacy-work-item', 'communication', 1,
+      'ready_for_review', 'text/plain', 'Synthetic legacy draft.',
+      '2026-08-26T08:01:00Z', '2026-08-26T08:01:00Z'
+    );
+    INSERT INTO action_proposals (
+      kind, schema_version, id, work_item_id, draft_id, action_type, risk,
+      identity_connector_id, identity_account_id, identity_type, identity_display_name,
+      target_connector_id, target_account_id, target_object_type, target_external_id,
+      target_source_timestamp, media_type, content_text, content_digest, idempotency_key,
+      state, created_at, updated_at
+    ) VALUES (
+      'action_proposal', 1, 'legacy-proposal', 'legacy-work-item', 'legacy-draft',
+      'fixture.reply.preview', 'write', 'fixture', 'synthetic-account', 'user',
+      'Synthetic User', 'fixture', 'synthetic-account', 'message', 'legacy-message',
+      '2026-08-26T08:00:00Z', 'text/plain', 'Synthetic legacy draft.',
+      'sha256:0000000000000000000000000000000000000000000000000000000000000000',
+      'fixture:legacy:proposal:v1', 'proposed',
+      '2026-08-26T08:02:00Z', '2026-08-26T08:02:00Z'
+    );
   `)
   legacy.close()
 
   const upgraded = openTwinDeskDatabase(path)
-  assert.equal(upgraded.schemaVersion, 2)
+  assert.equal(upgraded.schemaVersion, LATEST_TWIN_DESK_SQLITE_SCHEMA_VERSION)
   const page = upgraded.queryInbox({ states: ['needs_review'] })
   assert.equal(page.items.length, 1)
   const migrated = page.items[0]
@@ -267,6 +295,31 @@ test('version 2 forward migration backfills existing Work Item projection bases'
   assert.equal(rebuilt.title, 'Review synthetic legacy item')
   assert.deepEqual(rebuilt.sourceEventIds, ['legacy-event'])
   upgraded.close()
+
+  const inspection = new DatabaseSync(path, { readOnly: true })
+  context.after(() => inspection.close())
+  assert.deepEqual(
+    {
+      ...inspection
+        .prepare(
+          `SELECT kind, schema_version AS schemaVersion, initial_state AS initialState
+           FROM draft_creation_records WHERE draft_id = 'legacy-draft'`,
+        )
+        .get(),
+    },
+    { kind: 'draft_creation_record', schemaVersion: 1, initialState: 'ready_for_review' },
+  )
+  assert.deepEqual(
+    {
+      ...inspection
+        .prepare(
+          `SELECT kind, schema_version AS schemaVersion, initial_state AS initialState
+           FROM action_proposal_creation_records WHERE proposal_id = 'legacy-proposal'`,
+        )
+        .get(),
+    },
+    { kind: 'action_proposal_creation_record', schemaVersion: 1, initialState: 'proposed' },
+  )
 })
 
 test('opening an unowned SQLite database fails closed without changing it', async (context) => {

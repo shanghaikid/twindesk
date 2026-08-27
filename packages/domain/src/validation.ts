@@ -1,11 +1,13 @@
 import {
   DOMAIN_SCHEMA_VERSION,
   type ActionProposal,
+  type ActionProposalStateTransition,
   type ApprovalRecord,
   type AuditRecord,
   type ConnectorCursor,
   type DomainRecord,
   type Draft,
+  type DraftStateTransition,
   type ExternalEvent,
   type ExternalReference,
   type ExternalThread,
@@ -394,6 +396,38 @@ export function parseDraft(value: unknown): Draft {
   return deepFreeze(record as unknown as Draft)
 }
 
+const DRAFT_STATES = Object.freeze([
+  'editing',
+  'ready_for_review',
+  'superseded',
+  'cancelled',
+] as const)
+
+export function parseDraftStateTransition(value: unknown): DraftStateTransition {
+  const path = 'draft_state_transition'
+  const record = objectAt(value, path)
+  exactKeys(record, path, [
+    'kind',
+    'schemaVersion',
+    'id',
+    'draftId',
+    'fromState',
+    'toState',
+    'occurredAt',
+  ])
+  commonRecordAt(record, 'draft_state_transition', path)
+  stringAt(record.draftId, `${path}.draftId`)
+  const fromState = enumAt(record.fromState, DRAFT_STATES, `${path}.fromState`)
+  const toState = enumAt(record.toState, DRAFT_STATES, `${path}.toState`)
+  const allowed =
+    (fromState === 'editing' &&
+      (toState === 'ready_for_review' || toState === 'superseded' || toState === 'cancelled')) ||
+    (fromState === 'ready_for_review' && (toState === 'superseded' || toState === 'cancelled'))
+  if (!allowed) fail(`${path}.toState`, 'is not a valid local Draft transition')
+  timestampAt(record.occurredAt, `${path}.occurredAt`)
+  return deepFreeze(record as unknown as DraftStateTransition)
+}
+
 export function parseActionProposal(value: unknown): ActionProposal {
   const path = 'action_proposal'
   const record = objectAt(value, path)
@@ -460,6 +494,44 @@ export function parseActionProposal(value: unknown): ActionProposal {
   const updatedAt = timestampAt(record.updatedAt, `${path}.updatedAt`)
   chronology(createdAt, updatedAt, `${path}.updatedAt`)
   return deepFreeze(record as unknown as ActionProposal)
+}
+
+const ACTION_PROPOSAL_STATES = Object.freeze([
+  'proposed',
+  'awaiting_approval',
+  'approved',
+  'rejected',
+  'cancelled',
+  'executing',
+  'succeeded',
+  'failed',
+  'uncertain',
+] as const)
+
+export function parseActionProposalStateTransition(value: unknown): ActionProposalStateTransition {
+  const path = 'action_proposal_state_transition'
+  const record = objectAt(value, path)
+  exactKeys(record, path, [
+    'kind',
+    'schemaVersion',
+    'id',
+    'proposalId',
+    'fromState',
+    'toState',
+    'occurredAt',
+  ])
+  commonRecordAt(record, 'action_proposal_state_transition', path)
+  stringAt(record.proposalId, `${path}.proposalId`)
+  const fromState = enumAt(record.fromState, ACTION_PROPOSAL_STATES, `${path}.fromState`)
+  const toState = enumAt(record.toState, ACTION_PROPOSAL_STATES, `${path}.toState`)
+  const allowed =
+    (fromState === 'proposed' && (toState === 'awaiting_approval' || toState === 'cancelled')) ||
+    (fromState === 'awaiting_approval' && (toState === 'rejected' || toState === 'cancelled'))
+  if (!allowed) {
+    fail(`${path}.toState`, 'is not available without the required approval or execution evidence')
+  }
+  timestampAt(record.occurredAt, `${path}.occurredAt`)
+  return deepFreeze(record as unknown as ActionProposalStateTransition)
 }
 
 export function parseApprovalRecord(value: unknown): ApprovalRecord {
@@ -628,8 +700,12 @@ export function parseDomainRecord(value: unknown): DomainRecord {
       return parseWorkItemUserAction(value)
     case 'draft':
       return parseDraft(value)
+    case 'draft_state_transition':
+      return parseDraftStateTransition(value)
     case 'action_proposal':
       return parseActionProposal(value)
+    case 'action_proposal_state_transition':
+      return parseActionProposalStateTransition(value)
     case 'approval_record':
       return parseApprovalRecord(value)
     case 'connector_cursor':

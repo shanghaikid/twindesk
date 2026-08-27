@@ -455,6 +455,115 @@ SELECT work_item_id, event_id, ordinal
 FROM work_item_events;
 `
 
+const LOCAL_DRAFT_ACTION_TRANSITIONS_SQL = `
+CREATE TABLE draft_creation_records (
+  kind TEXT NOT NULL CHECK (kind = 'draft_creation_record'),
+  schema_version INTEGER NOT NULL CHECK (schema_version = 1),
+  draft_id TEXT PRIMARY KEY REFERENCES drafts(id) ON DELETE CASCADE,
+  initial_state TEXT NOT NULL CHECK (
+    initial_state IN ('editing', 'ready_for_review', 'superseded', 'cancelled')
+  ),
+  initial_updated_at TEXT NOT NULL CHECK (julianday(initial_updated_at) IS NOT NULL)
+) STRICT;
+
+CREATE TABLE action_proposal_creation_records (
+  kind TEXT NOT NULL CHECK (kind = 'action_proposal_creation_record'),
+  schema_version INTEGER NOT NULL CHECK (schema_version = 1),
+  proposal_id TEXT PRIMARY KEY REFERENCES action_proposals(id) ON DELETE CASCADE,
+  initial_state TEXT NOT NULL CHECK (
+    initial_state IN (
+      'proposed', 'awaiting_approval', 'approved', 'rejected', 'cancelled',
+      'executing', 'succeeded', 'failed', 'uncertain'
+    )
+  ),
+  initial_updated_at TEXT NOT NULL CHECK (julianday(initial_updated_at) IS NOT NULL)
+) STRICT;
+
+INSERT INTO draft_creation_records (
+  kind, schema_version, draft_id, initial_state, initial_updated_at
+)
+SELECT 'draft_creation_record', 1, id, state, updated_at
+FROM drafts;
+
+INSERT INTO action_proposal_creation_records (
+  kind, schema_version, proposal_id, initial_state, initial_updated_at
+)
+SELECT 'action_proposal_creation_record', 1, id, state, updated_at
+FROM action_proposals;
+
+CREATE TABLE draft_state_transitions (
+  kind TEXT NOT NULL CHECK (kind = 'draft_state_transition'),
+  schema_version INTEGER NOT NULL CHECK (schema_version = 1),
+  id TEXT PRIMARY KEY,
+  draft_id TEXT NOT NULL REFERENCES drafts(id) ON DELETE CASCADE,
+  from_state TEXT NOT NULL CHECK (
+    from_state IN ('editing', 'ready_for_review', 'superseded', 'cancelled')
+  ),
+  to_state TEXT NOT NULL CHECK (
+    to_state IN ('editing', 'ready_for_review', 'superseded', 'cancelled')
+  ),
+  occurred_at TEXT NOT NULL CHECK (julianday(occurred_at) IS NOT NULL),
+  CHECK (
+    (from_state = 'editing' AND to_state IN ('ready_for_review', 'superseded', 'cancelled')) OR
+    (from_state = 'ready_for_review' AND to_state IN ('superseded', 'cancelled'))
+  )
+) STRICT;
+
+CREATE INDEX draft_state_transitions_order_index
+  ON draft_state_transitions (draft_id, occurred_at, id);
+
+CREATE TABLE action_proposal_state_transitions (
+  kind TEXT NOT NULL CHECK (kind = 'action_proposal_state_transition'),
+  schema_version INTEGER NOT NULL CHECK (schema_version = 1),
+  id TEXT PRIMARY KEY,
+  proposal_id TEXT NOT NULL REFERENCES action_proposals(id) ON DELETE CASCADE,
+  from_state TEXT NOT NULL CHECK (
+    from_state IN (
+      'proposed', 'awaiting_approval', 'approved', 'rejected', 'cancelled',
+      'executing', 'succeeded', 'failed', 'uncertain'
+    )
+  ),
+  to_state TEXT NOT NULL CHECK (
+    to_state IN (
+      'proposed', 'awaiting_approval', 'approved', 'rejected', 'cancelled',
+      'executing', 'succeeded', 'failed', 'uncertain'
+    )
+  ),
+  occurred_at TEXT NOT NULL CHECK (julianday(occurred_at) IS NOT NULL),
+  CHECK (
+    (from_state = 'proposed' AND to_state IN ('awaiting_approval', 'cancelled')) OR
+    (from_state = 'awaiting_approval' AND to_state IN ('rejected', 'cancelled'))
+  )
+) STRICT;
+
+CREATE INDEX action_proposal_state_transitions_order_index
+  ON action_proposal_state_transitions (proposal_id, occurred_at, id);
+
+CREATE TRIGGER draft_state_transitions_no_update
+BEFORE UPDATE ON draft_state_transitions
+BEGIN
+  SELECT RAISE(ABORT, 'Draft state transitions are immutable');
+END;
+
+CREATE TRIGGER action_proposal_state_transitions_no_update
+BEFORE UPDATE ON action_proposal_state_transitions
+BEGIN
+  SELECT RAISE(ABORT, 'ActionProposal state transitions are immutable');
+END;
+
+CREATE TRIGGER draft_creation_records_no_update
+BEFORE UPDATE ON draft_creation_records
+BEGIN
+  SELECT RAISE(ABORT, 'Draft creation records are immutable');
+END;
+
+CREATE TRIGGER action_proposal_creation_records_no_update
+BEFORE UPDATE ON action_proposal_creation_records
+BEGIN
+  SELECT RAISE(ABORT, 'ActionProposal creation records are immutable');
+END;
+`
+
 export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
   Object.freeze({
     version: 1,
@@ -465,6 +574,11 @@ export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
     version: 2,
     name: 'work_item_projection_inputs',
     sql: WORK_ITEM_PROJECTION_INPUTS_SQL,
+  }),
+  Object.freeze({
+    version: 3,
+    name: 'local_draft_action_transitions',
+    sql: LOCAL_DRAFT_ACTION_TRANSITIONS_SQL,
   }),
 ])
 

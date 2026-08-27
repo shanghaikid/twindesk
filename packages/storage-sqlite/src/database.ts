@@ -2,12 +2,32 @@ import { createHash } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
 
 import type {
+  ActionProposal,
+  ActionProposalId,
+  ActionProposalStateTransition,
   ConnectorCursor,
+  Draft,
+  DraftId,
+  DraftStateTransition,
   ExternalEvent,
   WorkItem,
   WorkItemId,
   WorkItemUserAction,
 } from '@twindesk/domain'
+
+import {
+  DraftActionStateError,
+  createActionProposal as storeActionProposal,
+  createDraft as storeDraft,
+  readActionProposal,
+  readDraft,
+  transitionActionProposal as storeActionProposalTransition,
+  transitionDraft as storeDraftTransition,
+  type ActionProposalTransitionWriteResult,
+  type ActionProposalWriteResult,
+  type DraftTransitionWriteResult,
+  type DraftWriteResult,
+} from './draft-action-state.ts'
 
 import {
   EventIngestionError,
@@ -83,6 +103,14 @@ export interface TwinDeskDatabase {
   rebuildWorkItemProjection(id: WorkItemId): WorkItem
   getWorkItem(id: WorkItemId): WorkItem | undefined
   queryInbox(query?: InboxQuery): InboxPage
+  createDraft(draft: Draft): DraftWriteResult
+  transitionDraft(transition: DraftStateTransition): DraftTransitionWriteResult
+  getDraft(id: DraftId): Draft | undefined
+  createActionProposal(proposal: ActionProposal): ActionProposalWriteResult
+  transitionActionProposal(
+    transition: ActionProposalStateTransition,
+  ): ActionProposalTransitionWriteResult
+  getActionProposal(id: ActionProposalId): ActionProposal | undefined
   close(): void
   [Symbol.dispose](): void
 }
@@ -161,6 +189,56 @@ class TwinDeskDatabaseHandle implements TwinDeskDatabase {
       throw new WorkItemProjectionError('database_closed', 'The TwinDesk database is closed.')
     }
     return queryStoredInbox(database, query)
+  }
+
+  createDraft(draft: Draft): DraftWriteResult {
+    const database = this.#database
+    if (database === undefined) {
+      throw new DraftActionStateError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return storeDraft(database, draft)
+  }
+
+  transitionDraft(transition: DraftStateTransition): DraftTransitionWriteResult {
+    const database = this.#database
+    if (database === undefined) {
+      throw new DraftActionStateError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return storeDraftTransition(database, transition)
+  }
+
+  getDraft(id: DraftId): Draft | undefined {
+    const database = this.#database
+    if (database === undefined) {
+      throw new DraftActionStateError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return readDraft(database, id)
+  }
+
+  createActionProposal(proposal: ActionProposal): ActionProposalWriteResult {
+    const database = this.#database
+    if (database === undefined) {
+      throw new DraftActionStateError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return storeActionProposal(database, proposal)
+  }
+
+  transitionActionProposal(
+    transition: ActionProposalStateTransition,
+  ): ActionProposalTransitionWriteResult {
+    const database = this.#database
+    if (database === undefined) {
+      throw new DraftActionStateError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return storeActionProposalTransition(database, transition)
+  }
+
+  getActionProposal(id: ActionProposalId): ActionProposal | undefined {
+    const database = this.#database
+    if (database === undefined) {
+      throw new DraftActionStateError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return readActionProposal(database, id)
   }
 
   close(): void {

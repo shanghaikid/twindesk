@@ -6,6 +6,15 @@ export {
   type TwinDeskDatabaseOptions,
 } from './database.ts'
 export {
+  DraftActionStateError,
+  computeDraftContentDigest,
+  type ActionProposalTransitionWriteResult,
+  type ActionProposalWriteResult,
+  type DraftActionStateErrorCode,
+  type DraftTransitionWriteResult,
+  type DraftWriteResult,
+} from './draft-action-state.ts'
+export {
   EventIngestionError,
   type EventConflictKey,
   type EventIngestionErrorCode,
