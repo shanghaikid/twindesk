@@ -45,6 +45,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Harness Compatibility Suite](docs/HARNESS_COMPATIBILITY_SUITE.md): one-command Stage 0 contract coverage and failure diagnostics.
 - [Stage 0 Compatibility Report](docs/STAGE_0_COMPATIBILITY_REPORT.md): validated extension points, gaps, upgrade risks, and the Stage 1 gate recommendation.
 - [Stage 0 Exit Gate](docs/STAGE_0_EXIT_GATE.md): the formal TD-052 decision, criterion evidence, selected UI boundary, and remaining limitations.
+- [Stage 1 Exit Gate](docs/STAGE_1_EXIT_GATE.md): the formal TD-112 local Work Hub decision, end-to-end fixture evidence, and Stage 2 boundary.
 - [SQLite Storage](docs/STORAGE_SQLITE.md): TwinDesk database identity, schema, forward migrations, privacy review, and recovery guarantees.
 - [External Event Ingestion](docs/EVENT_INGESTION.md): transactional deduplication, replay, conflict, and out-of-order semantics.
 - [Durable Synchronization Cursors](docs/SYNC_CURSORS.md): atomic event/checkpoint commits, restart recovery, and regression rules.
@@ -62,20 +63,23 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 
 ## Current Status
 
-Stage 0 is complete and the project is in Roadmap Stage 1. The standalone
-`@twindesk/web` shell owns Inbox, Personas, Connectors, Audit, and Settings
-routes and runs only on loopback. The business schema, idempotent ExternalEvent
-ingestion, durable synchronization cursors, Work Item projections, Inbox
-queries, the fixture-driven four-state Inbox page, fail-closed mapping for the
+Stages 0 and 1 are complete and the project is ready for Roadmap Stage 2. The
+standalone `@twindesk/web` shell owns Inbox, Personas, Connectors, Audit, and
+Settings routes and runs only on loopback. The business schema, idempotent
+ExternalEvent ingestion, durable synchronization cursors, Work Item projections,
+Inbox queries, the fixture-driven four-state Inbox page, fail-closed mapping for the
 two built-in Personas, durable Draft/ActionProposal transitions, and the local
 Audit Timeline are implemented. Versioned SecretReferences and the shared
 boundary redactor are available, and current Work Hub Tool results use the
 model-context policy. Versioned, redacted Thread export and revision-bound local
-Thread deletion now cover the complete TwinDesk business aggregate with
+Thread deletion cover the complete TwinDesk business aggregate with
 explicit shared-event, cursor, deletion-receipt, and Harness Session retention
-behavior. The Audit page currently shows synthetic routing records. Draft
-generation and editing UI, approval decisions, actual secret-store resolution,
-user-created Personas, and real Connectors are not.
+behavior. The Audit page shows four synthetic routing records plus two
+deterministic Persona Draft records. The fixture flow reaches `ready_for_review`
+across restart with no model call, approval, Connector execution, or external
+write. User-driven or model-backed Draft generation, Draft editing UI, approval
+decisions, actual secret-store resolution, user-created Personas, and real
+Connectors are not implemented.
 Versioned domain records and the product-owned Connector contract are
 implemented. The pinned Harness Profile,
 two draft-only Personas, JSONL restart recovery, and bounded Codex specialist

@@ -22,7 +22,7 @@ Harness-specific domain logic, or an unverified runtime boundary.
 Current gate status (2026-08-26): **PASSED**. TwinDesk owns a standalone
 loopback Web shell and keeps Harness behind the runtime adapter; all four
 criteria are verified in [the TD-052 exit-gate audit](STAGE_0_EXIT_GATE.md).
-Stage 1 is now active.
+Stage 1 is complete.
 
 ## Stage 1: Local Work Hub
 
@@ -36,7 +36,9 @@ Goal: establish domain and persistence layers with no external side effects.
 - Add credential references and a shared redactor.
 - Test restart, duplicate events, cursor rollback, and data deletion.
 
-Exit criterion: fixture events can complete the Inbox → Persona → Draft → Audit flow.
+Exit criterion: fixture events can complete the Inbox → Persona → Draft → Audit
+flow. **Passed on 2026-08-27**; see the
+[Stage 1 exit-gate audit](STAGE_1_EXIT_GATE.md).
 
 ## Stage 2: Feishu Closed-Loop MVP
 

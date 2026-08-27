@@ -116,16 +116,25 @@ test('the local Web server serves product routes and restarts on the same port',
   assert.match(auditResponse.headers.get('content-type') ?? '', /^application\/json/u)
   const audit = await auditResponse.json()
   assert.equal(audit.fixture, true)
-  assert.equal(audit.items.length, 4)
+  assert.equal(audit.items.length, 6)
   assert.equal(
     audit.items.every(
       (/** @type {{ actorLabel: string, referenceKinds: string[] }} */ item) =>
-        item.actorLabel === 'TwinDesk' &&
+        (item.actorLabel === 'TwinDesk' || item.actorLabel === 'Persona') &&
         item.referenceKinds.includes('work_item') &&
         !Object.hasOwn(item, 'details') &&
         !Object.hasOwn(item, 'id'),
     ),
     true,
+  )
+  assert.equal(
+    audit.items.filter(
+      (/** @type {{ category: string, actorLabel: string, referenceKinds: string[] }} */ item) =>
+        item.category === 'draft' &&
+        item.actorLabel === 'Persona' &&
+        item.referenceKinds.includes('draft'),
+    ).length,
+    2,
   )
   const headAudit = await request(`${running.url}/api/audit`, { method: 'HEAD' })
   assert.equal(headAudit.status, 200)

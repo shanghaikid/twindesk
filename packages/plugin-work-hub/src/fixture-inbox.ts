@@ -14,6 +14,11 @@ import {
 import { openTwinDeskDatabase, type TwinDeskDatabase } from '@twindesk/storage-sqlite'
 
 import { findBuiltInPersonaConfiguration } from './persona-presets.ts'
+import {
+  completeFixtureStage1Flow,
+  readFixtureStage1Flow,
+  type FixtureStage1FlowSnapshot,
+} from './fixture-stage1-flow.ts'
 
 export const FIXTURE_INBOX_STATES = Object.freeze([
   'needs_reply',
@@ -56,6 +61,7 @@ export interface FixtureInboxSnapshot {
 export interface FixtureInboxService {
   read(state?: InboxState): FixtureInboxSnapshot
   readAudit(): FixtureAuditSnapshot
+  readDraftFlow(): FixtureStage1FlowSnapshot
   close(): void
 }
 
@@ -78,6 +84,8 @@ export interface FixtureAuditSnapshot {
 export interface FixtureInboxServiceOptions {
   /** Seed presentation-safe synthetic Audit records for the product Web shell. */
   readonly includeAudit?: boolean
+  /** Complete the deterministic, local-only Stage 1 Persona → Draft → Audit path. */
+  readonly includeDraftFlow?: boolean
 }
 
 interface FixtureDefinition {
@@ -231,12 +239,13 @@ const FIXTURE_AUDIT_RECORDS = Object.freeze(
   }),
 )
 
-function seed(database: TwinDeskDatabase, includeAudit: boolean): void {
+function seed(database: TwinDeskDatabase, includeAudit: boolean, includeDraftFlow: boolean): void {
   database.ingestExternalEvents(FIXTURE_RECORDS.map(({ event }) => event))
   for (const { thread, workItem } of FIXTURE_RECORDS) {
     database.putWorkItemProjection({ thread, workItem })
   }
   if (includeAudit) database.appendAuditRecords(FIXTURE_AUDIT_RECORDS)
+  if (includeDraftFlow) completeFixtureStage1Flow(database)
 }
 
 function readFixtureItems(database: TwinDeskDatabase): readonly WorkItem[] {
@@ -316,7 +325,7 @@ export function createFixtureInboxService(
 ): FixtureInboxService {
   const database = openTwinDeskDatabase(databasePath)
   try {
-    seed(database, options.includeAudit === true)
+    seed(database, options.includeAudit === true, options.includeDraftFlow === true)
   } catch (error) {
     database.close()
     throw error
@@ -348,6 +357,10 @@ export function createFixtureInboxService(
           database.queryAuditTimeline({ limit: 100 }).records.map(projectAuditRecord),
         ),
       })
+    },
+    readDraftFlow() {
+      if (closed) throw new Error('The fixture Inbox service is closed.')
+      return readFixtureStage1Flow(database)
     },
     close() {
       if (closed) return

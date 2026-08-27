@@ -10,6 +10,8 @@ synthetic definitions
   -> validated ExternalEvent / ExternalThread / WorkItem records
   -> idempotent TwinDesk SQLite ingestion and projections
   -> optional immutable synthetic routing AuditRecords
+  -> optional exact Persona mapping and deterministic ready_for_review Drafts
+  -> optional immutable synthetic Draft AuditRecords
   -> Work Hub fixture presentation service
   -> loopback GET /api/inbox and /api/audit
   -> TwinDesk Web Inbox and Audit pages
@@ -43,8 +45,10 @@ AuditRecord per fixture Work Item. `GET /api/audit` returns only category,
 outcome, a safe actor label, summary, reference kinds, and time. It omits Audit
 record IDs, referenced IDs, actor IDs, and details. The browser validates the
 entire versioned response before rendering it. This is fixture evidence for
-the local Audit Timeline, not a claim that a model Run or external action has
-occurred.
+the local Inbox → Persona → Draft → Audit path, not a claim that a model Run,
+approval, Connector execution, or external action has occurred. The Web shell
+enables four routing AuditRecords plus two Persona-attributed Draft
+AuditRecords.
 
 The API is read-only. The existing server-wide `GET` and `HEAD` restriction
 rejects mutation methods, and the UI explicitly states that fixture data cannot
@@ -55,9 +59,11 @@ it grants no authority.
 
 The exported fixture service accepts either an in-memory or file-backed
 TwinDesk database. Seeding is idempotent, so opening the same file after restart
-does not duplicate events or Work Items. The Web server defaults to in-memory
-storage for isolated embedding and tests. The CLI uses the ignored local path
-`.twindesk/twindesk.sqlite3` by default:
+does not duplicate events, Work Items, Drafts, or Audit records. If a Draft
+insert sequence or Draft Audit append is interrupted, reopening repairs the
+missing records without duplicating the already durable Drafts. The Web server defaults to
+in-memory storage for isolated embedding and tests. The CLI uses the ignored
+local path `.twindesk/twindesk.sqlite3` by default:
 
 ```sh
 pnpm web:build
@@ -71,7 +77,10 @@ local TwinDesk database and `--port <port>` to change the port.
 
 - The service deliberately returns only the four stable fixture IDs, even if
   its database later contains non-fixture Work Items.
-- The pages do not edit state, select Personas, create drafts, approve, or
-  execute actions. Those behaviors belong to later tasks.
+- The pages do not edit state, select Personas, edit Drafts, create
+  ActionProposals, approve, or execute actions. The server creates only the two
+  deterministic fixture Drafts used by the Stage 1 gate.
+- Fixture Drafts do not invoke a model or Harness Run and have no Session or Run
+  association. Real Persona execution remains later work.
 - Fixture timestamps and content are synthetic repository data. No company
   messages, credentials, or real external identifiers are included.

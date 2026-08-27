@@ -16,6 +16,10 @@
       "types": "./dist/fixture-inbox.d.ts",
       "default": "./dist/fixture-inbox.js"
     },
+    "./fixture-stage1-flow": {
+      "types": "./dist/fixture-stage1-flow.d.ts",
+      "default": "./dist/fixture-stage1-flow.js"
+    },
     "./persona-presets": {
       "types": "./dist/persona-presets.d.ts",
       "default": "./dist/persona-presets.js"

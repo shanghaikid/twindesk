@@ -12,6 +12,11 @@ It cannot send content, create an approval decision, or produce an external
 receipt. Stage 2 must add those capabilities through separate policy and
 approval boundaries.
 
+TD-112 exercises this boundary with two deterministic fixture Drafts in
+`ready_for_review`. Their exact built-in Persona mappings, content, and
+immutable Audit references recover across restart. This fixture path invokes
+no model or Harness Run and creates no ActionProposal.
+
 ## State Machines
 
 A new Draft starts in `editing` or `ready_for_review`. The local transition

@@ -52,6 +52,12 @@ test('the fixture Inbox seeds all four states through durable projections', asyn
   assert.equal(audit.version, 1)
   assert.equal(audit.fixture, true)
   assert.equal(audit.items.length, 4)
+  assert.deepEqual(service.readDraftFlow(), {
+    version: 1,
+    fixture: true,
+    complete: false,
+    items: [],
+  })
   assert.equal(
     audit.items.every(
       (item) =>
@@ -114,4 +120,5 @@ test('the fixture Inbox closes explicitly and rejects invalid runtime state', ()
   service.close()
   assert.throws(() => service.read(), /service is closed/u)
   assert.throws(() => service.readAudit(), /service is closed/u)
+  assert.throws(() => service.readDraftFlow(), /service is closed/u)
 })

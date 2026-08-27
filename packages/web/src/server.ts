@@ -167,7 +167,10 @@ export async function startTwinDeskWebServer(
     throw new Error('TwinDesk Web port must be an integer from 0 through 65535')
   }
 
-  const inbox = createFixtureInboxService(options.databasePath, { includeAudit: true })
+  const inbox = createFixtureInboxService(options.databasePath, {
+    includeAudit: true,
+    includeDraftFlow: true,
+  })
 
   const server = createServer((request, response) => {
     void (async () => {

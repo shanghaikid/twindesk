@@ -130,9 +130,12 @@ the local Web server. TD-109 extends that boundary with immutable synthetic
 business Audit records and a presentation-safe timeline while keeping Harness
 Session data in its own store. TD-107 maps the exact two installed Persona
 configurations to TwinDesk-owned Preset identifiers and observable composition
-metadata without importing Harness types or producing authority. Connector
-registry, real event routing, Run association, dynamic Personas, and action
-dispatch remain later-stage work.
+metadata without importing Harness types or producing authority. TD-112
+completes the deterministic Stage 1 fixture path by persisting two
+`ready_for_review` Drafts and Persona-attributed Audit records across restart.
+It does not invoke Harness, create Session or Run references, or grant
+Connector authority. Connector registry, real event routing, Run association,
+dynamic Personas, and action dispatch remain later-stage work.
 
 ### `@twindesk/plugin-feishu`
 

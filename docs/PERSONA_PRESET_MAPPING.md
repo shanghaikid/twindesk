@@ -52,6 +52,13 @@ Diagnostics name only the error category and never serialize rejected values.
 The Harness composition test uses the mapped Preset IDs and compares the
 actual model-facing Skills and Tools with the mapping declaration.
 
+The deterministic Stage 1 fixture flow consumes this same mapping before it
+persists either of its two `ready_for_review` Drafts. It preflights all missing
+Drafts first, so a changed Persona fails closed without partially creating the
+fixture flow. Existing exact Drafts may still have missing Audit records
+repaired after restart. This validates identity and behavior mapping only; it
+does not claim that Harness or a model produced the fixture content.
+
 ## Limitations
 
 - User-created Personas and dynamic Preset materialization are not implemented.

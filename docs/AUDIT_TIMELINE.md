@@ -60,9 +60,10 @@ rejects malformed or unsupported responses before rendering and escapes all
 returned strings.
 
 The current Audit page shows four synthetic `routing` records, one for each
-fixture WorkItem. They demonstrate durable restart and UI behavior only; they
-do not claim that a Persona Run, approval, Tool call, or external action took
-place.
+fixture WorkItem, plus two Persona-attributed `draft` records from the
+deterministic Stage 1 fixture flow. They demonstrate durable restart and UI
+behavior only; they do not claim that a model or Persona Run, approval, Tool
+call, or external action took place.
 
 ## Privacy and remaining work
 
@@ -82,9 +83,10 @@ closed rather than leaking or silently removing another Thread's history. See
 [Thread Export and Deletion](THREAD_EXPORT_AND_DELETION.md). Hidden
 chain-of-thought must never be stored.
 
-The Stage 1 exit gate still requires the fixture Inbox → Persona → Draft →
-Audit flow to be connected end to end; the current fixture Audit entries record
-routing rather than draft generation.
+The fixture Inbox → Persona → Draft → Audit path now satisfies the
+[Stage 1 exit gate](STAGE_1_EXIT_GATE.md). Its Draft Audit entries deliberately
+omit Session and Run references because deterministic fixture generation does
+not invoke Harness or a model.
 
 ## Verification
 
