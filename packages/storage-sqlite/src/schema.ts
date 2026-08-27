@@ -582,6 +582,30 @@ BEGIN
 END;
 `
 
+const THREAD_DELETION_RECEIPTS_SQL = `
+CREATE TABLE thread_deletion_receipts (
+  kind TEXT NOT NULL CHECK (kind = 'thread_deletion_receipt'),
+  schema_version INTEGER NOT NULL CHECK (schema_version = 1),
+  request_digest TEXT PRIMARY KEY CHECK (
+    length(request_digest) = 64 AND request_digest NOT GLOB '*[^a-f0-9]*'
+  ),
+  thread_digest TEXT NOT NULL UNIQUE CHECK (
+    length(thread_digest) = 64 AND thread_digest NOT GLOB '*[^a-f0-9]*'
+  ),
+  expected_updated_at TEXT NOT NULL CHECK (julianday(expected_updated_at) IS NOT NULL),
+  requested_at TEXT NOT NULL CHECK (julianday(requested_at) IS NOT NULL),
+  counts_json TEXT NOT NULL CHECK (
+    json_valid(counts_json) AND json_type(counts_json) = 'object'
+  )
+) STRICT;
+
+CREATE TRIGGER thread_deletion_receipts_no_update
+BEFORE UPDATE ON thread_deletion_receipts
+BEGIN
+  SELECT RAISE(ABORT, 'Thread deletion receipts are immutable');
+END;
+`
+
 export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
   Object.freeze({
     version: 1,
@@ -602,6 +626,11 @@ export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
     version: 4,
     name: 'local_audit_timeline',
     sql: LOCAL_AUDIT_TIMELINE_SQL,
+  }),
+  Object.freeze({
+    version: 5,
+    name: 'thread_deletion_receipts',
+    sql: THREAD_DELETION_RECEIPTS_SQL,
   }),
 ])
 

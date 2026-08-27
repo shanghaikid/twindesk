@@ -256,6 +256,18 @@ test('audit references fail closed on conflicts, missing links, mismatches, and 
       ]),
     (error) => error instanceof AuditTimelineError && error.code === 'reference_mismatch',
   )
+  assert.throws(
+    () =>
+      database.appendAuditRecords([
+        audit('audit-cross-thread', '2026-08-26T09:16:00Z', {
+          references: [
+            { kind: 'work_item', id: WORK_ITEM_ID },
+            { kind: 'work_item', id: OTHER_WORK_ITEM_ID },
+          ],
+        }),
+      ]),
+    (error) => error instanceof AuditTimelineError && error.code === 'reference_mismatch',
+  )
 
   const storedDraft = draft()
   database.createDraft(storedDraft)

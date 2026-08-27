@@ -101,7 +101,13 @@ The TwinDesk business database:
 It never writes directly into Harness Session artifacts or derived Session
 query indexes. Opening an unowned or Harness-shaped SQLite file fails closed;
 forward migrations are transactional and never rely on deleting a user's
-database. See [TwinDesk SQLite Storage](STORAGE_SQLITE.md).
+database. Versioned Thread export reads a consistent aggregate and applies the
+shared export redactor. Revision-bound Thread deletion atomically removes
+Thread-owned business records and orphaned events while retaining shared
+events, Connector cursors, and a hash-and-count-only tombstone receipt. It
+removes TwinDesk's opaque Harness links but does not modify or claim deletion of
+the separate Session store. See [TwinDesk SQLite Storage](STORAGE_SQLITE.md) and
+[Thread Export and Deletion](THREAD_EXPORT_AND_DELETION.md).
 
 ### `@twindesk/plugin-work-hub`
 

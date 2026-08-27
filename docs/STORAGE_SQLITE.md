@@ -7,9 +7,9 @@ the Node.js 24 built-in `node:sqlite` driver and does not add a native package
 dependency. The package currently owns schema creation, forward migration,
 database lifecycle, idempotent ExternalEvent ingestion, durable atomic
 Connector cursors, Work Item projections, Inbox queries, and local Draft and
-ActionProposal transitions, plus immutable business Audit records and timeline
-queries. Approval decisions, retention, and external execution write paths
-begin in later tasks.
+ActionProposal transitions, immutable business Audit records and timeline
+queries, plus versioned Thread export and revision-bound deletion. Approval
+decisions and external execution write paths begin in later tasks.
 
 This database is not a Harness Session store. It never creates, updates, or
 queries Harness Session tables, JSONL artifacts, or Session query indexes.
@@ -79,6 +79,7 @@ an already released migration.
 | Connector recovery | `connector_cursors` | Per-account, per-stream durable positions |
 | Execution | `action_receipts` | Success, failure, or uncertain external results |
 | Audit | `audit_records`, `audit_references` | User-visible business timeline and references |
+| Retention | `thread_deletion_receipts` | Immutable hash-and-count-only deletion tombstones |
 
 Every business table stores a version discriminator. `STRICT` tables, foreign
 keys, uniqueness constraints, state checks, identity-to-target checks, approval
@@ -104,6 +105,13 @@ transaction commits. Harness Session, Run, and Tool-call payloads remain in
 the separate Harness Session store; TwinDesk persists only their opaque IDs as
 business timeline links. See [Local Audit Timeline](AUDIT_TIMELINE.md).
 
+Migration 5 adds immutable Thread deletion receipts. It stores only SHA-256
+request and Thread identity digests, the exact confirmed revision, a request
+timestamp, and count-only results. A retained digest prevents silent projection
+resurrection and makes deletion retries durable without retaining the raw
+Thread ID or business content. See
+[Thread Export and Deletion](THREAD_EXPORT_AND_DELETION.md).
+
 ## Privacy and Retention Review
 
 The schema contains no token, API key, cookie, private-key, or credential
@@ -118,11 +126,13 @@ content and must pass through the TD-110 shared redactor before diagnostic
 logging or export: normalized event JSON, Work Item text, draft content and
 rationale, target display names, receipt issue summaries, and audit summaries
 or details. Diagnostic policies remove these business-content fields; an
-authorized future export may retain them while still removing credentials,
-secret locators, and hidden reasoning. Version 1 stores normalized fields
-rather than raw Connector payloads. TD-111 will define deletion, export, and
-retention transactions; the schema alone does not claim those behaviors are
-implemented.
+authorized export may retain them while still removing credentials, secret
+locators, and hidden reasoning. Version 1 stores normalized fields rather than
+raw Connector payloads. `exportThread()` applies that policy to the complete
+authorized aggregate. `deleteThread()` removes Thread-owned records and
+orphaned events in one transaction while retaining shared events, account-level
+Connector cursors, and a content-free deletion tombstone. Harness Session data
+remains outside this database and is not modified or claimed deleted.
 
 ## Verification
 
@@ -140,3 +150,6 @@ implemented.
 replay, and restart semantics and their tests. [Work Item Projections](WORK_ITEM_PROJECTIONS.md)
 records rebuild and Inbox-query behavior. [Local Audit Timeline](AUDIT_TIMELINE.md)
 records immutable append, cross-store reference, and query behavior.
+[Thread Export and Deletion](THREAD_EXPORT_AND_DELETION.md) records aggregate
+contents, idempotent deletion, tombstone behavior, and the explicit retention
+boundary.

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 
 import {
@@ -23,6 +24,7 @@ export type WorkItemProjectionErrorCode =
   | 'missing_event'
   | 'source_mismatch'
   | 'missing_projection'
+  | 'deleted_thread'
   | 'action_conflict'
   | 'action_sequence'
   | 'action_chronology'
@@ -265,7 +267,10 @@ function stringEventIds(rows: readonly EventIdRow[]): readonly ExternalEventId[]
   return Object.freeze(ids)
 }
 
-function readThread(database: DatabaseSync, id: string): ExternalThread | undefined {
+export function readThreadInSnapshot(
+  database: DatabaseSync,
+  id: string,
+): ExternalThread | undefined {
   const row = database
     .prepare(
       `SELECT kind, schema_version, id, subject, created_at, updated_at
@@ -379,7 +384,10 @@ function parseStoredAction(row: ActionRow): WorkItemUserAction {
   }
 }
 
-function readActions(database: DatabaseSync, workItemId: string): readonly WorkItemUserAction[] {
+export function readWorkItemActionsInSnapshot(
+  database: DatabaseSync,
+  workItemId: string,
+): readonly WorkItemUserAction[] {
   const rows = database
     .prepare(
       `SELECT kind, schema_version, id, work_item_id, revision, action_type,
@@ -439,6 +447,19 @@ function validateSourceEvents(database: DatabaseSync, thread: ExternalThread): v
         'A projection event does not match a Thread reference.',
       )
     }
+  }
+}
+
+function assertThreadNotDeleted(database: DatabaseSync, threadId: string): void {
+  const digest = createHash('sha256').update(threadId, 'utf8').digest('hex')
+  const receipt = database
+    .prepare(`SELECT 1 AS deleted FROM thread_deletion_receipts WHERE thread_digest = ?`)
+    .get(digest)
+  if (receipt !== undefined) {
+    throw new WorkItemProjectionError(
+      'deleted_thread',
+      'A deleted Thread cannot be recreated without an explicit restoration flow.',
+    )
   }
 }
 
@@ -535,7 +556,7 @@ function writeThread(
   database: DatabaseSync,
   thread: ExternalThread,
 ): 'inserted' | 'updated' | 'unchanged' {
-  const existing = readThread(database, thread.id)
+  const existing = readThreadInSnapshot(database, thread.id)
   if (existing !== undefined) {
     assertThreadCanAdvance(existing, thread)
     if (sameValues(existing, thread)) return 'unchanged'
@@ -629,7 +650,7 @@ function materializeWorkItem(database: DatabaseSync, base: WorkItem): WorkItem {
   let inboxState = base.inboxState
   let selectedPersonaId = base.selectedPersonaId
   let updatedAt = base.updatedAt
-  for (const action of readActions(database, base.id)) {
+  for (const action of readWorkItemActionsInSnapshot(database, base.id)) {
     if (Date.parse(action.occurredAt) < Date.parse(base.updatedAt)) continue
     if (action.action === 'set_inbox_state') inboxState = action.inboxState
     if (action.action === 'select_persona') selectedPersonaId = action.personaId
@@ -715,6 +736,7 @@ export function putWorkItemProjection(
     )
   }
   try {
+    assertThreadNotDeleted(database, projection.thread.id)
     validateSourceEvents(database, projection.thread)
     const threadDisposition = writeThread(database, projection.thread)
     const baseDisposition = writeBase(database, projection.workItem)
@@ -851,7 +873,10 @@ export function rebuildWorkItemProjection(database: DatabaseSync, id: WorkItemId
   }
 }
 
-function readWorkItemInSnapshot(database: DatabaseSync, workItemId: string): WorkItem | undefined {
+export function readWorkItemInSnapshot(
+  database: DatabaseSync,
+  workItemId: string,
+): WorkItem | undefined {
   const row = database
     .prepare(
       `SELECT kind, schema_version, id, thread_id, inbox_state, title, summary,

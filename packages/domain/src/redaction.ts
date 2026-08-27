@@ -169,15 +169,41 @@ function dataObject(value: unknown): Readonly<Record<string, unknown>> {
 }
 
 function stringList(value: unknown, maximum: number): readonly string[] {
-  if (!Array.isArray(value) || value.length > maximum) throw new RedactionConfigurationError()
-  const result = value.map((entry) => {
-    if (typeof entry !== 'string' || entry.length === 0 || entry.length > 4096) {
+  try {
+    if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) {
       throw new RedactionConfigurationError()
     }
-    return entry
-  })
-  if (new Set(result).size !== result.length) throw new RedactionConfigurationError()
-  return Object.freeze(result)
+    const descriptors = Object.getOwnPropertyDescriptors(value)
+    const length = (descriptors as Record<string, PropertyDescriptor>).length?.value
+    if (
+      !Number.isSafeInteger(length) ||
+      (length as number) < 0 ||
+      (length as number) > maximum ||
+      Object.getOwnPropertySymbols(value).length > 0 ||
+      Object.keys(descriptors).some((key) => key !== 'length' && !/^(?:0|[1-9][0-9]*)$/u.test(key))
+    ) {
+      throw new RedactionConfigurationError()
+    }
+    const result: string[] = []
+    for (let index = 0; index < (length as number); index += 1) {
+      const descriptor = descriptors[String(index)]
+      if (
+        descriptor === undefined ||
+        !Object.hasOwn(descriptor, 'value') ||
+        typeof descriptor.value !== 'string' ||
+        descriptor.value.length === 0 ||
+        descriptor.value.length > 4096
+      ) {
+        throw new RedactionConfigurationError()
+      }
+      result.push(descriptor.value)
+    }
+    if (new Set(result).size !== result.length) throw new RedactionConfigurationError()
+    return Object.freeze(result)
+  } catch (error) {
+    if (error instanceof RedactionConfigurationError) throw error
+    throw new RedactionConfigurationError()
+  }
 }
 
 function parseOptions(value: RedactionOptions): {

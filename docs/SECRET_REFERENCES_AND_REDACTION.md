@@ -74,10 +74,13 @@ proves authorized fixture context remains while credentials, opaque locators,
 and hidden reasoning do not reach the rendered value.
 
 Current storage operations expose bounded typed errors and do not emit product
-logs, telemetry, model context, or exports. Future code creating any such
-boundary must call the shared redactor and add a field-specific leakage test.
-TD-111 will implement the first Thread export and must use the `exports` policy
-before serialization.
+logs, telemetry, or model context. Future code creating any such boundary must
+call the shared redactor and add a field-specific leakage test. TD-111
+implements the first Thread export and applies the `exports` policy to the
+entire aggregate before returning authorized business content. Callers can
+provide exact, resolved in-memory secret values for removal; those values are
+never persisted or returned. See
+[Thread Export and Deletion](THREAD_EXPORT_AND_DELETION.md).
 
 ## Verification
 

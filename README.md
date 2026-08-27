@@ -54,6 +54,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Draft and ActionProposal Transitions](docs/DRAFT_ACTION_TRANSITIONS.md): local state machines, exact content binding, replay, and no-side-effect boundary.
 - [Local Audit Timeline](docs/AUDIT_TIMELINE.md): immutable business records, cross-store references, pagination, and presentation redaction.
 - [Secret References and Shared Redaction](docs/SECRET_REFERENCES_AND_REDACTION.md): opaque secret locators, boundary policies, failure behavior, and current limitations.
+- [Thread Export and Deletion](docs/THREAD_EXPORT_AND_DELETION.md): aggregate export, revision-bound deletion, durable tombstones, and explicit retention behavior.
 - [Harness Upstream Navigation Proposal](docs/HARNESS_UPSTREAM_NAVIGATION_PROPOSAL.md): an optional ecosystem reference for generic Harness Client extensibility.
 - [Inbox Extension Spike](docs/INBOX_EXTENSION_SPIKE.md): out-of-tree route and sidebar findings, limitations, and compatibility seams.
 - [ADR 0001](docs/decisions/0001-upstream-generic-inbox-extension-points.md): historical Harness Client investigation and upstream path.
@@ -69,10 +70,12 @@ queries, the fixture-driven four-state Inbox page, fail-closed mapping for the
 two built-in Personas, durable Draft/ActionProposal transitions, and the local
 Audit Timeline are implemented. Versioned SecretReferences and the shared
 boundary redactor are available, and current Work Hub Tool results use the
-model-context policy. The Audit page currently shows synthetic routing records.
-Draft generation and editing UI, approval decisions, Thread export/deletion,
-actual secret-store resolution, user-created Personas, and real Connectors are
-not.
+model-context policy. Versioned, redacted Thread export and revision-bound local
+Thread deletion now cover the complete TwinDesk business aggregate with
+explicit shared-event, cursor, deletion-receipt, and Harness Session retention
+behavior. The Audit page currently shows synthetic routing records. Draft
+generation and editing UI, approval decisions, actual secret-store resolution,
+user-created Personas, and real Connectors are not.
 Versioned domain records and the product-owned Connector contract are
 implemented. The pinned Harness Profile,
 two draft-only Personas, JSONL restart recovery, and bounded Codex specialist

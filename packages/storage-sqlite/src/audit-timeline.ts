@@ -216,7 +216,7 @@ function parseStoredAuditRecord(
   }
 }
 
-function readAuditInSnapshot(database: DatabaseSync, id: string): AuditRecord | undefined {
+export function readAuditInSnapshot(database: DatabaseSync, id: string): AuditRecord | undefined {
   const row = database
     .prepare(`SELECT ${AUDIT_COLUMNS} FROM audit_records WHERE id = ?`)
     .get(id) as AuditRow | undefined
@@ -383,6 +383,22 @@ function validateReferences(database: DatabaseSync, record: AuditRecord): void {
       .filter((reference) => reference.kind === 'work_item')
       .map((reference) => reference.id),
   )
+  let owningThreadId: string | undefined
+  const findOwningThread = database.prepare(`SELECT thread_id FROM work_items WHERE id = ?`)
+  for (const workItemId of workItemIds) {
+    const row = findOwningThread.get(workItemId) as { readonly thread_id: unknown } | undefined
+    if (row === undefined) continue
+    if (typeof row.thread_id !== 'string') {
+      throw new AuditTimelineError('stored_record_invalid', 'A Work Item owner is invalid.')
+    }
+    if (owningThreadId !== undefined && row.thread_id !== owningThreadId) {
+      throw new AuditTimelineError(
+        'reference_mismatch',
+        'One Audit record cannot span multiple Threads.',
+      )
+    }
+    owningThreadId = row.thread_id
+  }
   const kinds = new Set(record.references.map((reference) => reference.kind))
   if (
     (kinds.has('session') || kinds.has('run') || kinds.has('tool_call')) &&

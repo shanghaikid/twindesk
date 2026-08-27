@@ -28,6 +28,7 @@ const expectedTables = [
   'drafts',
   'external_events',
   'external_threads',
+  'thread_deletion_receipts',
   'thread_events',
   'thread_external_references',
   'twindesk_schema_migrations',
@@ -115,6 +116,7 @@ test('a new database receives the isolated TwinDesk schema and durable settings'
       { version: 2, name: 'work_item_projection_inputs' },
       { version: 3, name: 'local_draft_action_transitions' },
       { version: 4, name: 'local_audit_timeline' },
+      { version: 5, name: 'thread_deletion_receipts' },
     ],
   )
   for (const { checksum, applied_at: appliedAt } of migrations) {

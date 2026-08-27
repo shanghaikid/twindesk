@@ -199,6 +199,21 @@ test('invalid redaction options do not invoke accessors or echo rejected values'
   )
   assert.equal(accessed, false)
 
+  let arrayAccessorCalls = 0
+  const accessorSecrets = Object.defineProperty(/** @type {string[]} */ ([]), '0', {
+    enumerable: true,
+    get() {
+      arrayAccessorCalls += 1
+      return SECRET
+    },
+  })
+  Object.defineProperty(accessorSecrets, 'length', { value: 1 })
+  assert.throws(
+    () => redactForBoundary(fixture(), { boundary: 'logs', knownSecrets: accessorSecrets }),
+    (error) => error instanceof RedactionConfigurationError,
+  )
+  assert.equal(arrayAccessorCalls, 0)
+
   assert.throws(
     () => redactForBoundary(fixture(), { boundary: 'logs', knownSecrets: [SECRET, SECRET] }),
     (error) => error instanceof RedactionConfigurationError,

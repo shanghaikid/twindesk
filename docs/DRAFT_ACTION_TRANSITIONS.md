@@ -78,10 +78,12 @@ The TD-110 shared redactor is now available for every future diagnostic or
 export boundary. Diagnostic policies remove these business-content fields;
 authorized model context or export may retain them only after credentials,
 secret locators, and hidden reasoning are removed. This module itself emits no
-diagnostic or export payload. TD-111 must delete creation snapshots and
-transition rows through their parent Draft or ActionProposal relationships as
-part of the explicit Thread deletion transaction. This task does not claim
-retention, approval, or execution is complete.
+diagnostic or export payload. TD-111 includes current Drafts and
+ActionProposals, creation snapshots, and transition histories in the redacted
+Thread export and deletes them atomically with their owning Thread. Approval
+and receipt descendants follow the same transaction. See
+[Thread Export and Deletion](THREAD_EXPORT_AND_DELETION.md). Approval decisions
+and external execution remain later work.
 
 ## Verification
 

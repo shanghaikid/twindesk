@@ -140,6 +140,21 @@ function parseStoredEvent(row: ExternalEventRow): ExternalEvent {
   }
 }
 
+export function readExternalEventInSnapshot(
+  database: DatabaseSync,
+  id: string,
+): ExternalEvent | undefined {
+  const row = database
+    .prepare(
+      `SELECT kind, schema_version, id, idempotency_key, connector_id, account_id,
+              object_type, external_id, source_timestamp, event_type, occurred_at,
+              received_at, context_status, context_missing_json, normalized_json
+       FROM external_events WHERE id = ?`,
+    )
+    .get(id) as ExternalEventRow | undefined
+  return row === undefined ? undefined : parseStoredEvent(row)
+}
+
 function conflictKey(row: ExternalEventRow, event: ExternalEvent): EventConflictKey | undefined {
   const idMatches = row.id === event.id
   const idempotencyKeyMatches = row.idempotency_key === event.idempotencyKey

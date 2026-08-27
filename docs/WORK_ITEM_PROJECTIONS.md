@@ -82,10 +82,12 @@ business data. The TD-110 diagnostic policies redact these fields; an
 authorized model-context or export policy may retain required business text
 while still removing credentials, secret locators, and hidden reasoning. Error
 objects expose only bounded codes and generic messages, never identifiers or
-content. This projection module emits no diagnostic or export payload. TD-111
-must delete projection bases and user actions as part of the same explicit
-Thread-retention transaction; this task does not claim retention or export is
-complete.
+content. TD-111 exports both the event-derived base and current projection
+alongside the immutable action history. Deletion cascades all three
+representations with their owning Thread. A hash-only deletion tombstone makes
+a normal projection of the same Thread fail closed until a future explicit
+restoration flow exists. See
+[Thread Export and Deletion](THREAD_EXPORT_AND_DELETION.md).
 
 ## Verification
 

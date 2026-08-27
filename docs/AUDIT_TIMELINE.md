@@ -72,9 +72,15 @@ included in validation error messages. The TD-110 shared redactor now removes
 them from logs, errors, and telemetry; an authorized model-context or export
 policy may retain necessary business text while still removing credentials,
 secret locators, and hidden reasoning. The current presentation-safe Audit API
-continues to use its narrower explicit projection. TD-111 must define explicit
-Thread export, deletion, and retention transactions. Hidden chain-of-thought
-must never be stored.
+continues to use its narrower explicit projection. TD-111 includes related
+business Audit records in an authorized Thread export and deletes Thread-owned
+Audit records atomically with the Thread. Session, Run, and Tool-call links
+disappear from TwinDesk with their owning records, while the separate Harness
+Session store is unchanged. New Audit records cannot span Work Items from
+multiple Threads; an older cross-Thread record makes export or deletion fail
+closed rather than leaking or silently removing another Thread's history. See
+[Thread Export and Deletion](THREAD_EXPORT_AND_DELETION.md). Hidden
+chain-of-thought must never be stored.
 
 The Stage 1 exit gate still requires the fixture Inbox → Persona → Draft →
 Audit flow to be connected end to end; the current fixture Audit entries record

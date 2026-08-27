@@ -61,6 +61,15 @@ import {
   type ConnectorSyncCommitResult,
 } from './sync-cursor.ts'
 import {
+  ThreadLifecycleError,
+  deleteThread as deleteStoredThread,
+  exportThread as exportStoredThread,
+  type ThreadDeletionRequest,
+  type ThreadDeletionResult,
+  type ThreadExportRequest,
+  type ThreadExportResult,
+} from './thread-lifecycle.ts'
+import {
   WorkItemProjectionError,
   applyWorkItemUserAction as storeWorkItemUserAction,
   putWorkItemProjection as storeWorkItemProjection,
@@ -126,6 +135,8 @@ export interface TwinDeskDatabase {
   appendAuditRecords(records: readonly AuditRecord[]): AuditAppendResult
   getAuditRecord(id: AuditRecordId): AuditRecord | undefined
   queryAuditTimeline(query?: AuditTimelineQuery): AuditTimelinePage
+  exportThread(request: ThreadExportRequest): ThreadExportResult
+  deleteThread(request: ThreadDeletionRequest): ThreadDeletionResult
   close(): void
   [Symbol.dispose](): void
 }
@@ -278,6 +289,22 @@ class TwinDeskDatabaseHandle implements TwinDeskDatabase {
       throw new AuditTimelineError('database_closed', 'The TwinDesk database is closed.')
     }
     return queryStoredAuditTimeline(database, query)
+  }
+
+  exportThread(request: ThreadExportRequest): ThreadExportResult {
+    const database = this.#database
+    if (database === undefined) {
+      throw new ThreadLifecycleError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return exportStoredThread(database, request)
+  }
+
+  deleteThread(request: ThreadDeletionRequest): ThreadDeletionResult {
+    const database = this.#database
+    if (database === undefined) {
+      throw new ThreadLifecycleError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return deleteStoredThread(database, request)
   }
 
   close(): void {

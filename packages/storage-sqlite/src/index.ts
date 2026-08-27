@@ -46,6 +46,17 @@ export {
   type SyncIdentityMismatch,
 } from './sync-cursor.ts'
 export {
+  THREAD_RETENTION_POLICY_V1,
+  ThreadLifecycleError,
+  type ThreadDeletionCounts,
+  type ThreadDeletionReceipt,
+  type ThreadDeletionRequest,
+  type ThreadDeletionResult,
+  type ThreadExportRequest,
+  type ThreadExportResult,
+  type ThreadLifecycleErrorCode,
+} from './thread-lifecycle.ts'
+export {
   WorkItemProjectionError,
   type InboxCursor,
   type InboxPage,

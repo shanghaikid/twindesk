@@ -55,6 +55,13 @@ to apply. The TD-110 shared redactor now removes normalized business content
 from diagnostics and credentials from every boundary; this ingestion module
 does not itself emit a diagnostic or export payload.
 
+Thread deletion removes an ExternalEvent only when no other Thread, current
+Work Item, or projection base still references it. Shared events remain
+immutable and available to their other owners. Connector cursors are retained,
+so deletion does not rewind normal incremental synchronization. A retained
+Thread tombstone prevents the projection path from silently recreating the
+deleted Thread. See [Thread Export and Deletion](THREAD_EXPORT_AND_DELETION.md).
+
 ## Verification
 
 `tests/event-ingestion.test.mjs` covers:
