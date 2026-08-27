@@ -155,10 +155,13 @@ scope or execution authority. TD-201 adds a separate Bot message callback
 boundary: raw-body signature verification, encrypted-envelope support, exact
 direct-message/mention filtering, and an append-only hash receipt journal. It
 does not host a callback, resolve its Encrypt Key, normalize ExternalEvents, or
-grant execution authority. Feishu API calls, User discovery, context, scopes,
-and writes remain later Stage 2 work. See
+grant execution authority. TD-202 adds bounded User-identity search windows and
+opaque candidate cursor positions; it always reports partial coverage and
+leaves durable event/cursor commit to TD-204. Concrete Feishu API adapters,
+context, scopes, and writes remain later Stage 2 work. See
 [Feishu Bot and User Identities](FEISHU_IDENTITIES.md) and
-[Feishu Bot Event Ingestion](FEISHU_BOT_EVENT_INGESTION.md).
+[Feishu Bot Event Ingestion](FEISHU_BOT_EVENT_INGESTION.md), and
+[Feishu User Message Discovery](FEISHU_USER_MESSAGE_DISCOVERY.md).
 
 ### `@twindesk/plugin-jira`
 

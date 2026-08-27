@@ -68,7 +68,10 @@ secret deletion.
   receipt journal, but no callback host, subscription setup, or Encrypt Key
   resolver is wired. See
   [Feishu Bot Event Ingestion](FEISHU_BOT_EVENT_INGESTION.md).
-- User-visible incremental discovery begins in TD-202.
+- TD-202 implements bounded, explicitly partial User message discovery and
+  candidate cursors, but no OAuth resolver, concrete search adapter, or polling
+  scheduler is wired. See
+  [Feishu User Message Discovery](FEISHU_USER_MESSAGE_DISCOVERY.md).
 - No reply proposal, approval, send, or other external write is implemented.
 
 ## Verification

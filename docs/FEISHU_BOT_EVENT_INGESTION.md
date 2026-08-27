@@ -93,7 +93,8 @@ remain separate tasks:
 
 - HTTP/long-connection hosting, subscription setup, secret resolution, and
   callback acknowledgement wiring;
-- User-identity polling and its independent cursor semantics (TD-202);
+- the concrete User search adapter and polling scheduler; TD-202 now defines its
+  bounded discovery and candidate-cursor semantics;
 - bounded conversation, document, and attachment retrieval (TD-203);
 - durable `ExternalEvent` and Work Item normalization (TD-204);
 - scope, rate-limit, health, and cursor diagnostics (TD-208).
