@@ -132,7 +132,11 @@ importers:
         specifier: 24.13.3
         version: 24.13.3
 
-  packages/plugin-feishu: {}
+  packages/plugin-feishu:
+    dependencies:
+      '@twindesk/domain':
+        specifier: workspace:*
+        version: link:../domain
 
   packages/plugin-jira: {}
 

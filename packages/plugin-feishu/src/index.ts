@@ -1,1 +1,1 @@
-export {}
+export * from './identity-configuration.ts'

@@ -139,12 +139,21 @@ dynamic Personas, and action dispatch remain later-stage work.
 
 ### `@twindesk/plugin-feishu`
 
-- Bot and User OAuth identities;
+- versioned, separately typed Bot application and User OAuth identities that
+  persist only distinct SecretReferences;
 - message event consumption and incremental queries;
 - message, conversation, and document context retrieval;
 - replies, sends, and idempotency keys;
 - Feishu Tools and Skills;
 - scope checks, rate limiting, and synchronization diagnostics.
+
+TD-200 implements only the identity configuration boundary. Its atomic local
+store rejects secret values, mixed identity slots, incompatible credential
+purposes, symbolic links, and unsupported versions. A credential-free
+ActionIdentity projection records the selected principal without granting
+scope or execution authority. Secret resolution, Feishu SDK calls, scopes,
+events, context, and writes remain later Stage 2 work. See
+[Feishu Bot and User Identities](FEISHU_IDENTITIES.md).
 
 ### `@twindesk/plugin-jira`
 

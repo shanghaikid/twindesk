@@ -194,7 +194,8 @@ connecting a real account or enabling external writes.
 
 Do not start write operations before the approval and audit path exists.
 
-- [ ] **TD-200 — Define separate Feishu Bot and User identities** and store only credential references.
+- [x] **TD-200 — Define separate Feishu Bot and User identities** and store only credential references.
+  - Verification record: `@twindesk/plugin-feishu` defines a strict version 1 configuration with separate Bot and User principal slots under one Feishu application. Bot credentials require a `connector_app_credential` SecretReference, User credentials require a distinct `connector_oauth` SecretReference, and the credential-free ActionIdentity projection grants no scope or authority. The file-backed store validates before writing, atomically replaces a `0600` JSON document, reads with `O_NOFOLLOW`, rejects symlinks, non-regular and oversized files, and emits payload-free typed failures. Tests cover restart recovery, separate identities, mixed-purpose and shared-locator rejection, hostile accessors, undeclared credential fields, rejected-write rollback, and the absence of app secrets, access tokens, refresh tokens, cookies, and private keys in persistence. [Feishu Bot and User Identities](docs/FEISHU_IDENTITIES.md) records visibility, privacy, retention, revocation, and remaining Keychain and scope limitations.
 - [ ] **TD-201 — Consume Bot direct-message and mention events** with signature validation and deduplication.
 - [ ] **TD-202 — Incrementally discover messages visible under User identity** without claiming complete account coverage.
 - [ ] **TD-203 — Retrieve bounded conversation, document, and attachment context** with explicit partial-result states.

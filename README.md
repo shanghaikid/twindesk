@@ -46,6 +46,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Stage 0 Compatibility Report](docs/STAGE_0_COMPATIBILITY_REPORT.md): validated extension points, gaps, upgrade risks, and the Stage 1 gate recommendation.
 - [Stage 0 Exit Gate](docs/STAGE_0_EXIT_GATE.md): the formal TD-052 decision, criterion evidence, selected UI boundary, and remaining limitations.
 - [Stage 1 Exit Gate](docs/STAGE_1_EXIT_GATE.md): the formal TD-112 local Work Hub decision, end-to-end fixture evidence, and Stage 2 boundary.
+- [Feishu Bot and User Identities](docs/FEISHU_IDENTITIES.md): separate principals, credential-reference persistence, privacy, and current connection limits.
 - [SQLite Storage](docs/STORAGE_SQLITE.md): TwinDesk database identity, schema, forward migrations, privacy review, and recovery guarantees.
 - [External Event Ingestion](docs/EVENT_INGESTION.md): transactional deduplication, replay, conflict, and out-of-order semantics.
 - [Durable Synchronization Cursors](docs/SYNC_CURSORS.md): atomic event/checkpoint commits, restart recovery, and regression rules.
@@ -80,6 +81,9 @@ across restart with no model call, approval, Connector execution, or external
 write. User-driven or model-backed Draft generation, Draft editing UI, approval
 decisions, actual secret-store resolution, user-created Personas, and real
 Connectors are not implemented.
+Stage 2 identity configuration now distinguishes Feishu Bot application
+credentials from User OAuth credentials and persists only opaque secret
+references. It is not connected to a real account and resolves no secrets.
 Versioned domain records and the product-owned Connector contract are
 implemented. The pinned Harness Profile,
 two draft-only Personas, JSONL restart recovery, and bounded Codex specialist

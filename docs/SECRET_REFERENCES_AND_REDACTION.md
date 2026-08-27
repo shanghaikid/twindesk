@@ -13,8 +13,8 @@ fields:
 - `kind: secret_reference` and `schemaVersion: 1`;
 - a lowercase, namespaced `secret-ref:` opaque locator;
 - `store`, either `system_keychain` or `encrypted_secret_store`;
-- `purpose`, one of Connector OAuth, Connector API key, model API key, or
-  other.
+- `purpose`, one of Connector application credential, Connector OAuth,
+  Connector API key, model API key, or other.
 
 There is no value, token, password, cookie, private key, account scope, Tool
 scope, approval, or authority field. Unknown fields, accessors, symbols,
@@ -81,6 +81,13 @@ entire aggregate before returning authorized business content. Callers can
 provide exact, resolved in-memory secret values for removal; those values are
 never persisted or returned. See
 [Thread Export and Deletion](THREAD_EXPORT_AND_DELETION.md).
+
+TD-200 uses the same SecretReference boundary for Feishu identity
+configuration. The Bot slot accepts only an application-credential reference,
+the User slot accepts only a distinct OAuth reference, and the configuration
+store persists neither resolved value. Keychain resolution, credential refresh,
+revocation, and short-lived known-secret registration with the redactor remain
+future work. See [Feishu Bot and User Identities](FEISHU_IDENTITIES.md).
 
 ## Verification
 

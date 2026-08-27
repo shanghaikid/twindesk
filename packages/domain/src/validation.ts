@@ -156,7 +156,7 @@ export function parseSecretReference(value: unknown): SecretReference {
   enumAt(record.store, ['system_keychain', 'encrypted_secret_store'], `${path}.store`)
   enumAt(
     record.purpose,
-    ['connector_oauth', 'connector_api_key', 'model_api_key', 'other'],
+    ['connector_app_credential', 'connector_oauth', 'connector_api_key', 'model_api_key', 'other'],
     `${path}.purpose`,
   )
   return deepFreeze(record as unknown as SecretReference)

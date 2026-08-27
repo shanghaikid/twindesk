@@ -419,6 +419,16 @@ test('secret references accept only opaque locators and never secret material', 
   const fixture = records[11]
   assert.equal(fixture?.kind, 'secret_reference')
   assert.equal(parseSecretReference(copy(fixture)).id, fixture.id)
+  assert.equal(
+    parseSecretReference({
+      kind: 'secret_reference',
+      schemaVersion: 1,
+      id: 'secret-ref:synthetic-feishu-bot-app',
+      store: 'system_keychain',
+      purpose: 'connector_app_credential',
+    }).purpose,
+    'connector_app_credential',
+  )
 
   const secret = 'synthetic-secret-material-that-must-not-echo'
   for (const malformed of [

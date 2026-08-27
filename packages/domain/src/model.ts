@@ -252,7 +252,8 @@ export interface AuditRecord {
 }
 
 export type SecretStore = 'system_keychain' | 'encrypted_secret_store'
-export type SecretPurpose = 'connector_oauth' | 'connector_api_key' | 'model_api_key' | 'other'
+export type SecretPurpose =
+  'connector_app_credential' | 'connector_oauth' | 'connector_api_key' | 'model_api_key' | 'other'
 
 /** Opaque locator for a secret that remains outside ordinary TwinDesk data stores. */
 export interface SecretReference {
