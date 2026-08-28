@@ -3,11 +3,12 @@
 ## Scope
 
 TD-209 adds `FeishuOAuthUserPrincipalVerifier`, a fail-closed boundary between
-a freshly acquired User access token and any initial credential persistence.
-It calls a narrowly injected user-info client and allows its callback to run
-only when the returned Feishu `open_id` exactly matches the configured User
-principal. It does not exchange an authorization code, host a redirect, write
-the Keychain, grant scopes, or authorize a Connector operation.
+a freshly acquired User access token and any initial credential persistence,
+plus `FeishuOAuthUserInfoHttpClient`, its fixed-endpoint production Fetch
+adapter. The verifier allows its callback to run only when the returned Feishu
+`open_id` exactly matches the configured User principal. This path does not
+exchange an authorization code, host a redirect, write the Keychain, grant
+scopes, or authorize a Connector operation.
 
 The boundary follows Feishu's official
 [OAuth v3 user-access-token contract](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/authentication-management/access-token/get-user-access-token-v3)
@@ -51,16 +52,40 @@ reports that persistence completed, its result remains authoritative even if
 cancellation arrived during the write; a callback that cancels before
 completion must throw.
 
+## Production HTTP Boundary
+
+`FeishuOAuthUserInfoHttpClient` accepts only the verifier's exact fixed-method,
+fixed-URL request. It validates the access token as bounded visible ASCII before
+forming the required Bearer header, rejects shared-memory token views and HTTP
+redirects, omits ambient credentials and referrer data, disables caching, and
+uses a 30-second timeout with a two-minute configuration ceiling.
+
+Declared and streamed responses are bounded to 16 KiB. The client requires the
+documented JSON response envelope, rejects invalid UTF-8 and duplicate JSON
+object fields, and clears every received byte chunk. It accepts the documented
+profile object only long enough to extract `data.open_id`; names, avatars,
+emails, phone numbers, employee identifiers, tenant identifiers, and unknown
+profile fields are discarded and never enter its return value or errors.
+
+Feishu error `20005` and HTTP 401/403 require reauthorization. Error `20050`,
+HTTP 429, HTTP 5xx, network failure, and timeout are explicitly retryable.
+Users reported as missing, resigned, frozen, or unregistered fail without blind
+retry. All other malformed or rejected responses fail closed. JavaScript Fetch
+requires a temporary immutable Authorization header string, and JSON parsing
+creates a temporary decoded response string; neither can be overwritten.
+TwinDesk retains or logs neither string, while the owned token and response byte
+buffers are still cleared by their respective boundaries.
+
 ## Verification and Remaining Work
 
-Synthetic tests cover the exact request contract, matching and mismatching
-principals, malformed and hostile responses, invalid configuration and tokens,
-client failure, cancellation, completed-write cancellation semantics, strict
-constructor options, payload-free errors, shared-memory rejection, and
-transient-copy zeroing. They make no network request.
+Synthetic tests cover the exact verifier and HTTP requests, matching and
+mismatching principals, response streaming and overflow, redirect and media
+rejection, duplicate fields, official service errors, network failure, timeout,
+cancellation, completed-write cancellation semantics, strict constructor
+options, payload-free errors, shared-memory rejection, profile minimization,
+and transient-buffer zeroing. They make no network request.
 
 Remaining work includes the authorization-code and PKCE request boundary, a
-bounded production Fetch client for user info, composition that encodes and
-writes the initial credential only inside the verified callback, redirect-state
-and replay protection, runtime Connector ownership, UI, and live-account
-acceptance.
+composition that encodes and writes the initial credential only inside the
+verified callback, redirect-state and replay protection, runtime Connector
+ownership, UI, and live-account acceptance.

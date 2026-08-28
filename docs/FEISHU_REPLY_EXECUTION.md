@@ -129,11 +129,11 @@ data.
 
 ## Remaining Work
 
-- Authorization-code/PKCE exchange, production principal-verification HTTP
-  composition, verified initial Keychain persistence, exclusive Connector
-  ownership, Feishu operation HTTP, and runtime composition are still required;
-  the system-Keychain reader, credential parser, refresh transport, and durable
-  dispatch boundary alone are not an execution adapter.
+- Authorization-code/PKCE exchange composed with verified initial Keychain
+  persistence, exclusive Connector ownership, Feishu operation HTTP, and
+  runtime composition are still required; the system-Keychain reader,
+  credential parser, refresh and user-info transports, and durable dispatch
+  boundary alone are not an execution adapter.
 - TD-208 now adds identity health, exact scope visibility, rate-limit state,
   and cursor diagnostics; execution still fails closed when its adapter reports
   missing authorization or scope. See

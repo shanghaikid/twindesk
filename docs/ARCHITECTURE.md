@@ -204,8 +204,9 @@ do not independently coordinate refresh. A Connector-owned append-only journal
 and single-Host coordinator now reserve before remote access, compose those
 primitives, recover a provably newer Keychain bundle after restart, and block
 every unproven use of the old single-use token. Authorization-code principal
-verification now has an exact post-exchange `open_id` boundary, but the code
-exchange and production user-info client remain open. An exclusive
+verification now has an exact post-exchange `open_id` boundary plus a
+fixed-endpoint, bounded production user-info Fetch client. The code/PKCE
+exchange and verified initial Keychain persistence remain open. An exclusive
 cross-process runtime lease, operation HTTP and dispatch composition, and
 composed Audit flow also remain TD-209 work. See
 [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) and

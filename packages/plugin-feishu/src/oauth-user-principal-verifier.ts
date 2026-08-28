@@ -6,15 +6,31 @@ export const FEISHU_OAUTH_USER_INFO_URL =
 export const FEISHU_OAUTH_USER_INFO_RESPONSE_MAX_BYTES = 16 * 1024
 
 export type FeishuOAuthUserPrincipalVerificationErrorCode =
-  'invalid_request' | 'invalid_client' | 'invalid_response' | 'identity_mismatch' | 'unavailable'
+  | 'invalid_request'
+  | 'invalid_client'
+  | 'invalid_response'
+  | 'identity_mismatch'
+  | 'unavailable'
+  | 'reauthorization_required'
+  | 'retry_later'
+
+export type FeishuOAuthUserPrincipalVerificationRetryDisposition =
+  'do_not_retry' | 'reauthorize' | 'retry_later'
 
 export class FeishuOAuthUserPrincipalVerificationError extends Error {
   readonly code: FeishuOAuthUserPrincipalVerificationErrorCode
+  readonly retryDisposition: FeishuOAuthUserPrincipalVerificationRetryDisposition
 
   constructor(code: FeishuOAuthUserPrincipalVerificationErrorCode, message: string) {
     super(message)
     this.name = 'FeishuOAuthUserPrincipalVerificationError'
     this.code = code
+    this.retryDisposition =
+      code === 'reauthorization_required'
+        ? 'reauthorize'
+        : code === 'retry_later'
+          ? 'retry_later'
+          : 'do_not_retry'
   }
 }
 
