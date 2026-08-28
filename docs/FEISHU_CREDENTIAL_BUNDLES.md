@@ -119,8 +119,9 @@ and source plus derived-buffer zeroing. A synthetic replacement is read and
 parsed through fresh primitive instances to cover restart independence without
 touching a live Keychain item.
 
-Remaining TD-209 work includes an exclusive cross-process runtime lease,
-authorization-code principal verification and blocked-state replacement,
-tenant-token acquisition for Bot operations, minimum scope checks, Feishu
-operation HTTP composition, runtime lifecycle, product UI, and an authorized
-live-account acceptance run.
+Remaining TD-209 work includes authorization-code/PKCE exchange, production
+principal-verification HTTP composition and verified initial persistence, an
+exclusive cross-process runtime lease, blocked-state replacement, tenant-token
+acquisition for Bot operations, minimum scope checks, Feishu operation HTTP
+composition, runtime lifecycle, product UI, and an authorized live-account
+acceptance run.

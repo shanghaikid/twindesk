@@ -204,11 +204,14 @@ do not independently coordinate refresh. A Connector-owned append-only journal
 and single-Host coordinator now reserve before remote access, compose those
 primitives, recover a provably newer Keychain bundle after restart, and block
 every unproven use of the old single-use token. Authorization-code principal
-verification, an exclusive cross-process runtime lease, operation HTTP and
-dispatch composition, and composed Audit flow remain TD-209 work. See
+verification now has an exact post-exchange `open_id` boundary, but the code
+exchange and production user-info client remain open. An exclusive
+cross-process runtime lease, operation HTTP and dispatch composition, and
+composed Audit flow also remain TD-209 work. See
 [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) and
 [Feishu OAuth v3 Refresh](FEISHU_OAUTH_V3_REFRESH.md) and
 [Feishu OAuth Rotation Coordinator](FEISHU_OAUTH_ROTATION_COORDINATOR.md) and
+[Feishu OAuth User Principal Verification](FEISHU_OAUTH_PRINCIPAL_VERIFICATION.md) and
 [Feishu Reply Execution](FEISHU_REPLY_EXECUTION.md).
 
 TD-208 adds a read-only Feishu diagnostics service behind the Connector health

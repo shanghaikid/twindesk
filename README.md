@@ -60,6 +60,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Feishu Credential Bundles](docs/FEISHU_CREDENTIAL_BUNDLES.md): versioned Bot/User secret parsing, rotated User encoding, exact identity/lifetime checks, and callback-scoped zeroing.
 - [Feishu OAuth v3 Refresh](docs/FEISHU_OAUTH_V3_REFRESH.md): exact form request, rotating-token response validation, recovery classification, and transient-secret cleanup.
 - [Feishu OAuth Rotation Coordinator](docs/FEISHU_OAUTH_ROTATION_COORDINATOR.md): durable-before-remote reservation, Keychain replacement, restart reconciliation, and secret-free journal state.
+- [Feishu OAuth User Principal Verification](docs/FEISHU_OAUTH_PRINCIPAL_VERIFICATION.md): exact `open_id` binding before initial credential persistence, minimized user-info data, and transient-token cleanup.
 - [SQLite Storage](docs/STORAGE_SQLITE.md): TwinDesk database identity, schema, forward migrations, privacy review, and recovery guarantees.
 - [External Event Ingestion](docs/EVENT_INGESTION.md): transactional deduplication, replay, conflict, and out-of-order semantics.
 - [Durable Synchronization Cursors](docs/SYNC_CURSORS.md): atomic event/checkpoint commits, restart recovery, and regression rules.
@@ -125,9 +126,11 @@ and reauthorization failures, with a fixed-endpoint production Fetch transport
 that rejects redirects and bounds streamed responses. A single-Host coordinator
 now reserves refresh attempts durably before network access, replaces the exact
 Keychain bundle, and blocks unproven restarts from reusing an old token.
-Authorization-code principal verification, an exclusive runtime Connector
-lease, runtime scope checks,
-reply HTTP composition, and live composition remain unimplemented. A presentation-safe
+Post-exchange principal verification now binds a fresh User token to the exact
+configured `open_id`, but authorization-code/PKCE exchange, the production
+user-info client, verified initial Keychain persistence, an exclusive runtime
+Connector lease, runtime scope checks, reply HTTP composition, and live
+composition remain unimplemented. A presentation-safe
 diagnostics boundary now reports configured
 Bot/User authorization and scope coverage, rate-limit state, and durable User
 cursor freshness without exposing credentials or opaque cursor positions.

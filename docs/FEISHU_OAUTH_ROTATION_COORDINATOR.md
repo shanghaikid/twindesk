@@ -80,7 +80,8 @@ cancellation, torn-tail repair, unsafe files, payload-free errors, and absence
 of identity or credential values in the journal. They use injected transports
 and Keychain runners and make no live network or Keychain change.
 
-Remaining work includes an exclusive runtime Connector lease, authorization-
-code principal verification and replacement of blocked state after explicit
+Remaining work includes authorization-code/PKCE exchange, production
+principal-verification HTTP composition and verified initial persistence, an
+exclusive runtime Connector lease, replacement of blocked state after explicit
 reauthorization, operation scope checks, reply HTTP composition, hosted
 ingestion or polling, UI, and live-account acceptance.

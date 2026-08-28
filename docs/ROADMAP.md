@@ -63,8 +63,9 @@ restart tests. Versioned Bot/User credential parsing and refresh-state
 classification plus the OAuth v3 refresh request/response contract are now
 covered synthetically. Durable single-Host refresh reservation, exact Keychain
 replacement, and restart reconciliation are also covered without live I/O. The
-required live-account path is still missing an exclusive runtime Connector
-lease, authorization-code principal verification, reply HTTP composition,
+required live-account path is still missing authorization-code/PKCE exchange,
+production principal-verification HTTP composition, verified initial Keychain
+persistence, an exclusive runtime Connector lease, reply HTTP composition,
 hosted ingestion or polling, interactive Draft and approval UI, and a real
 Feishu send. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).

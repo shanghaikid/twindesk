@@ -129,9 +129,10 @@ data.
 
 ## Remaining Work
 
-- Authorization-code identity verification, atomic Keychain rotation, Feishu
-  operation HTTP, and runtime composition are still required; the
-  system-Keychain reader, credential parser, refresh transport, and durable
+- Authorization-code/PKCE exchange, production principal-verification HTTP
+  composition, verified initial Keychain persistence, exclusive Connector
+  ownership, Feishu operation HTTP, and runtime composition are still required;
+  the system-Keychain reader, credential parser, refresh transport, and durable
   dispatch boundary alone are not an execution adapter.
 - TD-208 now adds identity health, exact scope visibility, rate-limit state,
   and cursor diagnostics; execution still fails closed when its adapter reports

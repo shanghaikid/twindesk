@@ -70,13 +70,16 @@ secret deletion.
   and exposes explicit refresh state. A fixed-endpoint, bounded v3 Fetch client
   validates rotated token responses, and separate encoding plus Keychain update
   primitives are now composed by a secret-free, restart-durable single-Host
-  rotation journal. Authorization-code identity verification, an exclusive
-  runtime Connector lease, revocation, operation HTTP, and runtime composition
-  are not implemented. See
+  rotation journal. A post-exchange verifier now binds the returned User
+  `open_id` before initial persistence, but authorization-code/PKCE exchange,
+  the production user-info client, verified initial Keychain persistence, an
+  exclusive runtime Connector lease, revocation, operation HTTP, and runtime
+  composition are not implemented. See
   [Feishu System Keychain Resolution and Replacement](FEISHU_SYSTEM_KEYCHAIN.md) and
   [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) and
   [Feishu OAuth v3 Refresh](FEISHU_OAUTH_V3_REFRESH.md) and
-  [Feishu OAuth Rotation Coordinator](FEISHU_OAUTH_ROTATION_COORDINATOR.md).
+  [Feishu OAuth Rotation Coordinator](FEISHU_OAUTH_ROTATION_COORDINATOR.md) and
+  [Feishu OAuth User Principal Verification](FEISHU_OAUTH_PRINCIPAL_VERIFICATION.md).
 - Required and granted scopes are not persisted by this identity record.
   TD-208 now defines a runtime-only scope, rate, health, and cursor diagnostics
   boundary; its production probe and settings UI remain unwired. See
