@@ -106,11 +106,10 @@ Audit records, and TD-209 must verify the complete source-to-receipt trace.
 
 - Product UI for displaying the exact proposal and collecting the responder's
   decision is not implemented here.
-- Production Feishu token transport and Keychain rotation, HTTP adapter,
-  dispatch composition, and runtime composition remain unimplemented. The
-  isolated system-Keychain reader, credential parser, and refresh validator
-  grant no execution authority; TD-207 defines and tests the fail-closed client
-  contract.
+- Atomic Feishu Keychain rotation, operation HTTP adapters, dispatch
+  composition, and runtime composition remain unimplemented. The isolated
+  system-Keychain reader, credential parser, and OAuth refresh transport grant
+  no execution authority; TD-207 defines and tests the fail-closed client contract.
 - TD-209 local acceptance integrates approval Audit records; the product
   runtime still needs to append them in the live Feishu loop.
 

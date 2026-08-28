@@ -6,8 +6,8 @@ TD-209 adds a strict OAuth v3 refresh boundary for an already principal-bound
 User credential. `FeishuOAuthV3TokenRefresher` builds the exact refresh request,
 validates Feishu's response, classifies recovery, and exposes the rotated token
 pair only inside a callback. It does not start user authorization, verify an
-authorization-code principal, provide a production HTTP transport, write the
-system Keychain, or grant permission for any Connector operation.
+authorization-code principal, write the system Keychain, compose a live
+credential lifecycle, or grant permission for any Connector operation.
 
 The boundary follows Feishu's official
 [OAuth v3 refresh contract](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/authentication-management/access-token/refresh-user-access-token-v3).
@@ -37,6 +37,24 @@ retain, log, or copy it beyond the request.
 This boundary deliberately omits the optional `scope` request field. It does
 not silently reduce previously granted authorization during refresh. The
 response's `scope` field remains authoritative.
+
+## Production HTTP Boundary
+
+`FeishuOAuthV3HttpTransport` uses the runtime Fetch implementation against only
+the fixed token URL. It sends no cookies or referrer, disables caching, rejects
+redirects, and applies a 30-second default timeout. A configured timeout must be
+positive and cannot exceed two minutes.
+
+The transport rejects a declared `Content-Length` above 32 KiB before reading
+the response and enforces the same limit incrementally when the header is absent
+or compressed content expands. Received stream chunks are overwritten after
+copying into the one response buffer owned by the refresher. Redirects,
+non-JSON OAuth responses, malformed Fetch results, and size violations fail
+closed without including upstream data in errors. HTTP 429 and 5xx responses
+remain retryable even if an intermediary returns an empty or non-JSON body.
+
+The production transport is not yet composed with the Keychain resolver or a
+live account. Tests inject Fetch and never send a network request.
 
 ## Response and Lifetime Rules
 
@@ -99,13 +117,14 @@ the old refresh token as though no remote effect occurred.
 
 ## Verification and Remaining Work
 
-Synthetic tests cover the exact endpoint and form bytes, percent encoding,
+Synthetic tests cover the exact endpoint and form bytes, Fetch options,
+redirect rejection, declared and streamed response limits, percent encoding,
 authoritative scopes and server lifetimes, single-use reauthorization errors,
-temporary failures, malformed and oversized responses, hostile accessor
-objects, invalid inputs and clocks, cancellation, payload-free errors, and
-request/response/token zeroing. No real credential or network request is used.
+temporary failures, malformed responses, hostile accessor objects, invalid
+inputs and clocks, timeout, cancellation, payload-free errors, and transient
+buffer zeroing. No real credential or network request is used.
 
-Remaining work includes a bounded production HTTP transport, serialized refresh
-coordination, version 1 bundle encoding, atomic system-Keychain replacement,
-uncertain-rotation handling, authorization-code principal verification,
-tenant-token acquisition, runtime composition, and live-account acceptance.
+Remaining work includes serialized refresh coordination, version 1 bundle
+encoding, atomic system-Keychain replacement, uncertain-rotation handling,
+authorization-code principal verification, tenant-token acquisition, runtime
+composition, and live-account acceptance.

@@ -103,8 +103,8 @@ errors, and source plus derived-buffer zeroing. A composition test passes a
 synthetic bundle through `FeishuSystemKeychainSecretResolver` into the parser
 without reading a live Keychain item.
 
-Remaining TD-209 work includes authorization-code principal verification, a
-production OAuth transport, serialized single-use refresh with atomic Keychain
-rotation, tenant-token acquisition for Bot operations, minimum scope checks,
-Feishu HTTP composition, runtime lifecycle, product UI, and an authorized
-live-account acceptance run.
+Remaining TD-209 work includes authorization-code principal verification,
+serialized single-use refresh with atomic Keychain rotation, tenant-token
+acquisition for Bot operations, minimum scope checks, Feishu operation HTTP
+composition, runtime lifecycle, product UI, and an authorized live-account
+acceptance run.

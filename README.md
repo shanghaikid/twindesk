@@ -118,11 +118,12 @@ unimplemented. The Connector-owned macOS Keychain reader now resolves
 validated Bot/User SecretReferences into callback-scoped, zeroed byte buffers,
 and a versioned parser binds Bot application and User OAuth bundles to the exact
 configured identity, reports usable, refresh-required, or reauthorization
-state, and clears derived secret buffers after use. An injected-transport OAuth
-v3 boundary now validates single-use refresh responses, authoritative scopes,
-server lifetimes, and reauthorization failures. Authorization-code principal
-verification, production HTTP, serialized Keychain rotation, runtime scope
-checks, and HTTP composition remain unimplemented. A presentation-safe
+state, and clears derived secret buffers after use. An OAuth v3 boundary now
+validates single-use refresh responses, authoritative scopes, server lifetimes,
+and reauthorization failures, with a fixed-endpoint production Fetch transport
+that rejects redirects and bounds streamed responses. Authorization-code
+principal verification, serialized Keychain rotation, runtime scope checks,
+reply HTTP composition, and live composition remain unimplemented. A presentation-safe
 diagnostics boundary now reports configured
 Bot/User authorization and scope coverage, rate-limit state, and durable User
 cursor freshness without exposing credentials or opaque cursor positions.

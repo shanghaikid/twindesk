@@ -538,13 +538,6 @@ export class FeishuOAuthV3TokenRefresher {
     let tokenSet: FeishuOAuthV3TokenSet | undefined
     try {
       signal.throwIfAborted()
-      const observedAt = readClock(this.#now)
-      if (
-        response.body.byteLength === 0 ||
-        response.body.byteLength > FEISHU_OAUTH_V3_RESPONSE_MAX_BYTES
-      ) {
-        throw fail('invalid_response', 'do_not_retry', 'The Feishu OAuth response size is invalid.')
-      }
       if (response.status === 429 || response.status >= 500) {
         throw fail(
           'retry_later',
@@ -552,6 +545,13 @@ export class FeishuOAuthV3TokenRefresher {
           'The Feishu OAuth service is temporarily unavailable.',
         )
       }
+      if (
+        response.body.byteLength === 0 ||
+        response.body.byteLength > FEISHU_OAUTH_V3_RESPONSE_MAX_BYTES
+      ) {
+        throw fail('invalid_response', 'do_not_retry', 'The Feishu OAuth response size is invalid.')
+      }
+      const observedAt = readClock(this.#now)
       tokenSet = parseResponse(response.status, response.body, observedAt)
       signal.throwIfAborted()
       const result = await use(tokenSet)

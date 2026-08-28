@@ -62,9 +62,9 @@ clients. Durable pre-send dispatch reservation is now covered by synthetic
 restart tests. Versioned Bot/User credential parsing and refresh-state
 classification plus the OAuth v3 refresh request/response contract are now
 covered synthetically. The required live-account path is still missing
-authorization-code principal verification, production HTTP and atomic Keychain
-rotation, hosted ingestion or polling, interactive Draft and approval UI, and a
-real Feishu send. See the
+authorization-code principal verification, atomic Keychain rotation, reply HTTP
+composition, hosted ingestion or polling, interactive Draft and approval UI,
+and a real Feishu send. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).
 
 ## Stage 3: Jira Context

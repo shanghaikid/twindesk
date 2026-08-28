@@ -16,10 +16,9 @@ and durable execution state separate:
   advances the ActionProposal execution state.
 
 The repository contains an isolated production macOS Keychain reader, a
-versioned credential-bundle parser, and an injected-transport OAuth v3 refresh
-validator, but no production token transport, atomic Keychain rotation,
-production dispatch composition, or Feishu HTTP client. Execution tests use a
-synthetic client. A composed adapter must resolve
+versioned credential-bundle parser, and a bounded OAuth v3 Fetch transport, but
+no atomic Keychain rotation, production dispatch composition, or Feishu reply
+HTTP client. Execution tests use a synthetic client. A composed adapter must resolve
 the supplied `SecretReference`, recheck the minimum send scope for the selected
 Bot or User identity, and preserve the exact request key.
 
@@ -130,10 +129,10 @@ data.
 
 ## Remaining Work
 
-- Authorization-code identity verification, production refresh and Feishu HTTP
-  transports, atomic Keychain rotation, and runtime composition are still
-  required; the system-Keychain reader, credential parser, refresh validator,
-  and durable dispatch boundary alone are not an execution adapter.
+- Authorization-code identity verification, atomic Keychain rotation, Feishu
+  operation HTTP, and runtime composition are still required; the
+  system-Keychain reader, credential parser, refresh transport, and durable
+  dispatch boundary alone are not an execution adapter.
 - TD-208 now adds identity health, exact scope visibility, rate-limit state,
   and cursor diagnostics; execution still fails closed when its adapter reports
   missing authorization or scope. See

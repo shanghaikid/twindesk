@@ -159,6 +159,8 @@ test('temporary service and transport failures are retryable and payload-free', 
   const serviceFailures = [
     [429, responseBody()],
     [503, bytes(PRIVATE_NEW_ACCESS_TOKEN)],
+    [429, new Uint8Array()],
+    [503, new Uint8Array()],
   ]
   for (const [status, body] of serviceFailures) {
     const refresher = new FeishuOAuthV3TokenRefresher({
