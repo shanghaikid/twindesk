@@ -131,7 +131,6 @@ Version 1 bundle encoding and the stdin-only atomic Keychain replacement
 primitive are composed by the
 [durable single-Host rotation coordinator](FEISHU_OAUTH_ROTATION_COORDINATOR.md).
 The authorization-code/PKCE exchange, verified initial persistence, exclusive
-Host lease, and isolated bounded Bot tenant-token client now pass synthetic
-contracts. Remaining work includes composing refresh and Bot Keychain/token
-resolution under that lease, separate Bot scope observation, operation
-composition, and live-account acceptance.
+Host lease, and bounded Bot Keychain/token/current-scope probe now pass
+synthetic contracts. Remaining work includes composing refresh and Bot probing
+under that lease, operation composition, and live-account acceptance.

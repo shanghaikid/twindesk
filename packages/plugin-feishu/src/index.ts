@@ -1,4 +1,6 @@
 export * from './bot-event-consumer.ts'
+export * from './bot-identity-scope-http-client.ts'
+export * from './bot-keychain-scope-probe.ts'
 export * from './bot-tenant-token-acquisition.ts'
 export * from './context-retrieval.ts'
 export * from './connector-diagnostics.ts'

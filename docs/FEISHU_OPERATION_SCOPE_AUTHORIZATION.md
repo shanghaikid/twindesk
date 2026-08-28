@@ -103,8 +103,8 @@ identity, authorization and scope, stale/future/mismatched evidence, probe
 failures, cancellation, callback completion, immutable values, hostile
 accessors, and payload-free errors. They use no live account or credential.
 
-The isolated bounded Bot tenant-token client now exists, but it exposes no scope
-observation. Remaining work includes Bot Keychain-to-token composition and
-separate scope observation, composing reply and discovery HTTP clients under
-the exclusive Host lease, selecting separate context endpoint policies, and
-live-account acceptance.
+The concrete [Bot Keychain scope probe](FEISHU_BOT_KEYCHAIN_SCOPE_PROBE.md) now
+composes bounded tenant-token acquisition, exact remote Bot-principal binding,
+and tenant-only application-scope observation. Remaining work includes
+composing reply and discovery HTTP clients under the exclusive Host lease,
+selecting separate context endpoint policies, and live-account acceptance.

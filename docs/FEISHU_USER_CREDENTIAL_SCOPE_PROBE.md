@@ -75,8 +75,8 @@ authorization, missing Keychain items, identity and bundle failures, hostile
 requests, invalid clocks, cancellation, payload absence, and source-buffer
 zeroing without touching a live Keychain item.
 
-The isolated bounded Bot tenant-token client now exists, but it exposes no scope
-observation. Remaining work includes Bot Keychain-to-token composition and
-separate scope observation, lease-wrapped rotation/probe/operation composition,
-production discovery and reply HTTP clients, selected context endpoint
-policies, and live-account acceptance.
+The separate [Bot Keychain scope probe](FEISHU_BOT_KEYCHAIN_SCOPE_PROBE.md) now
+composes bounded token acquisition with remote Bot-principal and tenant-scope
+observation. Remaining work includes lease-wrapped rotation/probe/operation
+composition, production discovery and reply HTTP clients, selected context
+endpoint policies, and live-account acceptance.

@@ -24,9 +24,11 @@ hold the exclusive Feishu Host lease
   -> run the normal policy, approval, dispatch, and execution boundaries
 ```
 
-Only the acquisition step is implemented here. Keychain/parser composition,
-Bot scope observation, operation HTTP clients, and lease-wrapped runtime
-composition remain open.
+The acquisition step is now composed by the
+[Feishu Bot Keychain Scope Probe](FEISHU_BOT_KEYCHAIN_SCOPE_PROBE.md), which
+adds exact Keychain/parser binding plus remote Bot principal and tenant-scope
+observation. Operation HTTP clients and lease-wrapped runtime composition
+remain open.
 
 ## Fixed HTTP Contract
 
@@ -116,7 +118,8 @@ rate/service/network/timeout failures, caller cancellation, hostile request
 objects, invalid clients, consumer failure, and payload-free errors. They make
 no real Feishu request and use no live credential.
 
-The next TD-209 slice must compose the exact Bot SecretReference, Keychain
-resolver, credential parser, and this acquirer into a Bot scope probe. That
-probe must still obtain separate current scope evidence and must never treat a
-tenant token as scope or write authority.
+The exact Bot SecretReference, Keychain resolver, credential parser, and this
+acquirer now compose into a separate current-scope probe. That probe still does
+not turn the tenant token or scope evidence into approval or write authority.
+The next TD-209 slice must compose the probe with the exclusive Host lease and
+reply HTTP execution path.

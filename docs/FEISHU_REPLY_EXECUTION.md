@@ -135,11 +135,11 @@ data.
   credential parser, refresh and user-info transports, and durable dispatch
   boundary alone are not an execution adapter.
 - Fixed Bot and User reply scope policies now gate an injected callback with a
-  fresh identity-bound observation. The concrete User Keychain probe and
-  isolated Bot tenant-token client exist; Bot Keychain composition, scope
-  observation, and composition with this executor and the reply HTTP client
-  remain required. See
-  [Feishu User Credential Scope Probe](FEISHU_USER_CREDENTIAL_SCOPE_PROBE.md).
+  fresh identity-bound observation. Concrete User and Bot Keychain probes now
+  exist; composition with this executor and the reply HTTP client remains
+  required. See
+  [Feishu User Credential Scope Probe](FEISHU_USER_CREDENTIAL_SCOPE_PROBE.md)
+  and [Feishu Bot Keychain Scope Probe](FEISHU_BOT_KEYCHAIN_SCOPE_PROBE.md).
 - TD-208 now adds identity health, exact scope visibility, rate-limit state,
   and cursor diagnostics; execution still fails closed when its adapter reports
   missing authorization or scope. See

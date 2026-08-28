@@ -124,10 +124,10 @@ touching a live Keychain item.
 
 The authorization-code/PKCE exchange now composes with verified initial bundle
 encoding, Keychain replacement, and restart parsing, while the exclusive Host
-lease passes real cross-process tests. The isolated bounded Bot tenant-token
-client also passes synthetic contracts. Remaining TD-209 work includes runtime
-composition under that lease, composing Bot Keychain resolution with token
-acquisition and separate scope observation, Feishu operation HTTP composition,
+lease passes real cross-process tests. The bounded Bot tenant-token client now
+composes with exact Keychain resolution, Bot-principal verification, and
+tenant-only scope observation. Remaining TD-209 work includes runtime
+composition under that lease, Feishu operation HTTP composition,
 product UI, and an authorized live-account acceptance run. Explicit blocked-state replacement now
 uses the version 2 rotation journal described in
 [Feishu OAuth Reauthorization Replacement](FEISHU_OAUTH_REAUTHORIZATION.md).
