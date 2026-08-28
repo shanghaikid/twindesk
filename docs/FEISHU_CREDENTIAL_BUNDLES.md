@@ -53,8 +53,11 @@ token to 4 KiB.
 The app ID must match the configured application. A User bundle must also match
 the exact configured User principal; a Bot bundle cannot be consumed through
 the User slot or vice versa. Bundle parsing does not make the listed scopes
-authoritative for an operation: the future HTTP adapter must still check the
-current required and granted scopes at the point of use.
+authoritative by itself for an operation. The
+[User credential scope probe](FEISHU_USER_CREDENTIAL_SCOPE_PROBE.md) now composes
+the exact current bundle with the fixed operation policy; the future HTTP
+adapter must still honor remote authorization or scope rejection at execution
+time.
 
 ## Expiration and Refresh State
 
@@ -122,8 +125,8 @@ touching a live Keychain item.
 The authorization-code/PKCE exchange now composes with verified initial bundle
 encoding, Keychain replacement, and restart parsing, while the exclusive Host
 lease passes real cross-process tests. Remaining TD-209 work includes runtime
-composition under that lease, tenant-token acquisition for Bot operations,
-concrete probes behind the fixed operation scope policy, Feishu operation HTTP composition, product UI, and an
+composition under that lease, tenant-token acquisition and scope observation
+for Bot operations, Feishu operation HTTP composition, product UI, and an
 authorized live-account acceptance run. Explicit blocked-state replacement now
 uses the version 2 rotation journal described in
 [Feishu OAuth Reauthorization Replacement](FEISHU_OAUTH_REAUTHORIZATION.md).

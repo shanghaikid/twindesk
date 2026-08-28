@@ -79,5 +79,5 @@ payload-free errors. They use no live Feishu account or Keychain item.
 
 Remaining work includes composing authorization and replacement inside the
 exclusive Host runtime lease, hosted loopback callback and browser lifecycle,
-concrete scope probes and HTTP clients, product UI, and live-account
+Bot token/scope acquisition and operation HTTP clients, product UI, and live-account
 acceptance.

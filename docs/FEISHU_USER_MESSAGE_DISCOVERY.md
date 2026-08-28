@@ -33,9 +33,10 @@ concrete adapter must pass the fixed `user_message_discovery` operation policy,
 which requires `search:message`, `im:message:readonly`, and `im:chat:read`, and
 must surface authorization or scope failures rather than returning an empty
 successful page. Scope health and diagnostics are defined by
-[Feishu Connector Diagnostics](FEISHU_CONNECTOR_DIAGNOSTICS.md); the production
-probe remains unwired. See
-[Feishu Operation Scope Authorization](FEISHU_OPERATION_SCOPE_AUTHORIZATION.md).
+[Feishu Connector Diagnostics](FEISHU_CONNECTOR_DIAGNOSTICS.md); its production
+diagnostics probe remains unwired. The concrete local credential probe is
+defined by
+[Feishu User Credential Scope Probe](FEISHU_USER_CREDENTIAL_SCOPE_PROBE.md).
 
 ## Bounded Incremental Windows
 
@@ -114,8 +115,8 @@ reply, send request, or other Feishu write.
 
 - A concrete Feishu HTTP/SDK search adapter, OAuth secret resolution, and
   polling scheduler are not wired yet.
-- The fixed operation scope gate exists, but its concrete current-scope probe is
-  not wired yet.
+- The fixed operation scope gate and User Keychain credential probe exist, but
+  they are not composed with polling or a production search client yet.
 - TD-203 now defines bounded conversation, document-excerpt, and attachment
   context retrieval; its concrete SDK/HTTP adapter is not wired yet.
 - TD-204 now normalizes Bot and User sources into durable ExternalEvents and

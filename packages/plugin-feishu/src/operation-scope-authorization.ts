@@ -16,11 +16,17 @@ export type FeishuOperationScopeAuthorizationErrorCode =
   | 'invalid_client'
   | 'not_authorized'
   | 'scope_missing'
+  | 'credential_refresh_required'
   | 'observation_stale'
   | 'probe_unavailable'
 
 export type FeishuOperationScopeAuthorizationRecovery =
-  'do_not_retry' | 'repair_configuration' | 'reauthorize' | 'grant_scope' | 'retry'
+  | 'do_not_retry'
+  | 'repair_configuration'
+  | 'reauthorize'
+  | 'grant_scope'
+  | 'refresh_credential'
+  | 'retry'
 
 export class FeishuOperationScopeAuthorizationError extends Error {
   readonly code: FeishuOperationScopeAuthorizationErrorCode
@@ -39,7 +45,13 @@ export class FeishuOperationScopeAuthorizationError extends Error {
 }
 
 export type FeishuOperationScopeProbeClientErrorCode =
-  'not_authorized' | 'rate_limited' | 'network' | 'invalid_response' | 'unavailable' | 'unknown'
+  | 'not_authorized'
+  | 'refresh_required'
+  | 'rate_limited'
+  | 'network'
+  | 'invalid_response'
+  | 'unavailable'
+  | 'unknown'
 
 export class FeishuOperationScopeProbeClientError extends Error {
   readonly code: FeishuOperationScopeProbeClientErrorCode
@@ -47,6 +59,7 @@ export class FeishuOperationScopeProbeClientError extends Error {
   constructor(code: FeishuOperationScopeProbeClientErrorCode) {
     const supported = [
       'not_authorized',
+      'refresh_required',
       'rate_limited',
       'network',
       'invalid_response',
@@ -284,6 +297,16 @@ function mapClientError(
   if (error instanceof FeishuOperationScopeProbeClientError) {
     if (error.code === 'not_authorized') {
       return authorizationFailure(identityType)
+    }
+    if (error.code === 'refresh_required') {
+      if (identityType !== 'user') {
+        return fail('invalid_client', 'do_not_retry', 'The Feishu scope probe response is invalid.')
+      }
+      return fail(
+        'credential_refresh_required',
+        'refresh_credential',
+        'The Feishu User credential must be refreshed before this operation.',
+      )
     }
     if (error.code === 'invalid_response') {
       return fail('invalid_client', 'do_not_retry', 'The Feishu scope probe response is invalid.')

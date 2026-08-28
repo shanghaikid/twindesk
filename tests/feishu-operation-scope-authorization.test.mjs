@@ -234,6 +234,18 @@ test('probe errors are payload-free and retain actionable recovery', async () =>
       'probe_unavailable',
       'retry',
     ],
+    [
+      'user_reply',
+      new FeishuOperationScopeProbeClientError('refresh_required'),
+      'credential_refresh_required',
+      'refresh_credential',
+    ],
+    [
+      'bot_reply',
+      new FeishuOperationScopeProbeClientError('refresh_required'),
+      'invalid_client',
+      'do_not_retry',
+    ],
     ['bot_reply', new Error(privateValue), 'probe_unavailable', 'retry'],
   ]) {
     const current = authorizer({

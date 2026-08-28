@@ -69,10 +69,19 @@ scope evidence at the point of use. Feishu may still revoke authorization or
 reject the subsequent request, so each HTTP adapter must retain its own
 fail-closed error mapping.
 
+The concrete User probe now reads the current Keychain OAuth bundle and uses
+the token set's issued scopes. Its fresh timestamp describes that local read,
+not a live remote permission introspection. See
+[Feishu User Credential Scope Probe](FEISHU_USER_CREDENTIAL_SCOPE_PROBE.md).
+
 - missing Bot configuration or Bot authorization requires configuration repair;
 - missing or revoked User authorization requires reauthorization;
 - a missing fixed scope requires an explicit application permission or User
   consent change;
+- a refresh-required User credential must pass durable rotation before a new
+  probe;
+- a Bot probe cannot claim User OAuth refresh state; doing so is an invalid
+  adapter response;
 - stale, rate-limited, network, or unavailable observations may be reprobed;
 - malformed adapter data or invalid policy input is not blindly retried.
 
@@ -94,7 +103,7 @@ identity, authorization and scope, stale/future/mismatched evidence, probe
 failures, cancellation, callback completion, immutable values, hostile
 accessors, and payload-free errors. They use no live account or credential.
 
-Remaining work includes concrete current-scope probes, Bot tenant-token
-acquisition, composing reply and discovery HTTP clients under the exclusive
+Remaining work includes Bot tenant-token acquisition and scope observation,
+composing reply and discovery HTTP clients under the exclusive
 Host lease, selecting separate context endpoint policies, and live-account
 acceptance.
