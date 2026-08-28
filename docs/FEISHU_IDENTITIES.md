@@ -72,8 +72,8 @@ secret deletion.
   primitives are now composed by a secret-free, restart-durable single-Host
   rotation journal. A state-bound S256 PKCE flow now exchanges the exact
   one-time callback, and a post-exchange verifier plus bounded production user-info
-  Fetch client bind the returned User `open_id` before initial persistence,
-  but verified initial Keychain persistence,
+  Fetch client bind the returned User `open_id` before the exact initial
+  Keychain replacement. This path passes synthetically, but
   an exclusive runtime Connector lease, revocation, operation HTTP, and runtime
   composition are not implemented. See
   [Feishu System Keychain Resolution and Replacement](FEISHU_SYSTEM_KEYCHAIN.md) and

@@ -80,8 +80,7 @@ cancellation, torn-tail repair, unsafe files, payload-free errors, and absence
 of identity or credential values in the journal. They use injected transports
 and Keychain runners and make no live network or Keychain change.
 
-The isolated authorization-code/PKCE exchange is now implemented. Remaining
-work includes composition with verified initial persistence, an exclusive
-runtime Connector lease, replacement of
+The authorization-code/PKCE exchange and verified initial persistence are now
+composed synthetically. Remaining work includes an exclusive runtime Connector lease, replacement of
 blocked state after explicit reauthorization, operation scope checks, reply
 HTTP composition, hosted ingestion or polling, UI, and live-account acceptance.

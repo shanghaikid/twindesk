@@ -119,8 +119,8 @@ and source plus derived-buffer zeroing. A synthetic replacement is read and
 parsed through fresh primitive instances to cover restart independence without
 touching a live Keychain item.
 
-The isolated authorization-code/PKCE exchange is now implemented. Remaining
-TD-209 work includes verified initial persistence, an exclusive cross-process runtime lease,
+The authorization-code/PKCE exchange now composes with verified initial bundle
+encoding, Keychain replacement, and restart parsing. Remaining TD-209 work includes an exclusive cross-process runtime lease,
 blocked-state replacement, tenant-token acquisition for Bot operations,
 minimum scope checks, Feishu operation HTTP composition, runtime lifecycle,
 product UI, and an authorized live-account acceptance run.

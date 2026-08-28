@@ -87,6 +87,7 @@ and transient-buffer zeroing. They make no network request.
 
 The authorization-code and PKCE request boundary is described in
 [Feishu OAuth Authorization Code and PKCE](FEISHU_OAUTH_AUTHORIZATION_CODE.md).
-Remaining work includes a composition that encodes and writes the initial
-credential only inside the verified callback, a hosted redirect listener,
+The verified callback now composes initial encoding and Keychain replacement as
+described in [Feishu OAuth Verified Initial Persistence](FEISHU_OAUTH_INITIAL_PERSISTENCE.md).
+Remaining work includes a hosted redirect listener,
 runtime Connector ownership, UI, and live-account acceptance.

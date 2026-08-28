@@ -208,12 +208,15 @@ verification now has an exact post-exchange `open_id` boundary plus a
 fixed-endpoint, bounded production user-info Fetch client. An in-memory,
 state-bound S256 PKCE flow now creates the authorization request, consumes the
 exact callback once, and exchanges it through the bounded OAuth v3 transport.
-Verified initial Keychain persistence remains open. An exclusive
+The verified initial-persistence composition then requires the exact configured
+`open_id`, encodes the first version 1 User bundle, and replaces only its
+configured Keychain reference. An exclusive
 cross-process runtime lease, operation HTTP and dispatch composition, and
 composed Audit flow also remain TD-209 work. See
 [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) and
 [Feishu OAuth v3 Refresh](FEISHU_OAUTH_V3_REFRESH.md) and
 [Feishu OAuth Authorization Code and PKCE](FEISHU_OAUTH_AUTHORIZATION_CODE.md) and
+[Feishu OAuth Verified Initial Persistence](FEISHU_OAUTH_INITIAL_PERSISTENCE.md) and
 [Feishu OAuth Rotation Coordinator](FEISHU_OAUTH_ROTATION_COORDINATOR.md) and
 [Feishu OAuth User Principal Verification](FEISHU_OAUTH_PRINCIPAL_VERIFICATION.md) and
 [Feishu Reply Execution](FEISHU_REPLY_EXECUTION.md).

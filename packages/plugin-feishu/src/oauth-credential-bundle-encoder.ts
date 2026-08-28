@@ -6,6 +6,7 @@ import {
   FEISHU_OAUTH_TOKEN_MAX_LENGTH,
   type FeishuUserOAuthCredentialBundle,
 } from './credential-bundle.ts'
+import { parseFeishuIdentityConfiguration } from './identity-configuration.ts'
 import type { FeishuOAuthV3TokenSet } from './oauth-v3-token-refresh.ts'
 
 export type FeishuOAuthCredentialBundleEncoderErrorCode =
@@ -97,7 +98,12 @@ function secretText(
   maximum: number,
   code: 'invalid_credential' | 'invalid_token_set',
 ): string {
-  if (!(value instanceof Uint8Array) || value.byteLength === 0 || value.byteLength > maximum) {
+  if (
+    !(value instanceof Uint8Array) ||
+    !(value.buffer instanceof ArrayBuffer) ||
+    value.byteLength === 0 ||
+    value.byteLength > maximum
+  ) {
     throw fail(code, 'The Feishu OAuth credential rotation secret is invalid.')
   }
   try {
@@ -113,7 +119,12 @@ function secretBytes(
   maximum: number,
   code: 'invalid_credential' | 'invalid_token_set',
 ): void {
-  if (!(value instanceof Uint8Array) || value.byteLength === 0 || value.byteLength > maximum) {
+  if (
+    !(value instanceof Uint8Array) ||
+    !(value.buffer instanceof ArrayBuffer) ||
+    value.byteLength === 0 ||
+    value.byteLength > maximum
+  ) {
     throw fail(code, 'The Feishu OAuth credential rotation secret is invalid.')
   }
 }
@@ -276,6 +287,35 @@ function tokenSetRecord(value: unknown): Readonly<{
   })
 }
 
+function encodedBundle(
+  appId: string,
+  principalId: string,
+  clientSecret: string,
+  tokenSet: ReturnType<typeof tokenSetRecord>,
+): Uint8Array<ArrayBuffer> {
+  const bundle = new TextEncoder().encode(
+    JSON.stringify({
+      kind: 'feishu_user_oauth_credential_bundle',
+      schemaVersion: FEISHU_CREDENTIAL_BUNDLE_VERSION,
+      appId,
+      principalId,
+      clientSecret,
+      tokenType: 'Bearer',
+      accessToken: tokenSet.accessToken,
+      obtainedAt: tokenSet.obtainedAt,
+      accessTokenExpiresAt: tokenSet.accessTokenExpiresAt,
+      refreshToken: tokenSet.refreshToken,
+      refreshTokenExpiresAt: tokenSet.refreshTokenExpiresAt,
+      scopes: tokenSet.scopes,
+    }),
+  )
+  if (bundle.byteLength === 0 || bundle.byteLength > FEISHU_CREDENTIAL_BUNDLE_MAX_BYTES) {
+    bundle.fill(0)
+    throw fail('bundle_too_large', 'The Feishu OAuth credential bundle is too large.')
+  }
+  return bundle
+}
+
 /**
  * Encode one rotated OAuth token set into the exact version 1 Keychain bundle.
  * The encoded byte buffer is callback-scoped and cleared on every exit.
@@ -299,30 +339,58 @@ export class FeishuOAuthCredentialBundleEncoder {
     ) {
       throw fail('invalid_token_set', 'The Feishu OAuth rotated token chronology is invalid.')
     }
-    const bundle = new TextEncoder().encode(
-      JSON.stringify({
-        kind: 'feishu_user_oauth_credential_bundle',
-        schemaVersion: FEISHU_CREDENTIAL_BUNDLE_VERSION,
-        appId: credential.appId,
-        principalId: credential.principalId,
-        clientSecret: credential.clientSecret,
-        tokenType: 'Bearer',
-        accessToken: tokenSet.accessToken,
-        obtainedAt: tokenSet.obtainedAt,
-        accessTokenExpiresAt: tokenSet.accessTokenExpiresAt,
-        refreshToken: tokenSet.refreshToken,
-        refreshTokenExpiresAt: tokenSet.refreshTokenExpiresAt,
-        scopes: tokenSet.scopes,
-      }),
+    const bundle = encodedBundle(
+      credential.appId,
+      credential.principalId,
+      credential.clientSecret,
+      tokenSet,
     )
     try {
-      if (bundle.byteLength === 0 || bundle.byteLength > FEISHU_CREDENTIAL_BUNDLE_MAX_BYTES) {
-        throw fail('bundle_too_large', 'The Feishu OAuth credential bundle is too large.')
-      }
       signal.throwIfAborted()
       const result = await use(bundle)
       signal.throwIfAborted()
       return result
+    } finally {
+      bundle.fill(0)
+    }
+  }
+
+  /**
+   * Encode the first principal-verified OAuth token set for the configured
+   * User. A successful persistence callback remains authoritative if
+   * cancellation arrives while that callback completes.
+   */
+  async withEncodedInitialBundle<TResult>(
+    configurationValue: unknown,
+    clientSecretValue: Uint8Array,
+    tokenSetValue: FeishuOAuthV3TokenSet,
+    signal: AbortSignal,
+    use: (bundle: Uint8Array) => Promise<TResult> | TResult,
+  ): Promise<TResult> {
+    signal.throwIfAborted()
+    if (typeof use !== 'function') {
+      throw fail('invalid_consumer', 'The Feishu OAuth bundle consumer is invalid.')
+    }
+    let configuration
+    try {
+      configuration = parseFeishuIdentityConfiguration(configurationValue)
+    } catch {
+      throw fail('invalid_credential', 'The Feishu OAuth identity configuration is invalid.')
+    }
+    if (configuration.user === undefined) {
+      throw fail('invalid_credential', 'The Feishu OAuth User identity is not configured.')
+    }
+    const clientSecret = secretText(clientSecretValue, 512, 'invalid_credential')
+    const tokenSet = tokenSetRecord(tokenSetValue)
+    const bundle = encodedBundle(
+      configuration.appId,
+      configuration.user.principalId,
+      clientSecret,
+      tokenSet,
+    )
+    try {
+      signal.throwIfAborted()
+      return await use(bundle)
     } finally {
       bundle.fill(0)
     }

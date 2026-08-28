@@ -130,7 +130,6 @@ buffer zeroing. No real credential or network request is used.
 Version 1 bundle encoding and the stdin-only atomic Keychain replacement
 primitive are composed by the
 [durable single-Host rotation coordinator](FEISHU_OAUTH_ROTATION_COORDINATOR.md).
-The isolated authorization-code/PKCE exchange is now implemented. Remaining
-work includes its composition with verified initial persistence, an exclusive
-runtime Connector lease, tenant-token
+The authorization-code/PKCE exchange and verified initial persistence are now
+composed synthetically. Remaining work includes an exclusive runtime Connector lease, tenant-token
 acquisition, operation composition, and live-account acceptance.

@@ -102,9 +102,9 @@ completed-consumer cancellation semantics, payload-free errors, and transient
 buffer zeroing. They use injected randomness and transport and make no live
 request.
 
-Remaining work is the composition that calls the bounded User-info endpoint,
-verifies the returned application-scoped `open_id` against the configured User,
-encodes the initial version 1 credential, and replaces the exact Keychain item
-only inside that verified callback. A hosted loopback listener, browser/UI
+The verified callback now composes the bounded User-info endpoint, initial
+version 1 encoding, and exact Keychain replacement as described in
+[Feishu OAuth Verified Initial Persistence](FEISHU_OAUTH_INITIAL_PERSISTENCE.md).
+A hosted loopback listener, browser/UI
 lifecycle, exclusive runtime Connector ownership, operation clients, and
 live-account acceptance also remain open.
