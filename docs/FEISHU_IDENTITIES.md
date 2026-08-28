@@ -87,8 +87,8 @@ secret deletion.
   [Feishu Context Retrieval](FEISHU_CONTEXT_RETRIEVAL.md).
 - TD-205 through TD-207 implement the proposal, approval, and
   reconcile-before-send boundaries with synthetic clients. The isolated
-  Keychain reader does not make those clients production-ready; no Feishu HTTP,
-  durable dispatch-journal, or composed real-account write path is wired.
+  Keychain reader and durable dispatch journal do not make those clients
+  production-ready; no Feishu HTTP or composed real-account write path is wired.
 
 ## Verification
 

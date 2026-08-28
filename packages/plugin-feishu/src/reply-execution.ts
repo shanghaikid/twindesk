@@ -101,6 +101,12 @@ export interface FeishuReplyExecutionClient {
 
 export interface FeishuReplyExecutorOptions {
   readonly now?: () => number
+  /** Must durably reserve this exact attempt before a client may send it. */
+  readonly reserveDispatch?: (
+    action: ApprovedAction,
+    reservedAt: IsoTimestamp,
+    signal: AbortSignal,
+  ) => Promise<'reserved' | 'blocked'>
 }
 
 interface ParsedAction {
@@ -438,6 +444,7 @@ export class FeishuReplyExecutor {
   readonly #configuration: FeishuIdentityConfiguration
   readonly #client: FeishuReplyExecutionClient
   readonly #now: () => number
+  readonly #reserveDispatch: FeishuReplyExecutorOptions['reserveDispatch']
 
   constructor(
     configuration: unknown,
@@ -447,11 +454,17 @@ export class FeishuReplyExecutor {
     this.#configuration = parseFeishuIdentityConfiguration(configuration)
     this.#client = client
     this.#now = options.now ?? Date.now
+    this.#reserveDispatch = options.reserveDispatch
   }
 
   async execute(actionValue: ApprovedAction, signal: AbortSignal): Promise<ActionReceipt> {
     signal.throwIfAborted()
     const action = parseAction(actionValue, this.#configuration)
+    const normalizedAction = Object.freeze({
+      proposal: action.proposal,
+      approval: action.approval,
+      executionAttemptId: action.executionAttemptId,
+    }) as ApprovedAction
     const attemptedAt = this.#observedAt()
     if (
       Date.parse(attemptedAt) < Date.parse(action.approval.decidedAt as IsoTimestamp) ||
@@ -475,6 +488,58 @@ export class FeishuReplyExecutor {
     signal.throwIfAborted()
     if (reconciliation.status === 'found') {
       return successReceipt(action, reconciliation, attemptedAt)
+    }
+    try {
+      if (this.#reserveDispatch === undefined) {
+        return issueReceipt(
+          action,
+          attemptedAt,
+          'uncertain',
+          'feishu_dispatch_unavailable',
+          'A durable dispatch reservation is required before sending.',
+          true,
+          'reconcile_first',
+        )
+      }
+      const disposition: unknown = await this.#reserveDispatch(
+        normalizedAction,
+        attemptedAt,
+        signal,
+      )
+      signal.throwIfAborted()
+      if (disposition === 'blocked') {
+        return issueReceipt(
+          action,
+          attemptedAt,
+          'uncertain',
+          'feishu_dispatch_already_reserved',
+          'A prior Feishu reply dispatch may already have occurred.',
+          true,
+          'reconcile_first',
+        )
+      }
+      if (disposition !== 'reserved') {
+        return issueReceipt(
+          action,
+          attemptedAt,
+          'uncertain',
+          'feishu_dispatch_unavailable',
+          'The durable dispatch reservation response is invalid.',
+          true,
+          'reconcile_first',
+        )
+      }
+    } catch {
+      signal.throwIfAborted()
+      return issueReceipt(
+        action,
+        attemptedAt,
+        'uncertain',
+        'feishu_dispatch_unavailable',
+        'The durable dispatch reservation could not be confirmed.',
+        true,
+        'reconcile_first',
+      )
     }
     try {
       const sent = parseReconciliation(

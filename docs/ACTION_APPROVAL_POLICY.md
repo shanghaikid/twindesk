@@ -106,7 +106,7 @@ Audit records, and TD-209 must verify the complete source-to-receipt trace.
 
 - Product UI for displaying the exact proposal and collecting the responder's
   decision is not implemented here.
-- Production Feishu credential parsing/refresh, HTTP/durable dispatch adapters,
+- Production Feishu credential parsing/refresh, HTTP adapter and dispatch composition,
   and runtime composition remain unimplemented. The isolated system-Keychain
   reader grants no execution authority; TD-207 defines and tests the
   fail-closed client contract.

@@ -37,9 +37,13 @@ import {
 import {
   ActionExecutionStateError,
   beginActionExecution as beginStoredActionExecution,
+  readLatestActionDispatch,
   readActionExecutionReceipt,
   recoverActionExecution as recoverStoredActionExecution,
   recordActionExecutionReceipt as recordStoredActionExecutionReceipt,
+  reserveActionDispatch as reserveStoredActionDispatch,
+  type ActionDispatchReservation,
+  type ActionDispatchReservationResult,
   type ActionExecutionRecoveryRequest,
   type ActionExecutionRecoveryResult,
   type ActionExecutionReceiptWrite,
@@ -47,6 +51,7 @@ import {
   type ActionExecutionStart,
   type ActionExecutionStartResult,
   type StoredActionReceipt,
+  type StoredActionDispatch,
 } from './action-execution-state.ts'
 
 import {
@@ -173,6 +178,8 @@ export interface TwinDeskDatabase {
   consumeActionApproval(consumption: ActionApprovalConsumption): ActionApprovalConsumptionResult
   getActionApproval(id: ApprovalRecordId): ApprovalRecord | undefined
   beginActionExecution(start: ActionExecutionStart): ActionExecutionStartResult
+  reserveActionDispatch(reservation: ActionDispatchReservation): ActionDispatchReservationResult
+  getLatestActionDispatch(executionAttemptId: string): StoredActionDispatch | undefined
   recordActionExecutionReceipt(
     write: ActionExecutionReceiptWrite,
   ): ActionExecutionReceiptWriteResult
@@ -361,6 +368,22 @@ class TwinDeskDatabaseHandle implements TwinDeskDatabase {
       throw new ActionExecutionStateError('database_closed', 'The TwinDesk database is closed.')
     }
     return beginStoredActionExecution(database, start, this.#readPolicyClock())
+  }
+
+  reserveActionDispatch(reservation: ActionDispatchReservation): ActionDispatchReservationResult {
+    const database = this.#database
+    if (database === undefined) {
+      throw new ActionExecutionStateError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return reserveStoredActionDispatch(database, reservation, this.#readPolicyClock())
+  }
+
+  getLatestActionDispatch(executionAttemptId: string): StoredActionDispatch | undefined {
+    const database = this.#database
+    if (database === undefined) {
+      throw new ActionExecutionStateError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return readLatestActionDispatch(database, executionAttemptId)
   }
 
   recordActionExecutionReceipt(

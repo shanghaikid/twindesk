@@ -15,6 +15,8 @@ export {
 export {
   ACTION_EXECUTION_STATE_VERSION,
   ActionExecutionStateError,
+  type ActionDispatchReservation,
+  type ActionDispatchReservationResult,
   type ActionExecutionReceiptWrite,
   type ActionExecutionReceiptWriteResult,
   type ActionExecutionRecoveryRequest,
@@ -22,6 +24,7 @@ export {
   type ActionExecutionStart,
   type ActionExecutionStartResult,
   type ActionExecutionStateErrorCode,
+  type StoredActionDispatch,
   type StoredActionReceipt,
 } from './action-execution-state.ts'
 export {

@@ -94,6 +94,7 @@ export interface ThreadDeletionCounts {
   readonly actionProposalCreationRecords: number
   readonly actionProposalStateTransitions: number
   readonly approvalRecords: number
+  readonly actionDispatches: number
   readonly actionReceipts: number
   readonly auditRecords: number
 }
@@ -145,6 +146,7 @@ const COUNT_KEYS = Object.freeze([
   'actionProposalCreationRecords',
   'actionProposalStateTransitions',
   'approvalRecords',
+  'actionDispatches',
   'actionReceipts',
   'auditRecords',
 ] as const)
@@ -599,6 +601,73 @@ function readActionReceipts(database: DatabaseSync, proposalIds: readonly string
   return Object.freeze(receipts) as unknown as JsonValue
 }
 
+function readActionDispatches(database: DatabaseSync, proposalIds: readonly string[]): JsonValue {
+  const dispatches = proposalIds.flatMap((proposalId) => {
+    const rows = database
+      .prepare(
+        `SELECT kind, schema_version, execution_attempt_id, ordinal, proposal_id,
+                connector_id, account_id, idempotency_key, reserved_at,
+                settled_outcome, settled_at, retry_disposition
+         FROM action_dispatches WHERE proposal_id = ?
+         ORDER BY execution_attempt_id, ordinal`,
+      )
+      .all(proposalId) as unknown as readonly Readonly<Record<string, unknown>>[]
+    return rows.map((row) => {
+      try {
+        if (
+          row.kind !== 'action_dispatch' ||
+          row.schema_version !== 1 ||
+          !Number.isSafeInteger(row.ordinal) ||
+          (row.ordinal as number) <= 0
+        ) {
+          throw new TypeError('invalid dispatch identity')
+        }
+        const base = {
+          kind: 'action_dispatch',
+          schemaVersion: 1,
+          executionAttemptId: storedString(row.execution_attempt_id),
+          ordinal: row.ordinal as number,
+          proposalId: storedString(row.proposal_id),
+          connectorId: storedString(row.connector_id),
+          accountId: storedString(row.account_id),
+          idempotencyKey: storedString(row.idempotency_key),
+          reservedAt: parseIsoTimestamp(row.reserved_at),
+        }
+        if (row.settled_outcome === null) {
+          if (row.settled_at !== null || row.retry_disposition !== null) throw new TypeError()
+          return Object.freeze(base)
+        }
+        if (
+          (row.settled_outcome !== 'succeeded' &&
+            row.settled_outcome !== 'failed' &&
+            row.settled_outcome !== 'uncertain') ||
+          (row.settled_outcome === 'succeeded' && row.retry_disposition !== null) ||
+          (row.settled_outcome === 'failed' &&
+            row.retry_disposition !== 'do_not_retry' &&
+            row.retry_disposition !== 'retry_same_key') ||
+          (row.settled_outcome === 'uncertain' && row.retry_disposition !== 'reconcile_first')
+        ) {
+          throw new TypeError('invalid dispatch settlement')
+        }
+        return Object.freeze({
+          ...base,
+          settlement: {
+            outcome: row.settled_outcome,
+            settledAt: parseIsoTimestamp(row.settled_at),
+            ...(row.settled_outcome === 'succeeded'
+              ? {}
+              : { retryDisposition: row.retry_disposition }),
+          },
+        })
+      } catch (error) {
+        if (error instanceof ThreadLifecycleError) throw error
+        throw new ThreadLifecycleError('stored_data_invalid', 'A stored dispatch is invalid.')
+      }
+    })
+  })
+  return Object.freeze(dispatches) as unknown as JsonValue
+}
+
 function relatedAuditIds(
   database: DatabaseSync,
   threadId: string,
@@ -766,6 +835,7 @@ function buildExportDocument(database: DatabaseSync, threadId: ExternalThreadId)
     ),
     actionProposalStateTransitions: readProposalTransitionRecords(database, proposalIds),
     approvalRecords: readApprovalRecords(database, proposalIds),
+    actionDispatches: readActionDispatches(database, proposalIds),
     actionReceipts: readActionReceipts(database, proposalIds),
     auditRecords,
   }
@@ -913,6 +983,13 @@ function deletionCounts(
        JOIN work_items item ON item.id = proposal.work_item_id WHERE item.thread_id = ?`,
       threadId,
     ),
+    actionDispatches: count(
+      database,
+      `SELECT count(*) AS count FROM action_dispatches dispatch
+       JOIN action_proposals proposal ON proposal.id = dispatch.proposal_id
+       JOIN work_items item ON item.id = proposal.work_item_id WHERE item.thread_id = ?`,
+      threadId,
+    ),
     actionReceipts: count(
       database,
       `SELECT count(*) AS count FROM action_receipts receipt
@@ -934,7 +1011,12 @@ function parseCounts(value: unknown): ThreadDeletionCounts {
   }
   let record: Readonly<Record<string, unknown>>
   try {
-    record = dataRecord(parsed, COUNT_KEYS)
+    const legacyKeys = COUNT_KEYS.filter((key) => key !== 'actionDispatches')
+    const parsedRecord = dataRecord(parsed, legacyKeys, ['actionDispatches'])
+    record = Object.freeze({
+      ...parsedRecord,
+      actionDispatches: parsedRecord.actionDispatches ?? 0,
+    })
   } catch {
     throw new ThreadLifecycleError('stored_data_invalid', 'A deletion receipt is invalid.')
   }

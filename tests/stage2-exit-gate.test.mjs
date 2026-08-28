@@ -443,11 +443,17 @@ async function completeLocalContractFlow(database, policyClock, client) {
     action: consumed.action,
     startedAt: /** @type {IsoTimestamp} */ (CONSUMED_AT),
   })
-  const receipt = await new FeishuReplyExecutor(
-    identityConfiguration,
-    client,
-    policyClock.options,
-  ).execute(consumed.action, new AbortController().signal)
+  const receipt = await new FeishuReplyExecutor(identityConfiguration, client, {
+    ...policyClock.options,
+    async reserveDispatch(action, reservedAt) {
+      return database.reserveActionDispatch({
+        kind: 'action_dispatch_reservation',
+        schemaVersion: 1,
+        action,
+        reservedAt,
+      }).disposition
+    },
+  }).execute(consumed.action, new AbortController().signal)
   assert.equal(receipt.outcome, 'succeeded')
   database.recordActionExecutionReceipt({
     kind: 'action_execution_receipt_write',
@@ -643,6 +649,10 @@ test('the local Feishu contract completes ingestion → edited Draft → approva
   assert.equal(inspection.prepare('SELECT count(*) AS count FROM drafts').get()?.count, 2)
   assert.equal(inspection.prepare('SELECT count(*) AS count FROM action_proposals').get()?.count, 1)
   assert.equal(inspection.prepare('SELECT count(*) AS count FROM approval_records').get()?.count, 1)
+  assert.equal(
+    inspection.prepare('SELECT count(*) AS count FROM action_dispatches').get()?.count,
+    1,
+  )
   assert.equal(inspection.prepare('SELECT count(*) AS count FROM action_receipts').get()?.count, 1)
   assert.equal(inspection.prepare('SELECT count(*) AS count FROM audit_records').get()?.count, 6)
   inspection.close()

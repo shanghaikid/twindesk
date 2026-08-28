@@ -23,9 +23,11 @@ import {
 } from '../packages/storage-sqlite/dist/index.js'
 
 /** @typedef {import('../packages/domain/src/model.ts').ActionProposal} ActionProposal */
+/** @typedef {import('../packages/domain/src/connector.ts').ApprovedAction} ApprovedAction */
 /** @typedef {import('../packages/domain/src/model.ts').ApprovalRecord} ApprovalRecord */
 /** @typedef {import('../packages/domain/src/model.ts').ContentDigest} ContentDigest */
 /** @typedef {import('../packages/domain/src/model.ts').Draft} Draft */
+/** @typedef {import('../packages/domain/src/model.ts').IsoTimestamp} IsoTimestamp */
 /** @typedef {import('../packages/domain/src/model.ts').WorkItemUserAction} WorkItemUserAction */
 /** @typedef {import('../packages/plugin-feishu/src/bot-event-consumer.ts').FeishuBotMessageEvent} FeishuBotMessageEvent */
 /** @typedef {import('../packages/storage-sqlite/src/approval-state.ts').ActionApprovalDecision} ActionApprovalDecision */
@@ -54,6 +56,27 @@ function policyClock(initial = REQUESTED_AT) {
     /** @param {string} value */
     set(value) {
       nowMs = Date.parse(value)
+    },
+  }
+}
+
+/**
+ * @param {ReturnType<typeof policyClock>} clock
+ * @param {TwinDeskDatabase} database
+ */
+function executionOptions(clock, database) {
+  return {
+    ...clock.options,
+    async reserveDispatch(
+      /** @type {ApprovedAction} */ action,
+      /** @type {IsoTimestamp} */ reservedAt,
+    ) {
+      return database.reserveActionDispatch({
+        kind: 'action_dispatch_reservation',
+        schemaVersion: 1,
+        action,
+        reservedAt,
+      }).disposition
     },
   }
 }
@@ -90,7 +113,11 @@ test('execution rejects over-limit and proposal-mismatched keys before client ac
   const database = openTwinDeskDatabase(path, clock.options)
   const { action } = await approveAction(database, clock, 'execution-invalid-key')
   const client = replyClient()
-  const executor = new FeishuReplyExecutor(configuration(), client, clock.options)
+  const executor = new FeishuReplyExecutor(
+    configuration(),
+    client,
+    executionOptions(clock, database),
+  )
   for (const idempotencyKey of [
     `feishu:reply:${'a'.repeat(64)}:identity:${'b'.repeat(64)}:v1`,
     `tdfr1:${'f'.repeat(40)}`,
@@ -600,6 +627,8 @@ test('closed handles reject every approval operation before inspecting input', a
   }
   for (const operation of [
     () => database.beginActionExecution(/** @type {never} */ ({})),
+    () => database.reserveActionDispatch(/** @type {never} */ ({})),
+    () => database.getLatestActionDispatch(/** @type {never} */ ('missing-attempt')),
     () => database.recordActionExecutionReceipt(/** @type {never} */ ({})),
     () => database.getActionExecutionReceipt(/** @type {never} */ ('missing-attempt')),
     () => database.recoverActionExecution(/** @type {never} */ ({})),
@@ -609,6 +638,114 @@ test('closed handles reject every approval operation before inspecting input', a
       (error) => error instanceof ActionExecutionStateError && error.code === 'database_closed',
     )
   }
+})
+
+test('execution without a durable dispatch coordinator never calls send', async (context) => {
+  const path = await temporaryDatabase(context)
+  const clock = policyClock()
+  const database = openTwinDeskDatabase(path, clock.options)
+  const { action } = await approveAction(database, clock, 'execution-no-dispatch')
+  database.beginActionExecution({
+    kind: 'action_execution_start',
+    schemaVersion: 1,
+    action,
+    startedAt: EXECUTION_AT,
+  })
+  const client = replyClient()
+  const receipt = await new FeishuReplyExecutor(configuration(), client, clock.options).execute(
+    action,
+    new AbortController().signal,
+  )
+  assert.equal(receipt.outcome, 'uncertain')
+  assert.equal(receipt.error.code, 'feishu_dispatch_unavailable')
+  assert.deepEqual(client.diagnostics(), { reconcileCalls: 1, sendCalls: 0 })
+  assert.equal(database.getLatestActionDispatch(action.executionAttemptId), undefined)
+  database.close()
+})
+
+test('a durable dispatch reservation survives restart and blocks an unproven resend', async (context) => {
+  const path = await temporaryDatabase(context)
+  const clock = policyClock()
+  let database = openTwinDeskDatabase(path, clock.options)
+  const { action } = await approveAction(database, clock, 'execution-dispatch-restart')
+  database.beginActionExecution({
+    kind: 'action_execution_start',
+    schemaVersion: 1,
+    action,
+    startedAt: EXECUTION_AT,
+  })
+  const reserved = database.reserveActionDispatch({
+    kind: 'action_dispatch_reservation',
+    schemaVersion: 1,
+    action,
+    reservedAt: EXECUTION_AT,
+  })
+  assert.equal(reserved.disposition, 'reserved')
+  assert.equal(reserved.dispatch.ordinal, 1)
+  assert.equal(reserved.dispatch.settlement, undefined)
+  database.close()
+
+  database = openTwinDeskDatabase(path, clock.options)
+  const recovered = database.recoverActionExecution({
+    kind: 'action_execution_recovery_request',
+    schemaVersion: 1,
+    approvalId: action.approval.id,
+    proposalId: action.proposal.id,
+    executionAttemptId: action.executionAttemptId,
+  })
+  const client = replyClient()
+  const receipt = await new FeishuReplyExecutor(
+    configuration(),
+    client,
+    executionOptions(clock, database),
+  ).execute(recovered.action, new AbortController().signal)
+  assert.equal(receipt.outcome, 'uncertain')
+  assert.equal(receipt.error.code, 'feishu_dispatch_already_reserved')
+  assert.deepEqual(client.diagnostics(), { reconcileCalls: 1, sendCalls: 0 })
+  database.recordActionExecutionReceipt({
+    kind: 'action_execution_receipt_write',
+    schemaVersion: 1,
+    action: recovered.action,
+    receipt,
+  })
+  assert.equal(
+    database.getLatestActionDispatch(action.executionAttemptId)?.settlement?.outcome,
+    'uncertain',
+  )
+  database.close()
+})
+
+test('cancellation after durable reservation leaves recoverable evidence and never sends', async (context) => {
+  const path = await temporaryDatabase(context)
+  const clock = policyClock()
+  const database = openTwinDeskDatabase(path, clock.options)
+  const { action } = await approveAction(database, clock, 'execution-dispatch-cancelled')
+  database.beginActionExecution({
+    kind: 'action_execution_start',
+    schemaVersion: 1,
+    action,
+    startedAt: EXECUTION_AT,
+  })
+  const client = replyClient()
+  const controller = new AbortController()
+  const executor = new FeishuReplyExecutor(configuration(), client, {
+    ...clock.options,
+    async reserveDispatch(approvedAction, reservedAt) {
+      const disposition = database.reserveActionDispatch({
+        kind: 'action_dispatch_reservation',
+        schemaVersion: 1,
+        action: approvedAction,
+        reservedAt,
+      }).disposition
+      controller.abort()
+      return disposition
+    },
+  })
+  await assert.rejects(executor.execute(action, controller.signal), { name: 'AbortError' })
+  assert.deepEqual(client.diagnostics(), { reconcileCalls: 1, sendCalls: 0 })
+  assert.equal(database.getLatestActionDispatch(action.executionAttemptId)?.ordinal, 1)
+  assert.equal(database.getLatestActionDispatch(action.executionAttemptId)?.settlement, undefined)
+  database.close()
 })
 
 test('an approved Feishu reply sends once and persists an idempotent success receipt', async (context) => {
@@ -624,7 +761,11 @@ test('an approved Feishu reply sends once and persists an idempotent success rec
   })
   assert.equal(started.proposal.state, 'executing')
   const client = replyClient()
-  const executor = new FeishuReplyExecutor(configuration(), client, clock.options)
+  const executor = new FeishuReplyExecutor(
+    configuration(),
+    client,
+    executionOptions(clock, database),
+  )
   const receipt = await executor.execute(action, new AbortController().signal)
   assert.equal(receipt.outcome, 'succeeded')
   const stored = database.recordActionExecutionReceipt({
@@ -677,7 +818,11 @@ test('an uncertain send reconciles after restart without sending twice', async (
     startedAt: EXECUTION_AT,
   })
   const client = replyClient({ sendFailure: 'network' })
-  const executor = new FeishuReplyExecutor(configuration(), client, clock.options)
+  const executor = new FeishuReplyExecutor(
+    configuration(),
+    client,
+    executionOptions(clock, database),
+  )
   const uncertain = await executor.execute(action, new AbortController().signal)
   assert.equal(uncertain.outcome, 'uncertain')
   assert.equal(uncertain.retryDisposition, 'reconcile_first')
@@ -717,6 +862,63 @@ test('an uncertain send reconciles after restart without sending twice', async (
   database.close()
 })
 
+test('a known retryable rejection permits one new same-key dispatch reservation', async (context) => {
+  const path = await temporaryDatabase(context)
+  const clock = policyClock()
+  const database = openTwinDeskDatabase(path, clock.options)
+  const { action } = await approveAction(database, clock, 'execution-dispatch-retry')
+  database.beginActionExecution({
+    kind: 'action_execution_start',
+    schemaVersion: 1,
+    action,
+    startedAt: EXECUTION_AT,
+  })
+  const client = replyClient({ sendFailure: 'rate_limited' })
+  const first = await new FeishuReplyExecutor(
+    configuration(),
+    client,
+    executionOptions(clock, database),
+  ).execute(action, new AbortController().signal)
+  assert.equal(first.outcome, 'failed')
+  assert.equal(first.retryDisposition, 'retry_same_key')
+  database.recordActionExecutionReceipt({
+    kind: 'action_execution_receipt_write',
+    schemaVersion: 1,
+    action,
+    receipt: first,
+  })
+  assert.equal(database.getLatestActionDispatch(action.executionAttemptId)?.ordinal, 1)
+
+  database.beginActionExecution({
+    kind: 'action_execution_start',
+    schemaVersion: 1,
+    action,
+    startedAt: EXECUTION_AT,
+  })
+  const second = await new FeishuReplyExecutor(
+    configuration(),
+    client,
+    executionOptions(clock, database),
+  ).execute(action, new AbortController().signal)
+  assert.equal(second.outcome, 'failed')
+  assert.equal(database.getLatestActionDispatch(action.executionAttemptId)?.ordinal, 2)
+  assert.equal(
+    database.recordActionExecutionReceipt({
+      kind: 'action_execution_receipt_write',
+      schemaVersion: 1,
+      action,
+      receipt: second,
+    }).disposition,
+    'updated',
+  )
+  assert.equal(
+    database.getLatestActionDispatch(action.executionAttemptId)?.settlement?.outcome,
+    'failed',
+  )
+  assert.deepEqual(client.diagnostics(), { reconcileCalls: 2, sendCalls: 2 })
+  database.close()
+})
+
 test('a failed reconciliation never calls send and expired approval cannot restart execution', async (context) => {
   const path = await temporaryDatabase(context)
   const clock = policyClock()
@@ -729,7 +931,11 @@ test('a failed reconciliation never calls send and expired approval cannot resta
     startedAt: EXECUTION_AT,
   })
   const client = replyClient({ reconcileFailure: true })
-  const executor = new FeishuReplyExecutor(configuration(), client, clock.options)
+  const executor = new FeishuReplyExecutor(
+    configuration(),
+    client,
+    executionOptions(clock, database),
+  )
   const uncertain = await executor.execute(action, new AbortController().signal)
   assert.equal(uncertain.outcome, 'uncertain')
   assert.deepEqual(client.diagnostics(), { reconcileCalls: 1, sendCalls: 0 })
@@ -769,7 +975,11 @@ test('a malformed post-send response becomes an uncertain payload-free receipt',
     startedAt: EXECUTION_AT,
   })
   const client = replyClient({ sendFailure: 'invalid_response' })
-  const executor = new FeishuReplyExecutor(configuration(), client, clock.options)
+  const executor = new FeishuReplyExecutor(
+    configuration(),
+    client,
+    executionOptions(clock, database),
+  )
   const receipt = await executor.execute(action, new AbortController().signal)
   assert.equal(receipt.outcome, 'uncertain')
   assert.equal(receipt.retryDisposition, 'reconcile_first')
@@ -798,10 +1008,11 @@ test('a missing send scope is terminal and does not expose adapter data', async 
     startedAt: EXECUTION_AT,
   })
   const client = replyClient({ sendFailure: 'scope_missing' })
-  const receipt = await new FeishuReplyExecutor(configuration(), client, clock.options).execute(
-    action,
-    new AbortController().signal,
-  )
+  const receipt = await new FeishuReplyExecutor(
+    configuration(),
+    client,
+    executionOptions(clock, database),
+  ).execute(action, new AbortController().signal)
   assert.equal(receipt.outcome, 'failed')
   assert.equal(receipt.retryDisposition, 'do_not_retry')
   assert.equal(receipt.error.code, 'feishu_send_scope_missing')
@@ -837,7 +1048,7 @@ test('principal or credential rotation invalidates the approved reply before cli
   }
   const client = replyClient()
   await assert.rejects(
-    new FeishuReplyExecutor(rotated, client, clock.options).execute(
+    new FeishuReplyExecutor(rotated, client, executionOptions(clock, database)).execute(
       action,
       new AbortController().signal,
     ),
@@ -864,7 +1075,7 @@ test('stale remote chronology and mismatched success identities fail closed', as
   const staleReceipt = await new FeishuReplyExecutor(
     configuration(),
     replyClient({ sentAt: '2026-08-27T08:00:00.000Z' }),
-    clock.options,
+    executionOptions(clock, database),
   ).execute(stale.action, new AbortController().signal)
   assert.equal(staleReceipt.outcome, 'uncertain')
   assert.equal(staleReceipt.retryDisposition, 'reconcile_first')
@@ -879,7 +1090,7 @@ test('stale remote chronology and mismatched success identities fail closed', as
   const success = await new FeishuReplyExecutor(
     configuration(),
     replyClient(),
-    clock.options,
+    executionOptions(clock, database),
   ).execute(mismatched.action, new AbortController().signal)
   assert.equal(success.outcome, 'succeeded')
   assert.throws(
@@ -917,7 +1128,7 @@ test('an interrupted receipt write rolls back the receipt and proposal state tog
   const receipt = await new FeishuReplyExecutor(
     configuration(),
     replyClient(),
-    clock.options,
+    executionOptions(clock, database),
   ).execute(action, new AbortController().signal)
   database.close()
   const injector = new DatabaseSync(path)
@@ -946,6 +1157,7 @@ test('an interrupted receipt write rolls back the receipt and proposal state tog
       !error.message.includes('synthetic receipt interruption'),
   )
   assert.equal(database.getActionExecutionReceipt(action.executionAttemptId), undefined)
+  assert.equal(database.getLatestActionDispatch(action.executionAttemptId)?.settlement, undefined)
   assert.equal(database.getActionProposal(action.proposal.id)?.state, 'executing')
   database.close()
 })

@@ -29,6 +29,7 @@ export type ActionExecutionStateErrorCode =
   | 'binding_mismatch'
   | 'approval_expired'
   | 'execution_state'
+  | 'dispatch_conflict'
   | 'receipt_conflict'
   | 'stored_record_invalid'
   | 'storage_error'
@@ -53,6 +54,35 @@ export interface ActionExecutionStart {
 export interface ActionExecutionStartResult {
   readonly disposition: 'started' | 'duplicate'
   readonly proposal: ActionProposal
+}
+
+export interface ActionDispatchReservation {
+  readonly kind: 'action_dispatch_reservation'
+  readonly schemaVersion: typeof ACTION_EXECUTION_STATE_VERSION
+  readonly action: ApprovedAction
+  readonly reservedAt: IsoTimestamp
+}
+
+export interface StoredActionDispatch {
+  readonly kind: 'action_dispatch'
+  readonly schemaVersion: typeof ACTION_EXECUTION_STATE_VERSION
+  readonly executionAttemptId: string
+  readonly ordinal: number
+  readonly proposalId: string
+  readonly connectorId: string
+  readonly accountId: string
+  readonly idempotencyKey: string
+  readonly reservedAt: IsoTimestamp
+  readonly settlement?: {
+    readonly outcome: ActionReceipt['outcome']
+    readonly settledAt: IsoTimestamp
+    readonly retryDisposition?: 'do_not_retry' | 'retry_same_key' | 'reconcile_first'
+  }
+}
+
+export interface ActionDispatchReservationResult {
+  readonly disposition: 'reserved' | 'blocked'
+  readonly dispatch: StoredActionDispatch
 }
 
 export interface ActionExecutionReceiptWrite {
@@ -118,12 +148,31 @@ interface ReceiptRow {
   readonly retry_disposition: unknown
 }
 
+interface DispatchRow {
+  readonly kind: unknown
+  readonly schema_version: unknown
+  readonly execution_attempt_id: unknown
+  readonly ordinal: unknown
+  readonly proposal_id: unknown
+  readonly connector_id: unknown
+  readonly account_id: unknown
+  readonly idempotency_key: unknown
+  readonly reserved_at: unknown
+  readonly settled_outcome: unknown
+  readonly settled_at: unknown
+  readonly retry_disposition: unknown
+}
+
 type UnknownRecord = Readonly<Record<string, unknown>>
 
 const RECEIPT_COLUMNS = `kind, schema_version, execution_attempt_id, proposal_id,
   connector_id, account_id, idempotency_key, outcome, attempted_at,
   external_connector_id, external_account_id, external_object_type, external_id,
   external_source_timestamp, issue_code, issue_summary, issue_retryable,
+  retry_disposition`
+
+const DISPATCH_COLUMNS = `kind, schema_version, execution_attempt_id, ordinal, proposal_id,
+  connector_id, account_id, idempotency_key, reserved_at, settled_outcome, settled_at,
   retry_disposition`
 
 function fail(code: ActionExecutionStateErrorCode, message: string): ActionExecutionStateError {
@@ -294,6 +343,20 @@ function parseStart(value: ActionExecutionStart): {
   })
 }
 
+function parseDispatchReservation(value: ActionDispatchReservation): {
+  readonly action: ParsedApprovedAction
+  readonly reservedAt: IsoTimestamp
+} {
+  const record = dataRecord(value, ['kind', 'schemaVersion', 'action', 'reservedAt'])
+  if (record.kind !== 'action_dispatch_reservation' || record.schemaVersion !== 1) {
+    throw fail('invalid_request', 'The action dispatch reservation version is not supported.')
+  }
+  return Object.freeze({
+    action: parseApprovedAction(record.action as ApprovedAction),
+    reservedAt: timestamp(record.reservedAt),
+  })
+}
+
 function parseExternalReference(value: unknown): ExternalReference {
   const record = dataRecord(
     value,
@@ -435,6 +498,94 @@ function readReceiptInSnapshot(
     .prepare(`SELECT ${RECEIPT_COLUMNS} FROM action_receipts WHERE execution_attempt_id = ?`)
     .get(executionAttemptId) as ReceiptRow | undefined
   return row === undefined ? undefined : parseStoredReceipt(row)
+}
+
+function parseStoredDispatch(row: DispatchRow): StoredActionDispatch {
+  try {
+    if (
+      row.kind !== 'action_dispatch' ||
+      row.schema_version !== 1 ||
+      !Number.isSafeInteger(row.ordinal) ||
+      (row.ordinal as number) <= 0
+    ) {
+      throw new TypeError()
+    }
+    const reservedAt = timestamp(row.reserved_at)
+    const outcome = row.settled_outcome
+    let settlement: StoredActionDispatch['settlement']
+    if (outcome === null) {
+      if (row.settled_at !== null || row.retry_disposition !== null) throw new TypeError()
+    } else {
+      if (outcome !== 'succeeded' && outcome !== 'failed' && outcome !== 'uncertain') {
+        throw new TypeError()
+      }
+      const settledAt = timestamp(row.settled_at)
+      if (Date.parse(settledAt) < Date.parse(reservedAt)) throw new TypeError()
+      if (outcome === 'succeeded') {
+        if (row.retry_disposition !== null) throw new TypeError()
+        settlement = Object.freeze({ outcome, settledAt })
+      } else if (outcome === 'failed') {
+        if (
+          row.retry_disposition !== 'do_not_retry' &&
+          row.retry_disposition !== 'retry_same_key'
+        ) {
+          throw new TypeError()
+        }
+        settlement = Object.freeze({
+          outcome,
+          settledAt,
+          retryDisposition: row.retry_disposition,
+        })
+      } else {
+        if (row.retry_disposition !== 'reconcile_first') throw new TypeError()
+        settlement = Object.freeze({
+          outcome,
+          settledAt,
+          retryDisposition: row.retry_disposition,
+        })
+      }
+    }
+    return Object.freeze({
+      kind: 'action_dispatch',
+      schemaVersion: ACTION_EXECUTION_STATE_VERSION,
+      executionAttemptId: boundedString(row.execution_attempt_id),
+      ordinal: row.ordinal as number,
+      proposalId: boundedString(row.proposal_id),
+      connectorId: boundedString(row.connector_id),
+      accountId: boundedString(row.account_id),
+      idempotencyKey: boundedString(row.idempotency_key),
+      reservedAt,
+      ...(settlement === undefined ? {} : { settlement }),
+    })
+  } catch {
+    throw fail('stored_record_invalid', 'A stored ActionDispatch is invalid.')
+  }
+}
+
+function readLatestDispatchInSnapshot(
+  database: DatabaseSync,
+  executionAttemptId: string,
+): StoredActionDispatch | undefined {
+  const row = database
+    .prepare(
+      `SELECT ${DISPATCH_COLUMNS} FROM action_dispatches
+       WHERE execution_attempt_id = ? ORDER BY ordinal DESC LIMIT 1`,
+    )
+    .get(executionAttemptId) as DispatchRow | undefined
+  return row === undefined ? undefined : parseStoredDispatch(row)
+}
+
+export function readLatestActionDispatch(
+  database: DatabaseSync,
+  executionAttemptIdValue: string,
+): StoredActionDispatch | undefined {
+  const executionAttemptId = boundedString(executionAttemptIdValue)
+  try {
+    return readLatestDispatchInSnapshot(database, executionAttemptId)
+  } catch (error) {
+    if (error instanceof ActionExecutionStateError) throw error
+    throw fail('storage_error', 'The ActionDispatch could not be read.')
+  }
 }
 
 export function readActionExecutionReceipt(
@@ -613,6 +764,81 @@ export function beginActionExecution(
   }
 }
 
+export function reserveActionDispatch(
+  database: DatabaseSync,
+  input: ActionDispatchReservation,
+  nowMs: number,
+): ActionDispatchReservationResult {
+  const reservation = parseDispatchReservation(input)
+  const observedAt = observedTimestamp(nowMs)
+  try {
+    database.exec('BEGIN IMMEDIATE')
+  } catch {
+    throw fail('storage_error', 'The action dispatch transaction could not start.')
+  }
+  try {
+    const proposal = requireDurableAction(database, reservation.action)
+    const approval = readActionApproval(database, reservation.action.approval.id) as ApprovalRecord
+    if (
+      proposal.state !== 'executing' ||
+      Date.parse(reservation.reservedAt) < Date.parse(proposal.updatedAt) ||
+      Date.parse(reservation.reservedAt) > Date.parse(observedAt) ||
+      Date.parse(observedAt) > Date.parse(approval.expiresAt)
+    ) {
+      throw fail('execution_state', 'The action dispatch is not currently authorized.')
+    }
+    const latest = readLatestDispatchInSnapshot(database, reservation.action.executionAttemptId)
+    if (
+      latest !== undefined &&
+      (latest.executionAttemptId !== reservation.action.executionAttemptId ||
+        latest.proposalId !== proposal.id ||
+        latest.connectorId !== proposal.identity.connectorId ||
+        latest.accountId !== proposal.identity.accountId ||
+        latest.idempotencyKey !== proposal.idempotencyKey ||
+        Date.parse(latest.reservedAt) > Date.parse(observedAt))
+    ) {
+      throw fail('stored_record_invalid', 'The stored ActionDispatch bindings are invalid.')
+    }
+    const mayRetry =
+      latest?.settlement?.outcome === 'failed' &&
+      latest.settlement.retryDisposition === 'retry_same_key'
+    if (latest !== undefined && !mayRetry) {
+      database.exec('COMMIT')
+      return Object.freeze({ disposition: 'blocked', dispatch: latest })
+    }
+    const ordinal = (latest?.ordinal ?? 0) + 1
+    const inserted = database
+      .prepare(
+        `INSERT INTO action_dispatches (
+           kind, schema_version, execution_attempt_id, ordinal, proposal_id,
+           connector_id, account_id, idempotency_key, reserved_at
+         ) VALUES ('action_dispatch', 1, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        reservation.action.executionAttemptId,
+        ordinal,
+        proposal.id,
+        proposal.identity.connectorId,
+        proposal.identity.accountId,
+        proposal.idempotencyKey,
+        reservation.reservedAt,
+      )
+    if (inserted.changes !== 1) {
+      throw fail('dispatch_conflict', 'The action dispatch reservation changed.')
+    }
+    const dispatch = readLatestDispatchInSnapshot(database, reservation.action.executionAttemptId)
+    if (dispatch === undefined || dispatch.ordinal !== ordinal) {
+      throw fail('storage_error', 'The ActionDispatch reservation is missing.')
+    }
+    database.exec('COMMIT')
+    return Object.freeze({ disposition: 'reserved', dispatch })
+  } catch (error) {
+    rollback(database)
+    if (error instanceof ActionExecutionStateError) throw error
+    throw fail('storage_error', 'The ActionDispatch could not be reserved.')
+  }
+}
+
 function sameReceipt(left: ActionReceipt, right: ActionReceipt): boolean {
   return JSON.stringify(left) === JSON.stringify(right)
 }
@@ -652,6 +878,37 @@ function writeReceiptRow(
   )
 }
 
+function settleLatestDispatch(
+  database: DatabaseSync,
+  executionAttemptId: string,
+  receipt: ActionReceipt,
+  settledAt: IsoTimestamp,
+): void {
+  const latest = readLatestDispatchInSnapshot(database, executionAttemptId)
+  if (latest === undefined) return
+  if (
+    latest.proposalId !== receipt.proposalId ||
+    latest.connectorId !== receipt.connectorId ||
+    latest.accountId !== receipt.accountId ||
+    latest.idempotencyKey !== receipt.idempotencyKey ||
+    Date.parse(settledAt) < Date.parse(latest.reservedAt) ||
+    (latest.settlement !== undefined &&
+      Date.parse(settledAt) < Date.parse(latest.settlement.settledAt))
+  ) {
+    throw fail('stored_record_invalid', 'The stored ActionDispatch bindings are invalid.')
+  }
+  const retryDisposition = receipt.outcome === 'succeeded' ? null : receipt.retryDisposition
+  const result = database
+    .prepare(
+      `UPDATE action_dispatches SET settled_outcome = ?, settled_at = ?, retry_disposition = ?
+       WHERE execution_attempt_id = ? AND ordinal = ?`,
+    )
+    .run(receipt.outcome, settledAt, retryDisposition, executionAttemptId, latest.ordinal)
+  if (result.changes !== 1) {
+    throw fail('dispatch_conflict', 'The ActionDispatch settlement changed.')
+  }
+}
+
 export function recordActionExecutionReceipt(
   database: DatabaseSync,
   input: ActionExecutionReceiptWrite,
@@ -685,15 +942,18 @@ export function recordActionExecutionReceipt(
     const existing = readReceiptInSnapshot(database, write.action.executionAttemptId)
     const targetState = receiptState(receipt)
     if (existing !== undefined && sameReceipt(existing.receipt, receipt)) {
-      if (proposal.state !== targetState) {
-        throw fail('stored_record_invalid', 'The stored execution state is inconsistent.')
+      const latestDispatch = readLatestDispatchInSnapshot(database, write.action.executionAttemptId)
+      if (latestDispatch?.settlement !== undefined || latestDispatch === undefined) {
+        if (proposal.state !== targetState) {
+          throw fail('stored_record_invalid', 'The stored execution state is inconsistent.')
+        }
+        database.exec('COMMIT')
+        return Object.freeze({
+          disposition: 'duplicate',
+          storedReceipt: existing,
+          proposal,
+        })
       }
-      database.exec('COMMIT')
-      return Object.freeze({
-        disposition: 'duplicate',
-        storedReceipt: existing,
-        proposal,
-      })
     }
     let disposition: 'inserted' | 'updated'
     if (existing === undefined) {
@@ -763,6 +1023,7 @@ export function recordActionExecutionReceipt(
     if (proposalUpdate.changes !== 1) {
       throw fail('execution_state', 'The ActionProposal execution state changed.')
     }
+    settleLatestDispatch(database, write.action.executionAttemptId, receipt, observedAt)
     const storedReceipt = readReceiptInSnapshot(database, write.action.executionAttemptId)
     if (storedReceipt === undefined) throw fail('storage_error', 'The ActionReceipt is missing.')
     database.exec('COMMIT')

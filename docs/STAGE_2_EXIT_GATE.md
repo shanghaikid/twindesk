@@ -62,7 +62,7 @@ local business records; credentials and raw connector responses do not.
 | Real Bot callback/subscription reaches the runtime | Not proven | No hosted callback or long-connection composition |
 | Real User polling/context uses OAuth from Keychain | Not proven | No OAuth bundle parser, refresh path, HTTP adapter, or scheduler |
 | SecretReference resolves from macOS Keychain | Contract passed | Fixed read-only command and zeroed bytes are tested with an injected runner; no live item is read |
-| Real Feishu reply succeeds | Not proven | No credential parser, durable dispatch journal, HTTP client, or live account |
+| Real Feishu reply succeeds | Not proven | Durable dispatch is covered synthetically; no credential parser, HTTP client, composed adapter, or live account |
 | User edits and approves in the product UI | Not implemented | Current Web shell remains read-only fixture UI |
 | Model-backed Draft and Harness trace are linked | Not implemented | The acceptance Draft is deterministic and `modelInvocation: false` |
 

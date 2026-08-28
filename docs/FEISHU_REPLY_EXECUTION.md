@@ -16,7 +16,7 @@ and durable execution state separate:
   advances the ActionProposal execution state.
 
 The repository contains an isolated production macOS Keychain reader but no
-credential-bundle parser, refresh path, durable dispatch journal, or Feishu HTTP
+credential-bundle parser, refresh path, production dispatch composition, or Feishu HTTP
 client. Execution tests use a synthetic client. A composed adapter must resolve
 the supplied `SecretReference`, recheck the minimum send scope for the selected
 Bot or User identity, and preserve the exact request key.
@@ -92,6 +92,14 @@ and the proposal transition to `succeeded`, `failed`, or `uncertain` share one
 transaction. An interruption rolls back both. Exact replay is a duplicate;
 only `uncertain` or `retry_same_key` evidence may advance under the same attempt.
 
+Immediately before `send()`, `execute()` now requires its injected dispatch
+coordinator to durably reserve the exact attempt. Missing or failed reservation
+and an existing unsettled/uncertain reservation all send nothing. SQLite
+migration 6 records ordered reservations and settles the latest reservation in
+the same transaction as its receipt and proposal state. Only a durable
+`retry_same_key` failure permits another reservation. See
+[Durable Action Dispatch Journal](ACTION_DISPATCH_JOURNAL.md).
+
 `recoverActionExecution()` reconstructs only a previously consumed,
 non-terminal attempt from durable proposal, approval, and receipt state. After
 expiration, the recovered capability is accepted by `reconcile()` but rejected
@@ -120,9 +128,9 @@ data.
 
 ## Remaining Work
 
-- Production credential parsing/refresh, Feishu HTTP, durable dispatch, and
-  runtime composition are still required; the system-Keychain reader alone is
-  not an execution adapter.
+- Production credential parsing/refresh, Feishu HTTP, and runtime composition
+  are still required; the system-Keychain reader and durable dispatch boundary
+  alone are not an execution adapter.
 - TD-208 now adds identity health, exact scope visibility, rate-limit state,
   and cursor diagnostics; execution still fails closed when its adapter reports
   missing authorization or scope. See

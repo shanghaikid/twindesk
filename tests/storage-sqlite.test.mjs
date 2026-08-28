@@ -15,6 +15,7 @@ import {
 } from '../packages/storage-sqlite/dist/index.js'
 
 const expectedTables = [
+  'action_dispatches',
   'action_proposal_creation_records',
   'action_proposal_state_transitions',
   'action_proposals',
@@ -117,6 +118,7 @@ test('a new database receives the isolated TwinDesk schema and durable settings'
       { version: 3, name: 'local_draft_action_transitions' },
       { version: 4, name: 'local_audit_timeline' },
       { version: 5, name: 'thread_deletion_receipts' },
+      { version: 6, name: 'action_dispatch_journal' },
     ],
   )
   for (const { checksum, applied_at: appliedAt } of migrations) {

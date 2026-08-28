@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -174,6 +175,21 @@ function addLifecycleRecords(database, path) {
     )
   raw
     .prepare(
+      `INSERT INTO action_dispatches (
+         kind, schema_version, execution_attempt_id, ordinal, proposal_id, connector_id,
+         account_id, idempotency_key, reserved_at, settled_outcome, settled_at
+       ) VALUES ('action_dispatch', 1, ?, 1, ?, 'fixture', 'synthetic-account', ?, ?,
+                 'succeeded', ?)`,
+    )
+    .run(
+      'thread-export-receipt-1',
+      proposal.id,
+      proposal.idempotencyKey,
+      '2026-08-26T09:21:30Z',
+      '2026-08-26T09:22:00Z',
+    )
+  raw
+    .prepare(
       `INSERT INTO action_receipts (
          kind, schema_version, execution_attempt_id, proposal_id, connector_id,
          account_id, idempotency_key, outcome, attempted_at, external_connector_id,
@@ -255,6 +271,7 @@ test('Thread export is complete, versioned, immutable, and redacted', async (con
   assert.equal(document.actionProposalCreationRecords.length, 1)
   assert.equal(document.actionProposalStateTransitions.length, 2)
   assert.equal(document.approvalRecords.length, 1)
+  assert.equal(document.actionDispatches.length, 1)
   assert.equal(document.actionReceipts.length, 1)
   assert.equal(document.auditRecords.length, 2)
   assert.equal(serialized.includes(SECRET), false)
@@ -294,6 +311,7 @@ test('Thread deletion cascades local data, retains policy state, and replays aft
     actionProposalCreationRecords: 1,
     actionProposalStateTransitions: 2,
     approvalRecords: 1,
+    actionDispatches: 1,
     actionReceipts: 1,
     auditRecords: 2,
   })
@@ -346,6 +364,11 @@ test('Thread deletion cascades local data, retains policy state, and replays aft
       id: 'thread-export-proposal-1',
     },
     { table: 'approval_records', column: 'id', id: 'thread-export-approval-1' },
+    {
+      table: 'action_dispatches',
+      column: 'execution_attempt_id',
+      id: 'thread-export-receipt-1',
+    },
     {
       table: 'action_receipts',
       column: 'execution_attempt_id',
@@ -420,6 +443,56 @@ test('shared events are retained while Thread-owned records are deleted', async 
     0,
   )
   inspection.close()
+})
+
+test('pre-dispatch deletion receipts remain readable after migration 6', async (context) => {
+  const path = await temporaryDatabase(context)
+  const request = deletionRequest({
+    requestId: 'thread-delete:legacy-pre-dispatch:v1',
+    threadId: 'fixture-thread-already-deleted-before-dispatch-journal',
+    expectedUpdatedAt: '2026-08-26T08:00:00Z',
+    requestedAt: '2026-08-26T08:01:00Z',
+  })
+  /** @param {string} value */
+  const digest = (value) => createHash('sha256').update(value, 'utf8').digest('hex')
+  const legacyCounts = {
+    externalEvents: 0,
+    externalThreads: 1,
+    workItems: 0,
+    workItemProjectionBases: 0,
+    workItemUserActions: 0,
+    drafts: 0,
+    draftCreationRecords: 0,
+    draftStateTransitions: 0,
+    actionProposals: 0,
+    actionProposalCreationRecords: 0,
+    actionProposalStateTransitions: 0,
+    approvalRecords: 0,
+    actionReceipts: 0,
+    auditRecords: 0,
+  }
+  const raw = new DatabaseSync(path)
+  raw
+    .prepare(
+      `INSERT INTO thread_deletion_receipts (
+         kind, schema_version, request_digest, thread_digest,
+         expected_updated_at, requested_at, counts_json
+       ) VALUES ('thread_deletion_receipt', 1, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      digest(request.requestId),
+      digest(request.threadId),
+      request.expectedUpdatedAt,
+      request.requestedAt,
+      JSON.stringify(legacyCounts),
+    )
+  raw.close()
+
+  const database = openTwinDeskDatabase(path)
+  const result = database.deleteThread(request)
+  assert.equal(result.disposition, 'duplicate')
+  assert.equal(result.receipt.counts.actionDispatches, 0)
+  database.close()
 })
 
 test('stale, interrupted, accessor, and closed-handle requests fail without partial deletion', async (context) => {

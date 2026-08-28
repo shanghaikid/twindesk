@@ -606,6 +606,45 @@ BEGIN
 END;
 `
 
+const ACTION_DISPATCH_JOURNAL_SQL = `
+CREATE TABLE action_dispatches (
+  kind TEXT NOT NULL CHECK (kind = 'action_dispatch'),
+  schema_version INTEGER NOT NULL CHECK (schema_version = 1),
+  execution_attempt_id TEXT NOT NULL,
+  ordinal INTEGER NOT NULL CHECK (ordinal > 0),
+  proposal_id TEXT NOT NULL REFERENCES action_proposals(id) ON DELETE CASCADE,
+  connector_id TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  reserved_at TEXT NOT NULL CHECK (julianday(reserved_at) IS NOT NULL),
+  settled_outcome TEXT CHECK (settled_outcome IN ('succeeded', 'failed', 'uncertain')),
+  settled_at TEXT CHECK (settled_at IS NULL OR julianday(settled_at) IS NOT NULL),
+  retry_disposition TEXT CHECK (
+    retry_disposition IN ('do_not_retry', 'retry_same_key', 'reconcile_first')
+  ),
+  PRIMARY KEY (execution_attempt_id, ordinal),
+  UNIQUE (proposal_id, ordinal),
+  CHECK (
+    (settled_outcome IS NULL AND settled_at IS NULL AND retry_disposition IS NULL) OR
+    (settled_outcome = 'succeeded' AND settled_at IS NOT NULL AND retry_disposition IS NULL) OR
+    (settled_outcome = 'failed' AND settled_at IS NOT NULL AND
+      retry_disposition IN ('do_not_retry', 'retry_same_key')) OR
+    (settled_outcome = 'uncertain' AND settled_at IS NOT NULL AND
+      retry_disposition = 'reconcile_first')
+  )
+) STRICT;
+
+CREATE INDEX action_dispatches_proposal_index
+  ON action_dispatches (proposal_id, ordinal);
+
+CREATE TRIGGER action_dispatches_identity_no_update
+BEFORE UPDATE OF execution_attempt_id, ordinal, proposal_id, connector_id, account_id,
+  idempotency_key, reserved_at ON action_dispatches
+BEGIN
+  SELECT RAISE(ABORT, 'Action dispatch identity is immutable');
+END;
+`
+
 export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
   Object.freeze({
     version: 1,
@@ -631,6 +670,11 @@ export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
     version: 5,
     name: 'thread_deletion_receipts',
     sql: THREAD_DELETION_RECEIPTS_SQL,
+  }),
+  Object.freeze({
+    version: 6,
+    name: 'action_dispatch_journal',
+    sql: ACTION_DISPATCH_JOURNAL_SQL,
   }),
 ])
 

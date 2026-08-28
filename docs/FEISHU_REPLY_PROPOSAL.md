@@ -89,7 +89,7 @@ Draft, Work Item, principal, or content values.
   content digest, responder, and expiration.
 - TD-207 now defines and tests the credential-resolving client contract,
   idempotent execution, reconciliation, and uncertain-result receipts. The
-  production credential/HTTP and durable dispatch adapters remain integration
+  production credential/HTTP and durable dispatch composition remain integration
   work; the isolated system-Keychain reader is not composed here.
 
 ## Verification

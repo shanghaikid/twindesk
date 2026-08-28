@@ -109,6 +109,8 @@ explicit responder decision and expiration, then consume the approval once
 into one stable execution attempt. The Feishu execution boundary now
 reconciles that attempt before every possible send and persists a normalized
 success, failure, or uncertain receipt atomically with proposal state. The
+executor also requires a durable SQLite dispatch reservation immediately before
+the injected client may send, so an unproven restart cannot silently resend. The
 production Feishu HTTP adapter and composed real-account flow remain
 unimplemented. The first Connector-owned macOS Keychain reader now resolves
 validated Bot/User SecretReferences into callback-scoped, zeroed byte buffers,

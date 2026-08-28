@@ -65,8 +65,9 @@ Its success response returns the generated `message_id`, but not the request
 also omits `uuid`. Therefore, scanning visible message content cannot prove
 whether an uncertain reply request succeeded.
 
-The next production slice must pair HTTP sending with a durable local dispatch
-journal before any network effect. It must not implement `reconcile()` by
+The local Feishu executor now requires a durable dispatch-journal reservation
+before its injected client can send. Production HTTP composition must preserve
+that ordering. It must not implement `reconcile()` by
 assuming an absent local receipt means an absent remote reply, and it must not
 silently resend after the one-hour Feishu deduplication window.
 
@@ -80,5 +81,5 @@ zeroing. They inject a command runner and do not read a real Keychain item.
 
 Remaining TD-209 integration includes versioned Bot/User credential-bundle
 parsing, OAuth refresh and revocation, minimum-scope checks, tenant-token
-acquisition, the HTTP and durable dispatch-journal boundary, runtime
+acquisition, the HTTP composition boundary, runtime
 composition, UI, and live-account acceptance.
