@@ -68,8 +68,8 @@ applies.
   executor currently consumes the reservation callback.
 - Production composition must pass `reserveActionDispatch()` through the
   executor callback. The default without that callback is fail-closed.
-- A production Feishu credential parser/refresh path and HTTP client are still
-  absent, so this is synthetic durability evidence rather than a live-account
-  guarantee.
+- A production Feishu token acquisition/refresh path and HTTP client are still
+  absent; the isolated credential parser does not make this synthetic
+  durability evidence a live-account guarantee.
 - User-visible recovery controls and append-only execution Audit events remain
   required for the complete Stage 2 experience.

@@ -55,13 +55,15 @@ Goal: complete the first real end-to-end value loop.
 
 Exit criterion: a real Feishu message can safely produce an approved and sent reply, with a complete trace.
 
-Current gate status (2026-08-27): **NOT PASSED**. The local contract acceptance
+Current gate status (2026-08-28): **NOT PASSED**. The local contract acceptance
 path now completes normalization → Inbox → bounded context → edited Draft →
 one-time approval → idempotent receipt → Audit across restart with synthetic
 clients. Durable pre-send dispatch reservation is now covered by synthetic
-restart tests. The required live-account path is still missing credential parsing,
-refresh, HTTP composition, hosted ingestion or polling, interactive Draft and
-approval UI, and a real Feishu send. See the
+restart tests. Versioned Bot/User credential parsing and refresh-state
+classification are now covered synthetically. The required live-account path
+is still missing token acquisition and atomic refresh, HTTP composition, hosted
+ingestion or polling, interactive Draft and approval UI, and a real Feishu
+send. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).
 
 ## Stage 3: Jira Context

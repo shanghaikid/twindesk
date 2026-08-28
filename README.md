@@ -57,6 +57,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Feishu Reply Execution](docs/FEISHU_REPLY_EXECUTION.md): reconcile-before-send execution, exact idempotency, normalized receipts, restart recovery, and uncertain-result handling.
 - [Feishu Connector Diagnostics](docs/FEISHU_CONNECTOR_DIAGNOSTICS.md): per-identity authorization/scopes, normalized rate limits, redacted cursor freshness, and overall health.
 - [Feishu System Keychain Resolution](docs/FEISHU_SYSTEM_KEYCHAIN.md): fixed macOS SecretReference lookup, bounded short-lived bytes, cancellation, and payload-free failures.
+- [Feishu Credential Bundles](docs/FEISHU_CREDENTIAL_BUNDLES.md): versioned Bot/User secret parsing, exact identity and lifetime checks, refresh state, and callback-scoped zeroing.
 - [SQLite Storage](docs/STORAGE_SQLITE.md): TwinDesk database identity, schema, forward migrations, privacy review, and recovery guarantees.
 - [External Event Ingestion](docs/EVENT_INGESTION.md): transactional deduplication, replay, conflict, and out-of-order semantics.
 - [Durable Synchronization Cursors](docs/SYNC_CURSORS.md): atomic event/checkpoint commits, restart recovery, and regression rules.
@@ -89,8 +90,8 @@ behavior. The Audit page shows four synthetic routing records plus two
 deterministic Persona Draft records. The fixture flow reaches `ready_for_review`
 across restart with no model call, approval, Connector execution, or external
 write. User-driven or model-backed Draft generation, Draft editing UI, approval
-decisions, actual secret-store resolution, user-created Personas, and hosted
-Connector subscriptions are not implemented.
+decisions, product-composed secret-store resolution, user-created Personas, and
+hosted Connector subscriptions are not implemented.
 Stage 2 identity configuration now distinguishes Feishu Bot application
 credentials from User OAuth credentials and persists only opaque secret
 references. The Feishu plugin now verifies and decrypts Bot direct-message and
@@ -101,7 +102,7 @@ validates bounded conversation, document-excerpt, and attachment context without
 returning binary files. Verified Bot messages and bounded User discovery batches
 now normalize into canonical ExternalEvents and event-anchored Inbox Work Items;
 User events, projections, and candidate cursors share one transaction. It is not
-connected to a real account, resolves no secrets, and hosts no callback or
+connected to a real account, reads no live secret, and hosts no callback or
 polling scheduler. A Draft-bound Feishu reply can now be packaged as a local
 plain-text ActionProposal with an explicit Bot or User identity and exact
 message target. The local approval policy can now bind that proposal to an
@@ -112,9 +113,12 @@ success, failure, or uncertain receipt atomically with proposal state. The
 executor also requires a durable SQLite dispatch reservation immediately before
 the injected client may send, so an unproven restart cannot silently resend. The
 production Feishu HTTP adapter and composed real-account flow remain
-unimplemented. The first Connector-owned macOS Keychain reader now resolves
+unimplemented. The Connector-owned macOS Keychain reader now resolves
 validated Bot/User SecretReferences into callback-scoped, zeroed byte buffers,
-but credential-bundle parsing, refresh, scopes, and HTTP composition remain
+and a versioned parser binds Bot application and User OAuth bundles to the exact
+configured identity, reports usable, refresh-required, or reauthorization
+state, and clears derived secret buffers after use. OAuth acquisition and
+atomic refresh rotation, runtime scope checks, and HTTP composition remain
 unimplemented. A presentation-safe diagnostics boundary now reports configured
 Bot/User authorization and scope coverage, rate-limit state, and durable User
 cursor freshness without exposing credentials or opaque cursor positions.

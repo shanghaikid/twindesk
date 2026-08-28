@@ -192,9 +192,12 @@ reserve the exact attempt immediately before `send()`, and receipt persistence
 settles that reservation in the same transaction as proposal state.
 TD-209 now includes a Connector-owned macOS Keychain reader that resolves only
 validated Feishu Bot/User SecretReferences through a fixed generic-password
-service and zeroes the bounded byte buffer after callback use. Credential-bundle
-parsing, refresh, HTTP execution and dispatch composition, and composed
-Audit flow remain TD-209 work. See
+service and zeroes the bounded byte buffer after callback use. A versioned
+parser binds application and OAuth bundles to the exact configured identity,
+classifies refresh state, and zeroes derived secret buffers after callback use.
+Token acquisition and atomic refresh, HTTP execution and dispatch composition,
+and composed Audit flow remain TD-209 work. See
+[Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) and
 [Feishu Reply Execution](FEISHU_REPLY_EXECUTION.md).
 
 TD-208 adds a read-only Feishu diagnostics service behind the Connector health
@@ -212,9 +215,9 @@ an edited Draft revision, exact approval, reconcile-before-send execution,
 durable receipt, restart verification, and reference-validated Audit records. This is
 composition evidence, not a production Connector adapter: its synthetic path
 resolves no live credential and calls no real Feishu API. The isolated system
-Keychain reader and durable dispatch coordinator are not yet composed with a
-production HTTP path. The Stage 2 exit remains
-open until the credential/HTTP dispatch path, hosted ingestion or polling,
+Keychain reader and parser plus the durable dispatch coordinator are not yet
+composed with a production HTTP path. The Stage 2 exit remains
+open until the token/HTTP dispatch path, hosted ingestion or polling,
 product editing/approval UI,
 model-run linkage, and live-account acceptance boundaries pass. See
 [Stage 2 Exit Gate](STAGE_2_EXIT_GATE.md).

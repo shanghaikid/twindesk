@@ -5,16 +5,18 @@
 TD-209 adds the first production credential-read boundary for the Feishu
 Connector. `FeishuSystemKeychainSecretResolver` resolves an already validated
 Bot application-credential or User OAuth `SecretReference` from the macOS
-system Keychain. It does not parse a credential bundle, refresh OAuth, obtain a
-tenant token, call Feishu, persist a secret, grant a scope, or authorize an
-external write.
+system Keychain. The separate
+[Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) boundary now parses
+these bytes. The reader itself does not parse or refresh OAuth, obtain a tenant
+token, call Feishu, persist a secret, grant a scope, or authorize an external
+write.
 
 The fixed Keychain mapping is:
 
 ```text
 generic-password service = com.twindesk.feishu
 generic-password account = SecretReference.id
-generic-password value   = connector-owned credential bundle (not yet parsed)
+generic-password value   = versioned connector-owned credential bundle
 ```
 
 Only `store: system_keychain` with purpose `connector_app_credential` or
@@ -79,7 +81,8 @@ empty and oversized values, pre-start cancellation, callback failure, hostile
 error accessors, payload-free errors, frozen command metadata, and byte-buffer
 zeroing. They inject a command runner and do not read a real Keychain item.
 
-Remaining TD-209 integration includes versioned Bot/User credential-bundle
-parsing, OAuth refresh and revocation, minimum-scope checks, tenant-token
-acquisition, the HTTP composition boundary, runtime
+Versioned Bot/User credential-bundle parsing now composes with this callback
+boundary in synthetic tests. Remaining TD-209 integration includes OAuth
+acquisition, atomic refresh rotation and revocation, minimum-scope checks,
+tenant-token acquisition, the HTTP composition boundary, runtime
 composition, UI, and live-account acceptance.

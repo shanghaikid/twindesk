@@ -1,6 +1,7 @@
 export * from './bot-event-consumer.ts'
 export * from './context-retrieval.ts'
 export * from './connector-diagnostics.ts'
+export * from './credential-bundle.ts'
 export * from './identity-configuration.ts'
 export * from './message-normalization.ts'
 export * from './reply-proposal.ts'
