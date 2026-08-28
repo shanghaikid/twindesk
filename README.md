@@ -55,6 +55,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Feishu Reply Proposal](docs/FEISHU_REPLY_PROPOSAL.md): Draft-bound preview construction, explicit sending identity and target binding, idempotency, and no-side-effect limits.
 - [One-Time Action Approval Policy](docs/ACTION_APPROVAL_POLICY.md): exact identity/target/content binding, expiration, responder decisions, one-time consumption, and execution separation.
 - [Feishu Reply Execution](docs/FEISHU_REPLY_EXECUTION.md): reconcile-before-send execution, exact idempotency, normalized receipts, restart recovery, and uncertain-result handling.
+- [Feishu Reply HTTP Client](docs/FEISHU_REPLY_HTTP_CLIENT.md): fixed-endpoint plain-text delivery, bounded responses, payload-free errors, and conservative post-send ambiguity.
 - [Feishu Connector Diagnostics](docs/FEISHU_CONNECTOR_DIAGNOSTICS.md): per-identity authorization/scopes, normalized rate limits, redacted cursor freshness, and overall health.
 - [Feishu System Keychain Resolution and Replacement](docs/FEISHU_SYSTEM_KEYCHAIN.md): fixed macOS SecretReference lookup, stdin-only OAuth replacement, uncertain writes, and transient-byte cleanup.
 - [Feishu Credential Bundles](docs/FEISHU_CREDENTIAL_BUNDLES.md): versioned Bot/User secret parsing, rotated User encoding, exact identity/lifetime checks, and callback-scoped zeroing.
@@ -123,7 +124,7 @@ reconciles that attempt before every possible send and persists a normalized
 success, failure, or uncertain receipt atomically with proposal state. The
 executor also requires a durable SQLite dispatch reservation immediately before
 the injected client may send, so an unproven restart cannot silently resend. The
-production Feishu operation HTTP adapters and composed real-account flow remain
+production Feishu operation adapters and the composed real-account flow remain
 unimplemented. The Connector-owned macOS Keychain reader now resolves
 validated Bot/User SecretReferences into callback-scoped, zeroed byte buffers,
 and a versioned parser binds Bot application and User OAuth bundles to the exact
@@ -143,9 +144,10 @@ for reply and User discovery now passes synthetic contracts, and the User gate
 reads exact current Keychain token claims. A fixed-endpoint bounded Bot
 tenant-token client and its exact Keychain-to-token scope probe now pass
 synthetic contracts without a live credential. The probe verifies the remote
-Bot principal and retains only current tenant scopes; runtime composition under
-the lease, reply HTTP, and live composition remain unimplemented. A presentation-safe
-diagnostics boundary now reports configured
+Bot principal and retains only current tenant scopes. A bounded fixed-endpoint
+plain-text reply HTTP primitive also passes synthetic contracts; runtime
+composition under the lease and live composition remain unimplemented. A
+presentation-safe diagnostics boundary now reports configured
 Bot/User authorization and scope coverage, rate-limit state, and durable User
 cursor freshness without exposing credentials or opaque cursor positions.
 The local TD-209 contract acceptance path now composes verified-message

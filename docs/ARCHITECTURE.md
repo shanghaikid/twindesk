@@ -215,15 +215,18 @@ kernel-backed Host lease now prevents two processes from operating Feishu at
 once and survives abrupt owner death without stale recovery files. Explicit
 reauthorization now replaces only a durably blocked credential and
 records a distinct version 2 `reauthorized` event while preserving version 1
-journal history. Runtime composition of every polling, refresh, and write
-boundary under that lease, operation HTTP and dispatch composition, and composed
-Audit flow remain TD-209 work. See
+journal history. A bounded fixed-endpoint reply HTTP primitive now preserves
+post-send ambiguity without inventing remote reconciliation, and the durable
+dispatch reservation already blocks blind restart sends. Runtime composition
+of every polling, refresh, and write boundary under the lease, the complete
+reply execution adapter, and the composed Audit flow remain TD-209 work. See
 [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) and
 [Feishu OAuth v3 Refresh](FEISHU_OAUTH_V3_REFRESH.md) and
 [Feishu OAuth Authorization Code and PKCE](FEISHU_OAUTH_AUTHORIZATION_CODE.md) and
 [Feishu OAuth Verified Initial Persistence](FEISHU_OAUTH_INITIAL_PERSISTENCE.md) and
 [Feishu OAuth Reauthorization Replacement](FEISHU_OAUTH_REAUTHORIZATION.md) and
 [Feishu Operation Scope Authorization](FEISHU_OPERATION_SCOPE_AUTHORIZATION.md) and
+[Feishu Reply HTTP Client](FEISHU_REPLY_HTTP_CLIENT.md) and
 [Feishu User Credential Scope Probe](FEISHU_USER_CREDENTIAL_SCOPE_PROBE.md) and
 [Feishu Runtime Lease](FEISHU_RUNTIME_LEASE.md) and
 [Feishu OAuth Rotation Coordinator](FEISHU_OAUTH_ROTATION_COORDINATOR.md) and

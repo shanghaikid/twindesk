@@ -74,13 +74,15 @@ secret deletion.
   one-time callback, and a post-exchange verifier plus bounded production user-info
   Fetch client bind the returned User `open_id` before the exact initial
   Keychain replacement. This path and an exclusive Host lease pass synthetic
-  contracts, but runtime composition under that lease, revocation, and
-  operation HTTP are not implemented. See
+  contracts, and a fixed reply HTTP primitive is now covered synthetically.
+  Runtime composition under that lease, revocation handling, the complete
+  execution adapter, and other operation HTTP clients are not implemented. See
   [Feishu System Keychain Resolution and Replacement](FEISHU_SYSTEM_KEYCHAIN.md) and
   [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) and
   [Feishu OAuth v3 Refresh](FEISHU_OAUTH_V3_REFRESH.md) and
   [Feishu OAuth Rotation Coordinator](FEISHU_OAUTH_ROTATION_COORDINATOR.md) and
   [Feishu Runtime Lease](FEISHU_RUNTIME_LEASE.md) and
+  [Feishu Reply HTTP Client](FEISHU_REPLY_HTTP_CLIENT.md) and
   [Feishu OAuth User Principal Verification](FEISHU_OAUTH_PRINCIPAL_VERIFICATION.md).
 - Required and granted scopes are not persisted by this identity record.
   TD-208 now defines a runtime-only scope, rate, health, and cursor diagnostics

@@ -15,12 +15,16 @@ and durable execution state separate:
 - `@twindesk/storage-sqlite` atomically records the normalized ActionReceipt and
   advances the ActionProposal execution state.
 
-The repository contains an isolated production macOS Keychain reader, a
-versioned credential-bundle parser, and a bounded OAuth v3 Fetch transport, but
-no atomic Keychain rotation, production dispatch composition, or Feishu reply
-HTTP client. Execution tests use a synthetic client. A composed adapter must resolve
-the supplied `SecretReference`, recheck the minimum send scope for the selected
-Bot or User identity, and preserve the exact request key.
+The repository contains isolated production Keychain, credential rotation,
+scope-probe, durable dispatch, and bounded reply HTTP primitives. The
+`FeishuReplyHttpClient` sends one fixed-endpoint plain-text reply and returns
+only its remote message ID and timestamp. It deliberately does not implement
+the execution client's reconciliation method because Feishu history does not
+expose the request UUID. Execution tests still use a synthetic complete client.
+A composed adapter must resolve the supplied `SecretReference`, recheck the
+minimum send scope for the selected Bot or User identity, preserve the exact
+request key, and retain the conservative durable-dispatch recovery rule. See
+[Feishu Reply HTTP Client](FEISHU_REPLY_HTTP_CLIENT.md).
 
 ## Exact Execution Binding
 
@@ -130,10 +134,11 @@ data.
 ## Remaining Work
 
 - Authorization-code/PKCE exchange through verified initial Keychain persistence
-  and the exclusive Host lease pass synthetic contracts; Feishu operation HTTP
-  and runtime composition under the lease are still required; the system-Keychain reader,
-  credential parser, refresh and user-info transports, and durable dispatch
-  boundary alone are not an execution adapter.
+  and the exclusive Host lease pass synthetic contracts; runtime composition
+  under the lease is still required. The system-Keychain reader, credential
+  parser, refresh and user-info transports, scope probes, durable dispatch
+  boundary, and reply HTTP primitive do not by themselves form an execution
+  adapter.
 - Fixed Bot and User reply scope policies now gate an injected callback with a
   fresh identity-bound observation. Concrete User and Bot Keychain probes now
   exist; composition with this executor and the reply HTTP client remains

@@ -33,6 +33,7 @@ export {
 export * from './operation-scope-authorization.ts'
 export * from './reply-proposal.ts'
 export * from './reply-execution.ts'
+export * from './reply-http-client.ts'
 export * from './runtime-lease.ts'
 export * from './system-keychain.ts'
 export * from './user-message-discovery.ts'

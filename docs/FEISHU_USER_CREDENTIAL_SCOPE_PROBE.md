@@ -77,6 +77,6 @@ zeroing without touching a live Keychain item.
 
 The separate [Bot Keychain scope probe](FEISHU_BOT_KEYCHAIN_SCOPE_PROBE.md) now
 composes bounded token acquisition with remote Bot-principal and tenant-scope
-observation. Remaining work includes lease-wrapped rotation/probe/operation
-composition, production discovery and reply HTTP clients, selected context
-endpoint policies, and live-account acceptance.
+observation. The fixed reply HTTP primitive also exists. Remaining work includes
+lease-wrapped rotation/probe/operation composition, a production discovery
+client, selected context endpoint policies, and live-account acceptance.

@@ -69,8 +69,8 @@ one 30-second timeout by default, configurable only up to two minutes.
 
 The application permission response is current configuration evidence, not a
 guarantee that the immediately following message request will succeed. A scope
-can be revoked between the probe and operation, so the future reply HTTP client
-must keep authorization and missing-scope failures authoritative.
+can be revoked between the probe and operation, so the reply HTTP primitive
+keeps authorization and missing-scope failures authoritative.
 
 ## Secret Lifetime and Privacy
 
@@ -97,6 +97,6 @@ transient-buffer clearing. They use no live Keychain item, credential, account,
 or network request.
 
 Remaining work includes placing this probe and User rotation under the
-exclusive Host runtime lease, composing the reply HTTP client and durable
+exclusive Host runtime lease, composing the reply HTTP primitive and durable
 execution adapter, wiring production diagnostics and settings, hosted event or
 polling lifecycle, and live-account acceptance.
