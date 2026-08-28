@@ -68,10 +68,11 @@ secret deletion.
   into callback-scoped byte buffers and zeroes them afterward. A versioned
   parser now binds Bot application and User OAuth bundles to the exact identity
   and exposes explicit refresh state. A fixed-endpoint, bounded v3 Fetch client
-  validates rotated token responses. Authorization-code identity verification,
-  atomic Keychain refresh, revocation, writes/deletion, operation HTTP, and
-  runtime composition are not implemented. See
-  [Feishu System Keychain Resolution](FEISHU_SYSTEM_KEYCHAIN.md) and
+  validates rotated token responses, and separate encoding plus Keychain update
+  primitives prepare the next bundle. Authorization-code identity verification,
+  serialized Keychain refresh with durable uncertain recovery, revocation,
+  operation HTTP, and runtime composition are not implemented. See
+  [Feishu System Keychain Resolution and Replacement](FEISHU_SYSTEM_KEYCHAIN.md) and
   [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) and
   [Feishu OAuth v3 Refresh](FEISHU_OAUTH_V3_REFRESH.md).
 - Required and granted scopes are not persisted by this identity record.

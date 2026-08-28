@@ -56,8 +56,8 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [One-Time Action Approval Policy](docs/ACTION_APPROVAL_POLICY.md): exact identity/target/content binding, expiration, responder decisions, one-time consumption, and execution separation.
 - [Feishu Reply Execution](docs/FEISHU_REPLY_EXECUTION.md): reconcile-before-send execution, exact idempotency, normalized receipts, restart recovery, and uncertain-result handling.
 - [Feishu Connector Diagnostics](docs/FEISHU_CONNECTOR_DIAGNOSTICS.md): per-identity authorization/scopes, normalized rate limits, redacted cursor freshness, and overall health.
-- [Feishu System Keychain Resolution](docs/FEISHU_SYSTEM_KEYCHAIN.md): fixed macOS SecretReference lookup, bounded short-lived bytes, cancellation, and payload-free failures.
-- [Feishu Credential Bundles](docs/FEISHU_CREDENTIAL_BUNDLES.md): versioned Bot/User secret parsing, exact identity and lifetime checks, refresh state, and callback-scoped zeroing.
+- [Feishu System Keychain Resolution and Replacement](docs/FEISHU_SYSTEM_KEYCHAIN.md): fixed macOS SecretReference lookup, stdin-only OAuth replacement, uncertain writes, and transient-byte cleanup.
+- [Feishu Credential Bundles](docs/FEISHU_CREDENTIAL_BUNDLES.md): versioned Bot/User secret parsing, rotated User encoding, exact identity/lifetime checks, and callback-scoped zeroing.
 - [Feishu OAuth v3 Refresh](docs/FEISHU_OAUTH_V3_REFRESH.md): exact form request, rotating-token response validation, recovery classification, and transient-secret cleanup.
 - [SQLite Storage](docs/STORAGE_SQLITE.md): TwinDesk database identity, schema, forward migrations, privacy review, and recovery guarantees.
 - [External Event Ingestion](docs/EVENT_INGESTION.md): transactional deduplication, replay, conflict, and out-of-order semantics.
@@ -113,7 +113,7 @@ reconciles that attempt before every possible send and persists a normalized
 success, failure, or uncertain receipt atomically with proposal state. The
 executor also requires a durable SQLite dispatch reservation immediately before
 the injected client may send, so an unproven restart cannot silently resend. The
-production Feishu HTTP adapter and composed real-account flow remain
+production Feishu operation HTTP adapters and composed real-account flow remain
 unimplemented. The Connector-owned macOS Keychain reader now resolves
 validated Bot/User SecretReferences into callback-scoped, zeroed byte buffers,
 and a versioned parser binds Bot application and User OAuth bundles to the exact
@@ -122,7 +122,8 @@ state, and clears derived secret buffers after use. An OAuth v3 boundary now
 validates single-use refresh responses, authoritative scopes, server lifetimes,
 and reauthorization failures, with a fixed-endpoint production Fetch transport
 that rejects redirects and bounds streamed responses. Authorization-code
-principal verification, serialized Keychain rotation, runtime scope checks,
+principal verification, serialized Keychain rotation with durable uncertain
+recovery, runtime scope checks,
 reply HTTP composition, and live composition remain unimplemented. A presentation-safe
 diagnostics boundary now reports configured
 Bot/User authorization and scope coverage, rate-limit state, and durable User

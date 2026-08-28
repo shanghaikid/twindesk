@@ -64,6 +64,8 @@ documented success shape. TwinDesk requires:
 - `code: 0` and a successful HTTP status;
 - `token_type: Bearer`;
 - access and refresh tokens no longer than 4 KiB each;
+- a refresh token that differs from the single-use token submitted in the
+  request;
 - positive server-supplied access and refresh lifetimes within a bounded
   one-year safety horizon;
 - a dense, unique scope list that still contains `offline_access`.
@@ -119,12 +121,14 @@ the old refresh token as though no remote effect occurred.
 
 Synthetic tests cover the exact endpoint and form bytes, Fetch options,
 redirect rejection, declared and streamed response limits, percent encoding,
-authoritative scopes and server lifetimes, single-use reauthorization errors,
+authoritative scopes and server lifetimes, distinct-token rotation,
+single-use reauthorization errors,
 temporary failures, malformed responses, hostile accessor objects, invalid
 inputs and clocks, timeout, cancellation, payload-free errors, and transient
 buffer zeroing. No real credential or network request is used.
 
-Remaining work includes serialized refresh coordination, version 1 bundle
-encoding, atomic system-Keychain replacement, uncertain-rotation handling,
+Version 1 bundle encoding and the stdin-only atomic Keychain replacement
+primitive are now implemented and tested independently. Remaining work includes
+serialized refresh coordination, durable uncertain-rotation handling,
 authorization-code principal verification, tenant-token acquisition, runtime
 composition, and live-account acceptance.

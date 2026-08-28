@@ -5,9 +5,11 @@
 TD-209 adds a versioned parser between the macOS Keychain byte reader and
 future Feishu HTTP adapters. `FeishuCredentialBundleParser` accepts one bounded
 UTF-8 JSON bundle, binds it to the exact configured Bot or User identity, and
-exposes validated secrets only inside a callback. It does not obtain or refresh
-a token, call Feishu, persist a bundle, grant a scope, revoke authorization, or
-authorize an external write.
+exposes validated secrets only inside a callback.
+`FeishuOAuthCredentialBundleEncoder` creates the same exact User format from a
+validated current credential and rotated OAuth token set. Neither boundary
+obtains a token, calls Feishu, grants a scope, revokes authorization, or
+authorizes an external write.
 
 ## Version 1 Formats
 
@@ -67,8 +69,9 @@ rotating refresh flow. A refresh token is returned only when `offline_access`
 is authorized, is single-use, and must be replaced with the new token returned
 by a successful refresh. The parser preserves those prerequisites. The separate
 [Feishu OAuth v3 Refresh](FEISHU_OAUTH_V3_REFRESH.md) boundary validates the
-refresh request and response through an injected transport, but does not
-perform a production network request or atomic Keychain rotation. See the official
+refresh request and response through a bounded production transport. The
+encoder and Keychain replacer remain independent primitives and do not provide
+serialized or recoverable atomic rotation. See the official
 [user access-token v3](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/authentication-management/access-token/get-user-access-token-v3)
 and
 [refresh-token v3](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/authentication-management/access-token/refresh-user-access-token-v3)
@@ -81,6 +84,16 @@ client secrets, access tokens, and refresh tokens are exposed as `Uint8Array`
 values and overwritten immediately after the consumer callback settles,
 including callback failure and cancellation. The parsed wrapper and scope list
 are frozen.
+
+The encoder carries forward only the bound app, principal, and client secret;
+the prior access and refresh tokens are never copied into the new bundle. It
+requires a strictly later acquisition timestamp, a refresh token distinct from
+the current single-use token, authoritative sorted scopes with
+`offline_access`, and the same size limits as the parser. Its encoded buffer
+is callback-scoped and overwritten after use. Encoding JSON necessarily
+creates temporary immutable strings for the client secret and rotated tokens;
+they are never logged, persisted outside the Keychain value, or returned in
+errors.
 
 JavaScript JSON decoding necessarily creates temporary immutable strings that
 cannot be retroactively erased. A consumer that decodes, copies, transfers, or
@@ -98,13 +111,14 @@ buffers are cleared.
 
 Synthetic tests cover Bot/User identity binding, exact schemas, duplicate
 fields, size and encoding bounds, scope and lifetime rules, refresh-required
-and reauthorization states, cancellation, callback failures, payload-free
-errors, and source plus derived-buffer zeroing. A composition test passes a
-synthetic bundle through `FeishuSystemKeychainSecretResolver` into the parser
-without reading a live Keychain item.
+and reauthorization states, rotated encoding and parse-back, old-token
+exclusion, hostile data, cancellation, callback failures, payload-free errors,
+and source plus derived-buffer zeroing. A synthetic replacement is read and
+parsed through fresh primitive instances to cover restart independence without
+touching a live Keychain item.
 
 Remaining TD-209 work includes authorization-code principal verification,
-serialized single-use refresh with atomic Keychain rotation, tenant-token
-acquisition for Bot operations, minimum scope checks, Feishu operation HTTP
-composition, runtime lifecycle, product UI, and an authorized live-account
-acceptance run.
+serialized single-use refresh coordination with durable uncertain-state
+recovery, tenant-token acquisition for Bot operations, minimum scope checks,
+Feishu operation HTTP composition, runtime lifecycle, product UI, and an
+authorized live-account acceptance run.

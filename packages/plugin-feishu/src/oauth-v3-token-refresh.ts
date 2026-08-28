@@ -432,6 +432,15 @@ function zeroTokenSet(tokenSet: FeishuOAuthV3TokenSet | undefined): void {
   tokenSet?.refreshToken.fill(0)
 }
 
+function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.byteLength !== right.byteLength) return false
+  let difference = 0
+  for (let index = 0; index < left.byteLength; index += 1) {
+    difference |= (left[index] as number) ^ (right[index] as number)
+  }
+  return difference === 0
+}
+
 function readTransportResponse(value: unknown): FeishuOAuthV3TransportResponse {
   let body: Uint8Array | undefined
   try {
@@ -553,6 +562,13 @@ export class FeishuOAuthV3TokenRefresher {
       }
       const observedAt = readClock(this.#now)
       tokenSet = parseResponse(response.status, response.body, observedAt)
+      if (equalBytes(tokenSet.refreshToken, input.refreshToken)) {
+        throw fail(
+          'invalid_response',
+          'do_not_retry',
+          'The Feishu OAuth response did not rotate the refresh token.',
+        )
+      }
       signal.throwIfAborted()
       const result = await use(tokenSet)
       signal.throwIfAborted()

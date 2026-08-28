@@ -198,9 +198,11 @@ classifies refresh state, and zeroes derived secret buffers after callback use.
 An OAuth v3 boundary additionally validates exact refresh form bytes, rotating
 responses, server lifetimes and scopes, and reauthorization failures. Its
 production Fetch transport fixes the endpoint, rejects redirects, and bounds
-streamed responses. Authorization-code principal verification, serialized
-atomic Keychain rotation, operation HTTP and dispatch composition, and composed
-Audit flow remain TD-209 work. See
+streamed responses. A version 1 rotated-bundle encoder and stdin-only Keychain
+replacement primitive now preserve the same secret and identity boundary, but
+they are not a refresh coordinator. Authorization-code principal verification,
+serialized atomic Keychain rotation with durable uncertain recovery, operation
+HTTP and dispatch composition, and composed Audit flow remain TD-209 work. See
 [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) and
 [Feishu OAuth v3 Refresh](FEISHU_OAUTH_V3_REFRESH.md) and
 [Feishu Reply Execution](FEISHU_REPLY_EXECUTION.md).

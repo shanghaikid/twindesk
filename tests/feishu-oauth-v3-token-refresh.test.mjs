@@ -193,6 +193,7 @@ test('temporary service and transport failures are retryable and payload-free', 
 test('malformed token responses fail closed and clear every supplied body', async () => {
   const cases = [
     responseBody({ token_type: 'Basic' }),
+    responseBody({ refresh_token: PRIVATE_OLD_REFRESH_TOKEN }),
     responseBody({ scope: 'im:message' }),
     responseBody({ scope: 'offline_access offline_access' }),
     responseBody({ expires_in: 0 }),

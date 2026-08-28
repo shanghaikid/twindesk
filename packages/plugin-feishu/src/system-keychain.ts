@@ -1,9 +1,10 @@
-import { execFile } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 
 import { parseSecretReference, type SecretReference } from '@twindesk/domain'
 
 export const FEISHU_SYSTEM_KEYCHAIN_SERVICE = 'com.twindesk.feishu' as const
 export const FEISHU_SYSTEM_KEYCHAIN_SECRET_MAX_BYTES = 64 * 1024
+export const FEISHU_SYSTEM_KEYCHAIN_DIAGNOSTIC_MAX_BYTES = 8 * 1024
 
 export type FeishuSystemKeychainErrorCode =
   | 'invalid_reference'
@@ -15,6 +16,7 @@ export type FeishuSystemKeychainErrorCode =
   | 'cancelled'
   | 'secret_empty'
   | 'secret_too_large'
+  | 'write_uncertain'
   | 'unavailable'
 
 export class FeishuSystemKeychainError extends Error {
@@ -49,8 +51,102 @@ export interface FeishuSystemKeychainOptions {
   readonly runner?: FeishuKeychainCommandRunner
 }
 
+export interface FeishuKeychainReplaceCommandRequest {
+  readonly executable: '/usr/bin/security'
+  readonly arguments: readonly [
+    'add-generic-password',
+    '-U',
+    '-s',
+    typeof FEISHU_SYSTEM_KEYCHAIN_SERVICE,
+    '-a',
+    string,
+    '-w',
+  ]
+  readonly maximumDiagnosticBytes: typeof FEISHU_SYSTEM_KEYCHAIN_DIAGNOSTIC_MAX_BYTES
+}
+
+export interface FeishuKeychainReplaceCommandRunner {
+  replace(
+    request: FeishuKeychainReplaceCommandRequest,
+    secret: Uint8Array,
+    signal: AbortSignal,
+  ): Promise<void>
+}
+
+export interface FeishuSystemKeychainSecretReplacerOptions {
+  readonly platform?: NodeJS.Platform
+  readonly runner?: FeishuKeychainReplaceCommandRunner
+}
+
+type KeychainOptions = Readonly<Record<string, unknown>>
+
 function fail(code: FeishuSystemKeychainErrorCode, message: string): FeishuSystemKeychainError {
   return new FeishuSystemKeychainError(code, message)
+}
+
+function readOptions(value: unknown): KeychainOptions {
+  if (value === undefined) return Object.freeze({})
+  try {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError()
+    const prototype = Object.getPrototypeOf(value) as unknown
+    const descriptors = Object.getOwnPropertyDescriptors(value)
+    const keys = Object.keys(descriptors)
+    if (
+      (prototype !== Object.prototype && prototype !== null) ||
+      Object.getOwnPropertySymbols(value).length !== 0 ||
+      keys.some((key) => key !== 'platform' && key !== 'runner') ||
+      Object.values(descriptors).some((descriptor) => !Object.hasOwn(descriptor, 'value'))
+    ) {
+      throw new TypeError()
+    }
+    return Object.freeze(
+      Object.fromEntries(
+        Object.entries(descriptors).map(([key, descriptor]) => [key, descriptor.value]),
+      ),
+    )
+  } catch {
+    throw fail('unavailable', 'The Feishu Keychain adapter configuration is invalid.')
+  }
+}
+
+function configuredPlatform(options: KeychainOptions): NodeJS.Platform {
+  const platform = Object.hasOwn(options, 'platform') ? options.platform : process.platform
+  if (typeof platform !== 'string' || platform.length === 0) {
+    throw fail('unavailable', 'The Feishu Keychain adapter configuration is invalid.')
+  }
+  return platform as NodeJS.Platform
+}
+
+function configuredRunner<TMethod extends (...arguments_: never[]) => unknown>(
+  options: KeychainOptions,
+  methodName: 'run' | 'replace',
+  fallback: () => object,
+): object & Record<typeof methodName, TMethod> {
+  if (!Object.hasOwn(options, 'runner')) {
+    return fallback() as object & Record<typeof methodName, TMethod>
+  }
+  const runner = options.runner
+  try {
+    if ((typeof runner !== 'object' && typeof runner !== 'function') || runner === null) {
+      throw new TypeError()
+    }
+    let owner: object | null = runner
+    for (let depth = 0; owner !== null && depth < 8; depth += 1) {
+      const descriptor = Object.getOwnPropertyDescriptor(owner, methodName)
+      if (descriptor !== undefined) {
+        if (!Object.hasOwn(descriptor, 'value') || typeof descriptor.value !== 'function') {
+          throw new TypeError()
+        }
+        return Object.freeze({
+          [methodName]: descriptor.value.bind(runner) as TMethod,
+        }) as object & Record<typeof methodName, TMethod>
+      }
+      owner = Object.getPrototypeOf(owner) as object | null
+    }
+    throw new TypeError()
+  } catch {
+    throw fail('unavailable', 'The Feishu Keychain adapter configuration is invalid.')
+  }
 }
 
 function commandErrorCode(error: unknown, signal: AbortSignal): FeishuSystemKeychainErrorCode {
@@ -108,6 +204,54 @@ class MacOsSecurityCommandRunner implements FeishuKeychainCommandRunner {
   }
 }
 
+class MacOsSecurityReplaceCommandRunner implements FeishuKeychainReplaceCommandRunner {
+  replace(
+    request: FeishuKeychainReplaceCommandRequest,
+    secret: Uint8Array,
+    signal: AbortSignal,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let settled = false
+      let diagnosticBytes = 0
+      const child = spawn(request.executable, request.arguments, {
+        signal,
+        stdio: ['pipe', 'ignore', 'pipe'],
+        windowsHide: true,
+      })
+      const finish = (error?: unknown): void => {
+        if (settled) return
+        settled = true
+        if (error === undefined) resolve()
+        else reject(error)
+      }
+      child.stderr?.on('data', (chunk: unknown) => {
+        if (chunk instanceof Uint8Array) {
+          diagnosticBytes += chunk.byteLength
+          chunk.fill(0)
+        } else {
+          diagnosticBytes = request.maximumDiagnosticBytes + 1
+        }
+        if (diagnosticBytes > request.maximumDiagnosticBytes) child.kill()
+      })
+      child.once('error', finish)
+      child.once('close', (code, childSignal) => {
+        if (
+          code === 0 &&
+          childSignal === null &&
+          diagnosticBytes <= request.maximumDiagnosticBytes
+        ) {
+          finish()
+          return
+        }
+        finish(new Error('The Keychain update did not complete successfully.'))
+      })
+      child.stdin?.once('error', finish)
+      child.stdin?.write(secret)
+      child.stdin?.end(new Uint8Array([0x0a]))
+    })
+  }
+}
+
 function parseFeishuKeychainReference(value: unknown): SecretReference {
   let reference: SecretReference
   try {
@@ -133,9 +277,14 @@ export class FeishuSystemKeychainSecretResolver {
   readonly #platform: NodeJS.Platform
   readonly #runner: FeishuKeychainCommandRunner
 
-  constructor(options: FeishuSystemKeychainOptions = {}) {
-    this.#platform = options.platform ?? process.platform
-    this.#runner = options.runner ?? new MacOsSecurityCommandRunner()
+  constructor(options?: FeishuSystemKeychainOptions) {
+    const validated = readOptions(options)
+    this.#platform = configuredPlatform(validated)
+    this.#runner = configuredRunner<FeishuKeychainCommandRunner['run']>(
+      validated,
+      'run',
+      () => new MacOsSecurityCommandRunner(),
+    )
   }
 
   async withSecret<TResult>(
@@ -182,6 +331,74 @@ export class FeishuSystemKeychainSecretResolver {
         throw fail('secret_too_large', 'The Feishu Keychain credential is too large.')
       }
       return await use(secret)
+    } finally {
+      secret.fill(0)
+    }
+  }
+}
+
+/**
+ * Atomically replace one existing Feishu generic-password value through the
+ * macOS Keychain. Secret bytes are sent through stdin, never process arguments,
+ * and are cleared after the command settles. Any post-start failure is
+ * deliberately classified as uncertain because the Keychain update may have
+ * taken effect before process observation failed.
+ */
+export class FeishuSystemKeychainSecretReplacer {
+  readonly #platform: NodeJS.Platform
+  readonly #runner: FeishuKeychainReplaceCommandRunner
+
+  constructor(options?: FeishuSystemKeychainSecretReplacerOptions) {
+    const validated = readOptions(options)
+    this.#platform = configuredPlatform(validated)
+    this.#runner = configuredRunner<FeishuKeychainReplaceCommandRunner['replace']>(
+      validated,
+      'replace',
+      () => new MacOsSecurityReplaceCommandRunner(),
+    )
+  }
+
+  async replace(referenceValue: unknown, secret: Uint8Array, signal: AbortSignal): Promise<void> {
+    if (!(secret instanceof Uint8Array)) {
+      throw fail('secret_empty', 'The replacement Feishu credential is empty.')
+    }
+    try {
+      signal.throwIfAborted()
+      const reference = parseFeishuKeychainReference(referenceValue)
+      if (reference.purpose !== 'connector_oauth') {
+        throw fail('unsupported_purpose', 'Only a Feishu OAuth credential can be rotated.')
+      }
+      if (secret.byteLength === 0) {
+        throw fail('secret_empty', 'The replacement Feishu credential is empty.')
+      }
+      if (secret.byteLength > FEISHU_SYSTEM_KEYCHAIN_SECRET_MAX_BYTES) {
+        throw fail('secret_too_large', 'The replacement Feishu credential is too large.')
+      }
+      if (this.#platform !== 'darwin') {
+        throw fail('unsupported_platform', 'The system Keychain adapter requires macOS.')
+      }
+      const request = Object.freeze({
+        executable: '/usr/bin/security' as const,
+        arguments: Object.freeze([
+          'add-generic-password',
+          '-U',
+          '-s',
+          FEISHU_SYSTEM_KEYCHAIN_SERVICE,
+          '-a',
+          reference.id,
+          '-w',
+        ]) as FeishuKeychainReplaceCommandRequest['arguments'],
+        maximumDiagnosticBytes: FEISHU_SYSTEM_KEYCHAIN_DIAGNOSTIC_MAX_BYTES,
+      })
+      try {
+        await this.#runner.replace(request, secret, signal)
+        signal.throwIfAborted()
+      } catch {
+        throw fail(
+          'write_uncertain',
+          'The Feishu Keychain update outcome is uncertain and requires reconciliation.',
+        )
+      }
     } finally {
       secret.fill(0)
     }

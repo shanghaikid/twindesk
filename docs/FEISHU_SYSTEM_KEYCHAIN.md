@@ -1,15 +1,16 @@
-# Feishu System Keychain Resolution
+# Feishu System Keychain Resolution and Replacement
 
 ## Scope
 
-TD-209 adds the first production credential-read boundary for the Feishu
-Connector. `FeishuSystemKeychainSecretResolver` resolves an already validated
-Bot application-credential or User OAuth `SecretReference` from the macOS
-system Keychain. The separate
+TD-209 adds production credential read and replacement primitives for the
+Feishu Connector. `FeishuSystemKeychainSecretResolver` resolves an already
+validated Bot application-credential or User OAuth `SecretReference` from the
+macOS system Keychain. `FeishuSystemKeychainSecretReplacer` replaces only a
+User OAuth bundle at the same validated reference. The separate
 [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) boundary now parses
-these bytes. The reader itself does not parse or refresh OAuth, obtain a tenant
-token, call Feishu, persist a secret, grant a scope, or authorize an external
-write.
+these bytes and encodes rotated User bundles. Neither Keychain primitive
+refreshes OAuth, obtains a tenant token, calls Feishu, grants a scope, or
+authorizes an external write.
 
 The fixed Keychain mapping is:
 
@@ -39,6 +40,22 @@ fixed. Only the validated opaque locator becomes the Keychain account argument.
 The adapter rejects non-macOS hosts before starting a process and propagates an
 AbortSignal to the child process.
 
+The production replacer invokes one exact update without a shell:
+
+```text
+/usr/bin/security add-generic-password
+  -U
+  -s com.twindesk.feishu
+  -a <opaque SecretReference.id>
+  -w
+```
+
+macOS documents that a final `-w` prompts for the value. TwinDesk writes the
+bounded bundle bytes to child stdin followed by one newline, so credentials do
+not enter process arguments. Stdout is discarded; stderr chunks are counted up
+to 8 KiB, overwritten, and never serialized. Tests inject the process boundary
+and do not modify a live Keychain item.
+
 ## Secret Lifetime and Errors
 
 The caller receives the resolved bytes only inside `withSecret()`'s callback.
@@ -47,6 +64,13 @@ settles, including cancellation, validation failure after lookup, and callback
 failure. A caller that decodes or copies the bytes owns the lifetime and
 redaction of those additional values; JavaScript cannot retroactively erase an
 immutable string copy.
+
+The replacer takes ownership of a supplied `Uint8Array` and overwrites it on
+every exit, including validation failure, pre-start cancellation, command
+failure, and cancellation after command start. Once the command starts, every
+non-successful observation is `write_uncertain`: the Keychain may already hold
+the new single-use refresh token. Callers must reconcile the exact reference
+before another refresh attempt.
 
 An invalid callback fails before Keychain access. Empty and oversized values
 fail before callback invocation. Missing items, unsupported
@@ -75,15 +99,18 @@ silently resend after the one-hour Feishu deduplication window.
 
 ## Verification and Remaining Work
 
-Synthetic tests cover exact command construction, supported purposes, invalid
-references, unsupported stores and platforms, invalid callbacks, missing items,
-empty and oversized values, pre-start cancellation, callback failure, hostile
-error accessors, payload-free errors, frozen command metadata, and byte-buffer
-zeroing. They inject a command runner and do not read a real Keychain item.
+Synthetic tests cover exact read and stdin-only replacement commands, supported
+purposes, invalid references, unsupported stores and platforms, invalid
+callbacks, missing items, empty and oversized values, pre/post-start
+cancellation, callback and command failure, uncertain-write classification,
+hostile error accessors, payload-free errors, frozen command metadata, and
+byte-buffer zeroing. They inject command runners and do not read or write a real
+Keychain item.
 
-Versioned Bot/User credential-bundle parsing now composes with this callback
-boundary in synthetic tests, and a bounded Fetch transport validates OAuth v3
-refresh responses. Remaining TD-209 integration includes authorization-code
-identity verification, atomic Keychain rotation and revocation, minimum-scope
-checks, tenant-token acquisition, the reply HTTP composition boundary, runtime
+Versioned Bot/User credential parsing and rotated User-bundle encoding now
+compose with these callback boundaries in synthetic tests, and a bounded Fetch
+transport validates OAuth v3 refresh responses. Remaining TD-209 integration
+includes serialized refresh coordination, durable uncertain-rotation recovery,
+authorization-code identity verification, revocation, minimum-scope checks,
+tenant-token acquisition, the reply HTTP composition boundary, runtime
 composition, UI, and live-account acceptance.
