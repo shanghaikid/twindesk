@@ -56,7 +56,7 @@ local business records; credentials and raw connector responses do not.
 | Persona does not grant authority | Passed | Explicit Persona selection plus separate approval |
 | User-edited Draft binds the proposal | Passed | Superseded revision 1 and exact revision 2 proposal content |
 | One-time approval is exact and expiring | Passed | Identity, target, and content digests plus responder and expiration |
-| Send is idempotent across restart | Local contract passed | Durable terminal receipt, one external effect, and execution refusal |
+| Send is idempotent across restart | Local contract passed | Durable terminal receipt, one external effect, execution refusal, and send-only dispatch blocking without invented reconciliation |
 | Reply request key fits Feishu's 50-character limit | Contract passed | New proposals use a 46-character identity-bound key and the fixed reply HTTP primitive preserves it exactly; the composed adapter is still missing |
 | Complete local business trace exists | Passed | Six attributable, reference-validated Audit records |
 | Real Bot callback/subscription reaches the runtime | Not proven | No hosted callback or long-connection composition |

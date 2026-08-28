@@ -6,12 +6,14 @@ TwinDesk must not infer that an external write did not happen merely because a
 process stopped before its `ActionReceipt` was persisted. The version 1 action
 dispatch journal closes that local ambiguity window for Connector executors.
 
-The Feishu reply executor still reconciles first. Immediately before it may
-call the injected client's `send()` method, it must obtain a durable reservation
-for the exact approved action. If no reservation coordinator is installed, the
-reservation fails, or an unsettled reservation already exists, the executor
-does not send and returns a normalized `uncertain` receipt requiring
-reconciliation.
+The Feishu reply executor reconciles first when its client exposes an exact
+idempotency-key lookup. Feishu reply history does not expose request `uuid`, so
+a send-only client instead relies on this journal as its first-dispatch proof.
+Immediately before any client may call `send()`, it must obtain a durable
+reservation for the exact approved action. If no reservation coordinator is
+installed, the reservation fails, or any unretryable reservation already
+exists, the executor does not send and returns a normalized `uncertain`
+receipt.
 
 ## Persistence Contract
 
@@ -41,9 +43,10 @@ updated.
 
 After restart, `getLatestActionDispatch()` restores the latest durable evidence.
 If a process stopped after reservation but before the remote result and receipt
-were durable, a subsequent Feishu execution may reconcile, but it cannot reserve
-another send. A remote match can settle the existing dispatch as success. An
-absent or unavailable reconciliation remains uncertain.
+were durable, a subsequent execution cannot reserve another send. A client with
+exact lookup may reconcile and settle a remote match as success. A send-only
+client reports reconciliation as unsupported, and absent or unavailable exact
+evidence remains uncertain.
 
 This is deliberately conservative: a crash after reservation but before the
 HTTP request can leave a false-positive uncertain dispatch. That may require
@@ -68,8 +71,9 @@ applies.
   executor currently consumes the reservation callback.
 - Production composition must pass `reserveActionDispatch()` through the
   executor callback. The default without that callback is fail-closed.
-- Atomic Feishu Keychain rotation and the reply HTTP client are still absent;
-  the isolated credential parser and OAuth refresh transport do not make this
-  synthetic durability evidence a live-account guarantee.
+- Keychain rotation and the reply HTTP primitive now exist separately, but the
+  lease-, credential-, scope-, executor-, receipt-, and Audit-wrapped adapter
+  is still absent; isolated primitives do not make this synthetic durability
+  evidence a live-account guarantee.
 - User-visible recovery controls and append-only execution Audit events remain
   required for the complete Stage 2 experience.

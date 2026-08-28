@@ -93,11 +93,13 @@ export interface FeishuReplyExecutionRequest {
 }
 
 export interface FeishuReplyExecutionClient {
-  /** Look up the exact idempotency key before every possible send. */
-  reconcile(request: FeishuReplyExecutionRequest, signal: AbortSignal): Promise<unknown>
+  /** Look up the exact idempotency key when the remote system exposes it. */
+  reconcile?(request: FeishuReplyExecutionRequest, signal: AbortSignal): Promise<unknown>
   /** Resolve the credential reference, recheck scopes, and send with the exact key. */
   send(request: FeishuReplyExecutionRequest, signal: AbortSignal): Promise<unknown>
 }
+
+type FeishuReplyReconciliationMethod = NonNullable<FeishuReplyExecutionClient['reconcile']>
 
 export interface FeishuReplyExecutorOptions {
   readonly now?: () => number
@@ -394,6 +396,7 @@ function clientIssue(
   attemptedAt: IsoTimestamp,
   error: unknown,
   phase: 'reconcile' | 'send',
+  exactReconciliationAvailable = true,
 ): ActionReceipt {
   const code = error instanceof FeishuReplyExecutionClientError ? error.code : 'unknown'
   if (phase === 'reconcile') {
@@ -425,7 +428,7 @@ function clientIssue(
       'uncertain',
       `feishu_send_${code}`,
       'The Feishu reply result could not be determined.',
-      true,
+      exactReconciliationAvailable,
       'reconcile_first',
     )
   }
@@ -438,6 +441,19 @@ function clientIssue(
     false,
     'do_not_retry',
   )
+}
+
+function reconciliationMethod(
+  client: FeishuReplyExecutionClient,
+): FeishuReplyReconciliationMethod | undefined {
+  try {
+    const reconcile = client.reconcile
+    if (reconcile === undefined) return undefined
+    if (typeof reconcile !== 'function') throw new TypeError()
+    return reconcile
+  } catch {
+    throw new FeishuReplyExecutionClientError('invalid_response')
+  }
 }
 
 export class FeishuReplyExecutor {
@@ -473,21 +489,32 @@ export class FeishuReplyExecutor {
       throw fail('approval_expired', 'The Feishu reply approval is outside its valid lifetime.')
     }
     const request = this.#request(action)
-    let reconciliation: ReconciliationResult
+    let reconcile: FeishuReplyReconciliationMethod | undefined
     try {
-      reconciliation = parseReconciliation(
-        await this.#client.reconcile(request, signal),
-        request,
-        action.proposal.createdAt,
-        attemptedAt,
-      )
+      reconcile = reconciliationMethod(this.#client)
     } catch (error) {
       signal.throwIfAborted()
       return clientIssue(action, attemptedAt, error, 'reconcile')
     }
     signal.throwIfAborted()
-    if (reconciliation.status === 'found') {
-      return successReceipt(action, reconciliation, attemptedAt)
+    const exactReconciliationAvailable = reconcile !== undefined
+    if (reconcile !== undefined) {
+      let reconciliation: ReconciliationResult
+      try {
+        reconciliation = parseReconciliation(
+          await reconcile.call(this.#client, request, signal),
+          request,
+          action.proposal.createdAt,
+          attemptedAt,
+        )
+      } catch (error) {
+        signal.throwIfAborted()
+        return clientIssue(action, attemptedAt, error, 'reconcile')
+      }
+      signal.throwIfAborted()
+      if (reconciliation.status === 'found') {
+        return successReceipt(action, reconciliation, attemptedAt)
+      }
     }
     try {
       if (this.#reserveDispatch === undefined) {
@@ -514,7 +541,7 @@ export class FeishuReplyExecutor {
           'uncertain',
           'feishu_dispatch_already_reserved',
           'A prior Feishu reply dispatch may already have occurred.',
-          true,
+          exactReconciliationAvailable,
           'reconcile_first',
         )
       }
@@ -554,7 +581,7 @@ export class FeishuReplyExecutor {
       return successReceipt(action, sent, attemptedAt)
     } catch (error) {
       signal.throwIfAborted()
-      return clientIssue(action, attemptedAt, error, 'send')
+      return clientIssue(action, attemptedAt, error, 'send', exactReconciliationAvailable)
     }
   }
 
@@ -563,9 +590,28 @@ export class FeishuReplyExecutor {
     const action = parseAction(actionValue, this.#configuration)
     const attemptedAt = this.#observedAt()
     const request = this.#request(action)
+    let reconcile: FeishuReplyReconciliationMethod | undefined
+    try {
+      reconcile = reconciliationMethod(this.#client)
+    } catch (error) {
+      signal.throwIfAborted()
+      return clientIssue(action, attemptedAt, error, 'reconcile')
+    }
+    signal.throwIfAborted()
+    if (reconcile === undefined) {
+      return issueReceipt(
+        action,
+        attemptedAt,
+        'uncertain',
+        'feishu_reconciliation_unsupported',
+        'Feishu cannot determine the prior reply from the exact execution key.',
+        false,
+        'reconcile_first',
+      )
+    }
     try {
       const result = parseReconciliation(
-        await this.#client.reconcile(request, signal),
+        await reconcile.call(this.#client, request, signal),
         request,
         action.proposal.createdAt,
         attemptedAt,

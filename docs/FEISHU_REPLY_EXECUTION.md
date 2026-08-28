@@ -58,9 +58,10 @@ projects the already configured principal and credential reference only after
 all approval bindings match. A changed configuration, target, content, approval,
 or attempt fails before reconciliation or sending.
 
-## Reconcile Before Send
+## Reconciliation and First Dispatch
 
-Every `execute()` call follows the same order:
+When the injected client supports an exact idempotency-key lookup, `execute()`
+retains the original order:
 
 ```text
 validate exact ApprovedAction
@@ -70,18 +71,30 @@ validate exact ApprovedAction
      -> unavailable or malformed: return uncertain, do not send
 ```
 
-This order also applies to the first attempt. It deliberately spends one read
-to close the crash window between a remote send and local receipt persistence.
-If the process stops in that window, the durable consumed approval and
-`executing` state identify the same attempt after restart; reconciliation finds
-the remote message and no duplicate send occurs.
+Feishu reply history does not expose the request `uuid`, so the production HTTP
+primitive cannot truthfully implement that lookup. `reconcile` is therefore an
+optional client capability. For a send-only client, `execute()` skips no safety
+boundary: it must durably create the first dispatch reservation before calling
+`send()`. If any reservation already exists, it sends nothing. An unsettled or
+uncertain reservation stays blocked, and explicit `reconcile()` returns a fixed
+`feishu_reconciliation_unsupported` uncertain receipt rather than inventing an
+`absent` result.
+
+This means a crash after reservation but before the HTTP request can require
+manual recovery, and a crash after a successful HTTP request but before receipt
+persistence cannot be confirmed automatically. Both cases prefer a visible
+false-positive uncertainty over a duplicate external reply. A durably settled
+`rate_limited` rejection remains the sole automatic same-key retry path because
+it explicitly proves that Feishu did not accept that call.
 
 A rate limit that is known to reject the request produces `failed` with
 `retry_same_key`. Authorization, missing scope, or explicit rejection produces
 `failed` with `do_not_retry`. A network failure, unknown adapter failure,
 identity-inconsistent response, or malformed post-send response produces
-`uncertain` with `reconcile_first`. All issue codes and summaries are bounded,
-normalized values and never contain a response payload.
+`uncertain` with `reconcile_first`. Its error is retryable only when exact
+reconciliation is available; otherwise an operator or future exact platform
+mechanism must resolve it. All issue codes and summaries are bounded, normalized
+values and never contain a response payload.
 
 ## Durable State and Recovery
 
@@ -107,9 +120,10 @@ the same transaction as its receipt and proposal state. Only a durable
 
 `recoverActionExecution()` reconstructs only a previously consumed,
 non-terminal attempt from durable proposal, approval, and receipt state. After
-expiration, the recovered capability is accepted by `reconcile()` but rejected
-by `execute()`: an existing uncertain result can still be inspected, while an
-expired approval cannot authorize a new send.
+expiration, the recovered capability is accepted by exact `reconcile()` but
+rejected by `execute()`: an existing uncertain result can still be inspected
+when the adapter supports lookup, while an expired approval cannot authorize a
+new send. A send-only adapter reports reconciliation as unsupported.
 
 The current `action_receipts` row is a normalized result projection for one
 stable execution attempt. Reconciliation may replace `uncertain` or retryable
@@ -159,8 +173,10 @@ data.
 
 Synthetic end-to-end tests start with a Feishu message, Work Item, Persona,
 ready-for-review Draft, preview proposal, and one-time approval. They cover one
-successful send, exact idempotency-key reuse, restart recovery, post-send
-network uncertainty, expired-approval reconciliation without resend, missing
-scope, failed reconciliation without send, malformed response redaction,
-terminal replay, closed handles, and an injected receipt/proposal rollback.
-No real credential or external service is used.
+successful send, exact idempotency-key reuse, send-only first dispatch,
+send-only restart blocking, explicit unsupported reconciliation, safe same-key
+rate-limit retry, hostile capability access, restart recovery, post-send network
+uncertainty, expired-approval reconciliation without resend, missing scope,
+failed reconciliation without send, malformed response redaction, terminal
+replay, closed handles, and an injected receipt/proposal rollback. No real
+credential or external service is used.

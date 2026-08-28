@@ -198,6 +198,40 @@ function replyClient(options = {}) {
   }
 }
 
+/**
+ * @param {{ sendFailure?: 'network' | 'rate_limited' }} [options]
+ * @returns {Pick<import('../packages/plugin-feishu/src/reply-execution.ts').FeishuReplyExecutionClient, 'send'> & {
+ *   diagnostics(): { sendCalls: number }
+ * }}
+ */
+function sendOnlyReplyClient(options = {}) {
+  let sendCalls = 0
+  return {
+    async send(request, signal) {
+      signal.throwIfAborted()
+      sendCalls += 1
+      if (options.sendFailure === 'network') {
+        throw new FeishuReplyExecutionClientError('network')
+      }
+      if (options.sendFailure === 'rate_limited') {
+        throw new FeishuReplyExecutionClientError('rate_limited')
+      }
+      return {
+        status: 'found',
+        accountId: request.accountId,
+        identityType: request.identityType,
+        idempotencyKey: request.idempotencyKey,
+        targetMessageId: request.targetMessageId,
+        messageId: 'om_synthetic_send_only_reply',
+        sentAt: '2026-08-27T08:07:00.000Z',
+      }
+    },
+    diagnostics() {
+      return { sendCalls }
+    },
+  }
+}
+
 /** @param {import('node:test').TestContext} context */
 async function temporaryDatabase(context) {
   const root = await mkdtemp(join(tmpdir(), 'twindesk-approval-state-test-'))
@@ -663,6 +697,208 @@ test('execution without a durable dispatch coordinator never calls send', async 
   database.close()
 })
 
+test('a send-only client may send once only after its first durable reservation', async (context) => {
+  const path = await temporaryDatabase(context)
+  const clock = policyClock()
+  let database = openTwinDeskDatabase(path, clock.options)
+  const { action } = await approveAction(database, clock, 'execution-send-only')
+  database.beginActionExecution({
+    kind: 'action_execution_start',
+    schemaVersion: 1,
+    action,
+    startedAt: EXECUTION_AT,
+  })
+  const client = sendOnlyReplyClient()
+  const receipt = await new FeishuReplyExecutor(
+    configuration(),
+    client,
+    executionOptions(clock, database),
+  ).execute(action, new AbortController().signal)
+  assert.equal(receipt.outcome, 'succeeded')
+  assert.deepEqual(client.diagnostics(), { sendCalls: 1 })
+  assert.equal(database.getLatestActionDispatch(action.executionAttemptId)?.ordinal, 1)
+  database.recordActionExecutionReceipt({
+    kind: 'action_execution_receipt_write',
+    schemaVersion: 1,
+    action,
+    receipt,
+  })
+  database.close()
+
+  database = openTwinDeskDatabase(path, clock.options)
+  assert.equal(database.getActionProposal(action.proposal.id)?.state, 'succeeded')
+  assert.equal(
+    database.getLatestActionDispatch(action.executionAttemptId)?.settlement?.outcome,
+    'succeeded',
+  )
+  assert.deepEqual(client.diagnostics(), { sendCalls: 1 })
+  database.close()
+})
+
+test('a send-only client never resends an existing dispatch and reports unsupported reconciliation', async (context) => {
+  const path = await temporaryDatabase(context)
+  const clock = policyClock()
+  const database = openTwinDeskDatabase(path, clock.options)
+  const { action } = await approveAction(database, clock, 'execution-send-only-blocked')
+  database.beginActionExecution({
+    kind: 'action_execution_start',
+    schemaVersion: 1,
+    action,
+    startedAt: EXECUTION_AT,
+  })
+  database.reserveActionDispatch({
+    kind: 'action_dispatch_reservation',
+    schemaVersion: 1,
+    action,
+    reservedAt: EXECUTION_AT,
+  })
+  const client = sendOnlyReplyClient()
+  const executor = new FeishuReplyExecutor(
+    configuration(),
+    client,
+    executionOptions(clock, database),
+  )
+  const blocked = await executor.execute(action, new AbortController().signal)
+  assert.equal(blocked.outcome, 'uncertain')
+  assert.equal(blocked.error.code, 'feishu_dispatch_already_reserved')
+  assert.equal(blocked.error.retryable, false)
+  assert.deepEqual(client.diagnostics(), { sendCalls: 0 })
+
+  const unsupported = await executor.reconcile(action, new AbortController().signal)
+  assert.equal(unsupported.outcome, 'uncertain')
+  assert.equal(unsupported.error.code, 'feishu_reconciliation_unsupported')
+  assert.equal(unsupported.error.retryable, false)
+  assert.deepEqual(client.diagnostics(), { sendCalls: 0 })
+  database.close()
+})
+
+test('a send-only network ambiguity is non-retryable and remains blocked after restart', async (context) => {
+  const path = await temporaryDatabase(context)
+  const clock = policyClock()
+  let database = openTwinDeskDatabase(path, clock.options)
+  const { action } = await approveAction(database, clock, 'execution-send-only-network')
+  database.beginActionExecution({
+    kind: 'action_execution_start',
+    schemaVersion: 1,
+    action,
+    startedAt: EXECUTION_AT,
+  })
+  const client = sendOnlyReplyClient({ sendFailure: 'network' })
+  const uncertain = await new FeishuReplyExecutor(
+    configuration(),
+    client,
+    executionOptions(clock, database),
+  ).execute(action, new AbortController().signal)
+  assert.equal(uncertain.outcome, 'uncertain')
+  assert.equal(uncertain.error.code, 'feishu_send_network')
+  assert.equal(uncertain.error.retryable, false)
+  assert.deepEqual(client.diagnostics(), { sendCalls: 1 })
+  database.recordActionExecutionReceipt({
+    kind: 'action_execution_receipt_write',
+    schemaVersion: 1,
+    action,
+    receipt: uncertain,
+  })
+  database.close()
+
+  database = openTwinDeskDatabase(path, clock.options)
+  const recovered = database.recoverActionExecution({
+    kind: 'action_execution_recovery_request',
+    schemaVersion: 1,
+    approvalId: action.approval.id,
+    proposalId: action.proposal.id,
+    executionAttemptId: action.executionAttemptId,
+  })
+  database.beginActionExecution({
+    kind: 'action_execution_start',
+    schemaVersion: 1,
+    action: recovered.action,
+    startedAt: EXECUTION_AT,
+  })
+  const blocked = await new FeishuReplyExecutor(
+    configuration(),
+    client,
+    executionOptions(clock, database),
+  ).execute(recovered.action, new AbortController().signal)
+  assert.equal(blocked.outcome, 'uncertain')
+  assert.equal(blocked.error.code, 'feishu_dispatch_already_reserved')
+  assert.equal(blocked.error.retryable, false)
+  assert.deepEqual(client.diagnostics(), { sendCalls: 1 })
+  database.close()
+})
+
+test('a hostile reconciliation capability fails before reservation without exposing its error', async (context) => {
+  const path = await temporaryDatabase(context)
+  const clock = policyClock()
+  const database = openTwinDeskDatabase(path, clock.options)
+  const { action } = await approveAction(database, clock, 'execution-hostile-reconcile')
+  database.beginActionExecution({
+    kind: 'action_execution_start',
+    schemaVersion: 1,
+    action,
+    startedAt: EXECUTION_AT,
+  })
+  let sendCalls = 0
+  const client = {
+    async send() {
+      sendCalls += 1
+    },
+  }
+  Object.defineProperty(client, 'reconcile', {
+    enumerable: true,
+    get() {
+      throw new Error('synthetic-private-reconciliation-error')
+    },
+  })
+  const receipt = await new FeishuReplyExecutor(
+    configuration(),
+    /** @type {any} */ (client),
+    executionOptions(clock, database),
+  ).execute(action, new AbortController().signal)
+  assert.equal(receipt.outcome, 'uncertain')
+  assert.equal(receipt.error.code, 'feishu_reconciliation_invalid_response')
+  assert.equal(JSON.stringify(receipt).includes('synthetic-private-reconciliation-error'), false)
+  assert.equal(sendCalls, 0)
+  assert.equal(database.getLatestActionDispatch(action.executionAttemptId), undefined)
+  database.close()
+})
+
+test('cancellation during reconciliation capability access never reserves or sends', async (context) => {
+  const path = await temporaryDatabase(context)
+  const clock = policyClock()
+  const database = openTwinDeskDatabase(path, clock.options)
+  const { action } = await approveAction(database, clock, 'execution-capability-cancelled')
+  database.beginActionExecution({
+    kind: 'action_execution_start',
+    schemaVersion: 1,
+    action,
+    startedAt: EXECUTION_AT,
+  })
+  const controller = new AbortController()
+  let sendCalls = 0
+  const client = {
+    async send() {
+      sendCalls += 1
+    },
+  }
+  Object.defineProperty(client, 'reconcile', {
+    enumerable: true,
+    get() {
+      controller.abort()
+      return undefined
+    },
+  })
+  const executor = new FeishuReplyExecutor(
+    configuration(),
+    /** @type {any} */ (client),
+    executionOptions(clock, database),
+  )
+  await assert.rejects(executor.execute(action, controller.signal), { name: 'AbortError' })
+  assert.equal(sendCalls, 0)
+  assert.equal(database.getLatestActionDispatch(action.executionAttemptId), undefined)
+  database.close()
+})
+
 test('a durable dispatch reservation survives restart and blocks an unproven resend', async (context) => {
   const path = await temporaryDatabase(context)
   const clock = policyClock()
@@ -873,7 +1109,7 @@ test('a known retryable rejection permits one new same-key dispatch reservation'
     action,
     startedAt: EXECUTION_AT,
   })
-  const client = replyClient({ sendFailure: 'rate_limited' })
+  const client = sendOnlyReplyClient({ sendFailure: 'rate_limited' })
   const first = await new FeishuReplyExecutor(
     configuration(),
     client,
@@ -915,7 +1151,7 @@ test('a known retryable rejection permits one new same-key dispatch reservation'
     database.getLatestActionDispatch(action.executionAttemptId)?.settlement?.outcome,
     'failed',
   )
-  assert.deepEqual(client.diagnostics(), { reconcileCalls: 2, sendCalls: 2 })
+  assert.deepEqual(client.diagnostics(), { sendCalls: 2 })
   database.close()
 })
 

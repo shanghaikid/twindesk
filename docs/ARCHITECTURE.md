@@ -183,10 +183,13 @@ identity and performs no Connector call. See
 
 TD-207 adds the Feishu execution adapter and durable result boundary without
 coupling either to Persona behavior. The executor revalidates the exact
-ApprovedAction and configured identity, then reconciles the proposal's stable
-idempotency key before every possible send. SQLite records the normalized
-receipt and proposal outcome atomically; consumed non-terminal attempts recover
-across restart, while expired recovery permits reconciliation but no new send.
+ApprovedAction and configured identity. It reconciles the proposal's stable
+idempotency key before sending when an adapter exposes an exact lookup. A
+send-only adapter may make its first call only after the durable dispatch
+journal proves there is no earlier reservation; it never treats unavailable
+remote lookup as confirmed absence. SQLite records the normalized receipt and
+proposal outcome atomically; consumed non-terminal attempts recover across
+restart, while expired recovery permits exact reconciliation but no new send.
 Migration 6 adds a Connector-neutral dispatch journal. The Feishu executor must
 reserve the exact attempt immediately before `send()`, and receipt persistence
 settles that reservation in the same transaction as proposal state.

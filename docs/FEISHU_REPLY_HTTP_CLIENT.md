@@ -110,5 +110,7 @@ Remaining TD-209 work is to compose this primitive with exact Keychain
 resolution and rotation, fresh Bot/User scope authorization, the exclusive Host
 lease, the durable dispatch coordinator, `FeishuReplyExecutor`, receipt and
 Audit persistence, product approval UI, and a live authorized account. The
-repository still must not claim that the isolated HTTP contract proves a real
-Feishu send.
+executor now permits a send-only client only for a first durable dispatch and
+blocks every existing uncertain reservation; it still needs the production
+adapter composition above. The repository must not claim that the isolated
+HTTP contract proves a real Feishu send.

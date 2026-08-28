@@ -120,10 +120,11 @@ plain-text ActionProposal with an explicit Bot or User identity and exact
 message target. The local approval policy can now bind that proposal to an
 explicit responder decision and expiration, then consume the approval once
 into one stable execution attempt. The Feishu execution boundary now
-reconciles that attempt before every possible send and persists a normalized
-success, failure, or uncertain receipt atomically with proposal state. The
-executor also requires a durable SQLite dispatch reservation immediately before
-the injected client may send, so an unproven restart cannot silently resend. The
+uses exact reconciliation before sending when an adapter can prove it. Because
+Feishu does not expose reply `uuid` in history, a send-only adapter may instead
+make its first call only after a durable SQLite dispatch reservation. Any prior
+or uncertain reservation blocks another send. Normalized success, failure, or
+uncertain receipts persist atomically with proposal state. The
 production Feishu operation adapters and the composed real-account flow remain
 unimplemented. The Connector-owned macOS Keychain reader now resolves
 validated Bot/User SecretReferences into callback-scoped, zeroed byte buffers,
