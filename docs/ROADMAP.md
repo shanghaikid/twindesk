@@ -62,10 +62,10 @@ clients. Durable pre-send dispatch reservation is now covered by synthetic
 restart tests. Versioned Bot/User credential parsing and refresh-state
 classification plus the OAuth v3 refresh request/response contract are now
 covered synthetically. Durable single-Host refresh reservation, exact Keychain
-replacement, restart reconciliation, exact post-exchange `open_id` binding, and
-the bounded production user-info Fetch client are also covered without live
-I/O. The required live-account path is still missing authorization-code/PKCE
-exchange composed with verified initial Keychain persistence, an exclusive
+replacement, restart reconciliation, exact post-exchange `open_id` binding,
+the bounded production user-info Fetch client, and the state-bound S256 PKCE
+exchange are also covered without live I/O. The required live-account path is
+still missing verified initial Keychain persistence composed with that exchange, an exclusive
 runtime Connector lease, reply HTTP composition, hosted ingestion or polling,
 interactive Draft and approval UI, and a real Feishu send. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).

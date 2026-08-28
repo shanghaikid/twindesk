@@ -82,6 +82,11 @@ type UnknownRecord = Readonly<Record<string, unknown>>
 
 const encoder = new TextEncoder()
 const hex = encoder.encode('0123456789ABCDEF')
+const fillBytes = Uint8Array.prototype.fill
+
+function zeroBytes(value: Uint8Array): void {
+  fillBytes.call(value, 0)
+}
 
 function fail(
   code: FeishuOAuthV3RefreshErrorCode,
@@ -200,12 +205,15 @@ function isUnreserved(value: number): boolean {
 
 function encodedLength(value: Uint8Array): number {
   let length = 0
-  for (const byte of value) length += isUnreserved(byte) ? 1 : 3
+  for (let index = 0; index < value.byteLength; index += 1) {
+    length += isUnreserved(value[index] as number) ? 1 : 3
+  }
   return length
 }
 
 function writeEncoded(target: Uint8Array, offset: number, value: Uint8Array): number {
-  for (const byte of value) {
+  for (let index = 0; index < value.byteLength; index += 1) {
+    const byte = value[index] as number
     if (isUnreserved(byte)) {
       target[offset] = byte
       offset += 1
@@ -300,7 +308,11 @@ function errorForUpstreamCode(code: number): FeishuOAuthV3RefreshError {
       'The Feishu OAuth client configuration is invalid.',
     )
   }
-  if ([20008, 20010, 20024, 20026, 20037, 20064, 20066, 20073].includes(code)) {
+  if (
+    [
+      20003, 20004, 20008, 20010, 20024, 20026, 20037, 20049, 20064, 20065, 20066, 20071, 20073,
+    ].includes(code)
+  ) {
     return fail(
       'reauthorization_required',
       'reauthorize',
@@ -358,7 +370,8 @@ function duplicateTopLevelKey(text: string): boolean {
   return false
 }
 
-function parseResponse(
+/** @internal Shared successful-response parser for the fixed OAuth v3 token endpoint. */
+export function parseFeishuOAuthV3TokenResponse(
   status: number,
   body: Uint8Array,
   observedAt: number,
@@ -428,8 +441,10 @@ function parseResponse(
 }
 
 function zeroTokenSet(tokenSet: FeishuOAuthV3TokenSet | undefined): void {
-  tokenSet?.accessToken.fill(0)
-  tokenSet?.refreshToken.fill(0)
+  if (tokenSet !== undefined) {
+    zeroBytes(tokenSet.accessToken)
+    zeroBytes(tokenSet.refreshToken)
+  }
 }
 
 function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
@@ -441,7 +456,8 @@ function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
   return difference === 0
 }
 
-function readTransportResponse(value: unknown): FeishuOAuthV3TransportResponse {
+/** @internal Validate an OAuth transport response without invoking accessors. */
+export function readFeishuOAuthV3TransportResponse(value: unknown): FeishuOAuthV3TransportResponse {
   let body: Uint8Array | undefined
   try {
     if (typeof value === 'object' && value !== null) {
@@ -477,7 +493,7 @@ function readTransportResponse(value: unknown): FeishuOAuthV3TransportResponse {
     body = record.body
     return { status: record.status as number, body }
   } catch (error) {
-    body?.fill(0)
+    if (body !== undefined) zeroBytes(body)
     if (error instanceof FeishuOAuthV3RefreshError && error.code === 'invalid_transport')
       throw error
     throw fail(
@@ -535,14 +551,14 @@ export class FeishuOAuthV3TokenRefresher {
     let response: FeishuOAuthV3TransportResponse
     try {
       try {
-        response = readTransportResponse(await this.#transport.send(request, signal))
+        response = readFeishuOAuthV3TransportResponse(await this.#transport.send(request, signal))
       } catch (error) {
         if (signal.aborted) signal.throwIfAborted()
         if (error instanceof FeishuOAuthV3RefreshError) throw error
         throw fail('retry_later', 'retry_later', 'The Feishu OAuth request could not be completed.')
       }
     } finally {
-      body.fill(0)
+      zeroBytes(body)
     }
     let tokenSet: FeishuOAuthV3TokenSet | undefined
     try {
@@ -561,7 +577,7 @@ export class FeishuOAuthV3TokenRefresher {
         throw fail('invalid_response', 'do_not_retry', 'The Feishu OAuth response size is invalid.')
       }
       const observedAt = readClock(this.#now)
-      tokenSet = parseResponse(response.status, response.body, observedAt)
+      tokenSet = parseFeishuOAuthV3TokenResponse(response.status, response.body, observedAt)
       if (equalBytes(tokenSet.refreshToken, input.refreshToken)) {
         throw fail(
           'invalid_response',
@@ -575,7 +591,7 @@ export class FeishuOAuthV3TokenRefresher {
       return result
     } finally {
       zeroTokenSet(tokenSet)
-      response.body.fill(0)
+      zeroBytes(response.body)
     }
   }
 }

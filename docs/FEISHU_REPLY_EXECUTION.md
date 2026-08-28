@@ -129,8 +129,8 @@ data.
 
 ## Remaining Work
 
-- Authorization-code/PKCE exchange composed with verified initial Keychain
-  persistence, exclusive Connector ownership, Feishu operation HTTP, and
+- The isolated authorization-code/PKCE exchange is implemented; verified
+  initial Keychain persistence, exclusive Connector ownership, Feishu operation HTTP, and
   runtime composition are still required; the system-Keychain reader,
   credential parser, refresh and user-info transports, and durable dispatch
   boundary alone are not an execution adapter.

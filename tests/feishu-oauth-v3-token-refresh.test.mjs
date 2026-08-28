@@ -347,3 +347,31 @@ test('cancellation before and during token consumption clears all transient secr
   assert.ok(observed.value !== undefined && zeroed(observed.value.accessToken))
   assert.ok(observed.value !== undefined && zeroed(observed.value.refreshToken))
 })
+
+test('refresh does not execute hostile secret iterators or response fill overrides', async () => {
+  let iterated = false
+  const clientSecret = bytes(PRIVATE_CLIENT_SECRET)
+  Object.defineProperty(clientSecret, Symbol.iterator, {
+    value() {
+      iterated = true
+      throw new Error(PRIVATE_CLIENT_SECRET)
+    },
+  })
+
+  let fillInvoked = false
+  const body = responseBody()
+  Object.defineProperty(body, 'fill', {
+    value() {
+      fillInvoked = true
+      throw new Error(PRIVATE_NEW_ACCESS_TOKEN)
+    },
+  })
+  await new FeishuOAuthV3TokenRefresher({
+    now: () => NOW,
+    transport: { send: async () => ({ status: 200, body }) },
+  }).refresh(input({ clientSecret }), new AbortController().signal, () => undefined)
+
+  assert.equal(iterated, false)
+  assert.equal(fillInvoked, false)
+  assert.ok(Uint8Array.prototype.every.call(body, (byte) => byte === 0))
+})

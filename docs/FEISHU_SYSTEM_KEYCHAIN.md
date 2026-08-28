@@ -113,7 +113,8 @@ transport validates OAuth v3 refresh responses. The
 [Feishu OAuth Rotation Coordinator](FEISHU_OAUTH_ROTATION_COORDINATOR.md) now
 persists a reservation before remote refresh and reconciles an unfinished
 attempt through the exact Keychain reference after restart. Remaining TD-209
-integration includes an exclusive runtime Connector lease, authorization-code
-identity verification, revocation and blocked-state replacement, minimum-scope
+integration includes an exclusive runtime Connector lease, composition of the
+isolated authorization-code exchange with identity verification and initial
+replacement, revocation and blocked-state replacement, minimum-scope
 checks, tenant-token acquisition, reply HTTP composition, runtime composition,
 UI, and live-account acceptance.

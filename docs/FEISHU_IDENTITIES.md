@@ -70,9 +70,10 @@ secret deletion.
   and exposes explicit refresh state. A fixed-endpoint, bounded v3 Fetch client
   validates rotated token responses, and separate encoding plus Keychain update
   primitives are now composed by a secret-free, restart-durable single-Host
-  rotation journal. A post-exchange verifier and bounded production user-info
-  Fetch client now bind the returned User `open_id` before initial persistence,
-  but authorization-code/PKCE exchange, verified initial Keychain persistence,
+  rotation journal. A state-bound S256 PKCE flow now exchanges the exact
+  one-time callback, and a post-exchange verifier plus bounded production user-info
+  Fetch client bind the returned User `open_id` before initial persistence,
+  but verified initial Keychain persistence,
   an exclusive runtime Connector lease, revocation, operation HTTP, and runtime
   composition are not implemented. See
   [Feishu System Keychain Resolution and Replacement](FEISHU_SYSTEM_KEYCHAIN.md) and

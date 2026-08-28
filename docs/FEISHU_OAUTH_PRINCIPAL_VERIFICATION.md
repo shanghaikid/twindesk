@@ -6,9 +6,9 @@ TD-209 adds `FeishuOAuthUserPrincipalVerifier`, a fail-closed boundary between
 a freshly acquired User access token and any initial credential persistence,
 plus `FeishuOAuthUserInfoHttpClient`, its fixed-endpoint production Fetch
 adapter. The verifier allows its callback to run only when the returned Feishu
-`open_id` exactly matches the configured User principal. This path does not
-exchange an authorization code, host a redirect, write the Keychain, grant
-scopes, or authorize a Connector operation.
+`open_id` exactly matches the configured User principal. The separate
+authorization flow now exchanges the code, but this verifier does not host a
+redirect, write the Keychain, grant scopes, or authorize a Connector operation.
 
 The boundary follows Feishu's official
 [OAuth v3 user-access-token contract](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/authentication-management/access-token/get-user-access-token-v3)
@@ -85,7 +85,8 @@ cancellation, completed-write cancellation semantics, strict constructor
 options, payload-free errors, shared-memory rejection, profile minimization,
 and transient-buffer zeroing. They make no network request.
 
-Remaining work includes the authorization-code and PKCE request boundary, a
-composition that encodes and writes the initial credential only inside the
-verified callback, redirect-state and replay protection, runtime Connector
-ownership, UI, and live-account acceptance.
+The authorization-code and PKCE request boundary is described in
+[Feishu OAuth Authorization Code and PKCE](FEISHU_OAUTH_AUTHORIZATION_CODE.md).
+Remaining work includes a composition that encodes and writes the initial
+credential only inside the verified callback, a hosted redirect listener,
+runtime Connector ownership, UI, and live-account acceptance.
