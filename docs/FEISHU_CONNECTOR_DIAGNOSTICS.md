@@ -100,8 +100,8 @@ checked before probes and after every awaited client call.
 
 ## Remaining Work
 
-- Production operation and diagnostics HTTP clients, exclusive rotation lease,
-  and SQLite diagnostics adapters are not wired.
+- Production operation and diagnostics HTTP clients, composition under the
+  exclusive Host lease, and SQLite diagnostics adapters are not wired.
 - A Connector settings UI has not yet been connected to `diagnose()`.
 - TD-209 now composes healthy diagnostics with the local synthetic
   ingestion-to-receipt acceptance path. Production probe composition and the

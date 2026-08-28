@@ -28,5 +28,6 @@ export {
 } from './oauth-v3-token-refresh.ts'
 export * from './reply-proposal.ts'
 export * from './reply-execution.ts'
+export * from './runtime-lease.ts'
 export * from './system-keychain.ts'
 export * from './user-message-discovery.ts'

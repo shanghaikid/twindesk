@@ -89,5 +89,6 @@ The authorization-code and PKCE request boundary is described in
 [Feishu OAuth Authorization Code and PKCE](FEISHU_OAUTH_AUTHORIZATION_CODE.md).
 The verified callback now composes initial encoding and Keychain replacement as
 described in [Feishu OAuth Verified Initial Persistence](FEISHU_OAUTH_INITIAL_PERSISTENCE.md).
-Remaining work includes a hosted redirect listener,
-runtime Connector ownership, UI, and live-account acceptance.
+The exclusive Host lease also passes cross-process tests. Remaining work
+includes a hosted redirect listener, runtime composition under the lease, UI,
+and live-account acceptance.

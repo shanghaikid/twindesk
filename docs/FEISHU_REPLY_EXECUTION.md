@@ -130,8 +130,8 @@ data.
 ## Remaining Work
 
 - Authorization-code/PKCE exchange through verified initial Keychain persistence
-  is composed synthetically; exclusive Connector ownership, Feishu operation HTTP, and
-  runtime composition are still required; the system-Keychain reader,
+  and the exclusive Host lease pass synthetic contracts; Feishu operation HTTP
+  and runtime composition under the lease are still required; the system-Keychain reader,
   credential parser, refresh and user-info transports, and durable dispatch
   boundary alone are not an execution adapter.
 - TD-208 now adds identity health, exact scope visibility, rate-limit state,

@@ -120,7 +120,8 @@ parsed through fresh primitive instances to cover restart independence without
 touching a live Keychain item.
 
 The authorization-code/PKCE exchange now composes with verified initial bundle
-encoding, Keychain replacement, and restart parsing. Remaining TD-209 work includes an exclusive cross-process runtime lease,
-blocked-state replacement, tenant-token acquisition for Bot operations,
-minimum scope checks, Feishu operation HTTP composition, runtime lifecycle,
-product UI, and an authorized live-account acceptance run.
+encoding, Keychain replacement, and restart parsing, while the exclusive Host
+lease passes real cross-process tests. Remaining TD-209 work includes runtime
+composition under that lease, blocked-state replacement, tenant-token
+acquisition for Bot operations, minimum scope checks, Feishu operation HTTP
+composition, product UI, and an authorized live-account acceptance run.

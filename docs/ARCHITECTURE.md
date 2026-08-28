@@ -211,12 +211,15 @@ exact callback once, and exchanges it through the bounded OAuth v3 transport.
 The verified initial-persistence composition then requires the exact configured
 `open_id`, encodes the first version 1 User bundle, and replaces only its
 configured Keychain reference. An exclusive
-cross-process runtime lease, operation HTTP and dispatch composition, and
-composed Audit flow also remain TD-209 work. See
+kernel-backed Host lease now prevents two processes from operating Feishu at
+once and survives abrupt owner death without stale recovery files. Composition
+of every polling, refresh, and write boundary under that lease, operation HTTP
+and dispatch composition, and composed Audit flow remain TD-209 work. See
 [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) and
 [Feishu OAuth v3 Refresh](FEISHU_OAUTH_V3_REFRESH.md) and
 [Feishu OAuth Authorization Code and PKCE](FEISHU_OAUTH_AUTHORIZATION_CODE.md) and
 [Feishu OAuth Verified Initial Persistence](FEISHU_OAUTH_INITIAL_PERSISTENCE.md) and
+[Feishu Runtime Lease](FEISHU_RUNTIME_LEASE.md) and
 [Feishu OAuth Rotation Coordinator](FEISHU_OAUTH_ROTATION_COORDINATOR.md) and
 [Feishu OAuth User Principal Verification](FEISHU_OAUTH_PRINCIPAL_VERIFICATION.md) and
 [Feishu Reply Execution](FEISHU_REPLY_EXECUTION.md).
@@ -238,9 +241,9 @@ composition evidence, not a production Connector adapter: its synthetic path
 resolves no live credential and calls no real Feishu API. The isolated system
 Keychain reader, parser, OAuth rotation coordinator, and durable dispatch
 coordinator are not yet composed into a live credential and operation path.
-The Stage 2 exit remains open until exclusive runtime ownership and live
-composition of token rotation and HTTP dispatch, hosted ingestion or polling,
-product editing/approval UI, model-run linkage, and live-account
+The Stage 2 exit remains open until the production runtime actually holds the
+exclusive lease around token rotation and HTTP dispatch, hosted ingestion or
+polling, product editing/approval UI, model-run linkage, and live-account
 acceptance boundaries pass. See
 [Stage 2 Exit Gate](STAGE_2_EXIT_GATE.md).
 

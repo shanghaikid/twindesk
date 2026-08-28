@@ -80,7 +80,8 @@ cancellation, torn-tail repair, unsafe files, payload-free errors, and absence
 of identity or credential values in the journal. They use injected transports
 and Keychain runners and make no live network or Keychain change.
 
-The authorization-code/PKCE exchange and verified initial persistence are now
-composed synthetically. Remaining work includes an exclusive runtime Connector lease, replacement of
-blocked state after explicit reauthorization, operation scope checks, reply
-HTTP composition, hosted ingestion or polling, UI, and live-account acceptance.
+The authorization-code/PKCE exchange, verified initial persistence, and
+exclusive Host lease now pass synthetic contracts. Remaining work includes
+composing rotation under that lease, replacement of blocked state after explicit
+reauthorization, operation scope checks, reply HTTP composition, hosted
+ingestion or polling, UI, and live-account acceptance.

@@ -105,6 +105,6 @@ request.
 The verified callback now composes the bounded User-info endpoint, initial
 version 1 encoding, and exact Keychain replacement as described in
 [Feishu OAuth Verified Initial Persistence](FEISHU_OAUTH_INITIAL_PERSISTENCE.md).
-A hosted loopback listener, browser/UI
-lifecycle, exclusive runtime Connector ownership, operation clients, and
-live-account acceptance also remain open.
+The exclusive Host lease also passes cross-process tests. A hosted loopback
+listener, browser/UI lifecycle, runtime composition under the lease, operation
+clients, and live-account acceptance remain open.

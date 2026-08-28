@@ -61,6 +61,9 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Feishu OAuth v3 Refresh](docs/FEISHU_OAUTH_V3_REFRESH.md): exact form request, rotating-token response validation, recovery classification, and transient-secret cleanup.
 - [Feishu OAuth Rotation Coordinator](docs/FEISHU_OAUTH_ROTATION_COORDINATOR.md): durable-before-remote reservation, Keychain replacement, restart reconciliation, and secret-free journal state.
 - [Feishu OAuth User Principal Verification](docs/FEISHU_OAUTH_PRINCIPAL_VERIFICATION.md): exact `open_id` binding, fixed-endpoint bounded HTTP, minimized user-info data, and transient-secret cleanup.
+- [Feishu OAuth Authorization Code and PKCE](docs/FEISHU_OAUTH_AUTHORIZATION_CODE.md): one-use state-bound authorization, exact callback validation, PKCE exchange, and replay handling.
+- [Feishu OAuth Verified Initial Persistence](docs/FEISHU_OAUTH_INITIAL_PERSISTENCE.md): verified User token snapshot, exact initial Keychain replacement, and uncertain-write recovery.
+- [Feishu Runtime Lease](docs/FEISHU_RUNTIME_LEASE.md): kernel-backed cross-process Host exclusion, cancellation behavior, and crash release.
 - [SQLite Storage](docs/STORAGE_SQLITE.md): TwinDesk database identity, schema, forward migrations, privacy review, and recovery guarantees.
 - [External Event Ingestion](docs/EVENT_INGESTION.md): transactional deduplication, replay, conflict, and out-of-order semantics.
 - [Durable Synchronization Cursors](docs/SYNC_CURSORS.md): atomic event/checkpoint commits, restart recovery, and regression rules.
@@ -128,9 +131,10 @@ now reserves refresh attempts durably before network access, replaces the exact
 Keychain bundle, and blocks unproven restarts from reusing an old token.
 Post-exchange principal verification now binds a fresh User token to the exact
 configured `open_id` through a fixed-endpoint, bounded production Fetch client.
-Authorization-code/PKCE exchange, verified initial Keychain persistence, an
-exclusive runtime Connector lease, runtime scope checks, reply HTTP
-composition, and live composition remain unimplemented. A presentation-safe
+Authorization-code/PKCE exchange, verified initial Keychain persistence, and an
+exclusive kernel-backed Host lease now pass synthetic contracts. Runtime
+composition under that lease, scope checks, reply HTTP, and live composition
+remain unimplemented. A presentation-safe
 diagnostics boundary now reports configured
 Bot/User authorization and scope coverage, rate-limit state, and durable User
 cursor freshness without exposing credentials or opaque cursor positions.
