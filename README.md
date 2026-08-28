@@ -58,6 +58,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Feishu Connector Diagnostics](docs/FEISHU_CONNECTOR_DIAGNOSTICS.md): per-identity authorization/scopes, normalized rate limits, redacted cursor freshness, and overall health.
 - [Feishu System Keychain Resolution](docs/FEISHU_SYSTEM_KEYCHAIN.md): fixed macOS SecretReference lookup, bounded short-lived bytes, cancellation, and payload-free failures.
 - [Feishu Credential Bundles](docs/FEISHU_CREDENTIAL_BUNDLES.md): versioned Bot/User secret parsing, exact identity and lifetime checks, refresh state, and callback-scoped zeroing.
+- [Feishu OAuth v3 Refresh](docs/FEISHU_OAUTH_V3_REFRESH.md): exact form request, rotating-token response validation, recovery classification, and transient-secret cleanup.
 - [SQLite Storage](docs/STORAGE_SQLITE.md): TwinDesk database identity, schema, forward migrations, privacy review, and recovery guarantees.
 - [External Event Ingestion](docs/EVENT_INGESTION.md): transactional deduplication, replay, conflict, and out-of-order semantics.
 - [Durable Synchronization Cursors](docs/SYNC_CURSORS.md): atomic event/checkpoint commits, restart recovery, and regression rules.
@@ -117,9 +118,12 @@ unimplemented. The Connector-owned macOS Keychain reader now resolves
 validated Bot/User SecretReferences into callback-scoped, zeroed byte buffers,
 and a versioned parser binds Bot application and User OAuth bundles to the exact
 configured identity, reports usable, refresh-required, or reauthorization
-state, and clears derived secret buffers after use. OAuth acquisition and
-atomic refresh rotation, runtime scope checks, and HTTP composition remain
-unimplemented. A presentation-safe diagnostics boundary now reports configured
+state, and clears derived secret buffers after use. An injected-transport OAuth
+v3 boundary now validates single-use refresh responses, authoritative scopes,
+server lifetimes, and reauthorization failures. Authorization-code principal
+verification, production HTTP, serialized Keychain rotation, runtime scope
+checks, and HTTP composition remain unimplemented. A presentation-safe
+diagnostics boundary now reports configured
 Bot/User authorization and scope coverage, rate-limit state, and durable User
 cursor freshness without exposing credentials or opaque cursor positions.
 The local TD-209 contract acceptance path now composes verified-message

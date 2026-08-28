@@ -100,8 +100,8 @@ checked before probes and after every awaited client call.
 
 ## Remaining Work
 
-- Production token acquisition/refresh, HTTP, and SQLite diagnostics adapters
-  are not wired.
+- Production token and Feishu HTTP transports, atomic Keychain rotation, and
+  SQLite diagnostics adapters are not wired.
 - A Connector settings UI has not yet been connected to `diagnose()`.
 - TD-209 now composes healthy diagnostics with the local synthetic
   ingestion-to-receipt acceptance path. Production probe composition and the

@@ -82,7 +82,8 @@ error accessors, payload-free errors, frozen command metadata, and byte-buffer
 zeroing. They inject a command runner and do not read a real Keychain item.
 
 Versioned Bot/User credential-bundle parsing now composes with this callback
-boundary in synthetic tests. Remaining TD-209 integration includes OAuth
-acquisition, atomic refresh rotation and revocation, minimum-scope checks,
-tenant-token acquisition, the HTTP composition boundary, runtime
-composition, UI, and live-account acceptance.
+boundary in synthetic tests, and an injected-transport client validates OAuth
+v3 refresh responses. Remaining TD-209 integration includes authorization-code
+identity verification, production HTTP, atomic Keychain rotation and
+revocation, minimum-scope checks, tenant-token acquisition, the reply HTTP
+composition boundary, runtime composition, UI, and live-account acceptance.

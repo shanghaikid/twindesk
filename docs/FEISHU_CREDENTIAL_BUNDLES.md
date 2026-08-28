@@ -65,8 +65,10 @@ acquisition times and invalid lifetime ordering fail closed.
 Feishu's official OAuth v3 documentation defines the token endpoint and the
 rotating refresh flow. A refresh token is returned only when `offline_access`
 is authorized, is single-use, and must be replaced with the new token returned
-by a successful refresh. The parser preserves those prerequisites but does not
-perform the network request or atomic Keychain rotation. See the official
+by a successful refresh. The parser preserves those prerequisites. The separate
+[Feishu OAuth v3 Refresh](FEISHU_OAUTH_V3_REFRESH.md) boundary validates the
+refresh request and response through an injected transport, but does not
+perform a production network request or atomic Keychain rotation. See the official
 [user access-token v3](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/authentication-management/access-token/get-user-access-token-v3)
 and
 [refresh-token v3](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/authentication-management/access-token/refresh-user-access-token-v3)
@@ -101,7 +103,8 @@ errors, and source plus derived-buffer zeroing. A composition test passes a
 synthetic bundle through `FeishuSystemKeychainSecretResolver` into the parser
 without reading a live Keychain item.
 
-Remaining TD-209 work includes OAuth v3 acquisition and single-use refresh with
-atomic Keychain rotation, tenant-token acquisition for Bot operations, minimum
-scope checks, Feishu HTTP composition, runtime lifecycle, product UI, and an
-authorized live-account acceptance run.
+Remaining TD-209 work includes authorization-code principal verification, a
+production OAuth transport, serialized single-use refresh with atomic Keychain
+rotation, tenant-token acquisition for Bot operations, minimum scope checks,
+Feishu HTTP composition, runtime lifecycle, product UI, and an authorized
+live-account acceptance run.

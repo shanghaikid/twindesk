@@ -195,9 +195,13 @@ validated Feishu Bot/User SecretReferences through a fixed generic-password
 service and zeroes the bounded byte buffer after callback use. A versioned
 parser binds application and OAuth bundles to the exact configured identity,
 classifies refresh state, and zeroes derived secret buffers after callback use.
-Token acquisition and atomic refresh, HTTP execution and dispatch composition,
-and composed Audit flow remain TD-209 work. See
+An injected-transport OAuth v3 boundary additionally validates exact refresh
+form bytes, rotating responses, server lifetimes and scopes, and
+reauthorization failures. Authorization-code principal verification,
+production HTTP, serialized atomic Keychain rotation, HTTP execution and
+dispatch composition, and composed Audit flow remain TD-209 work. See
 [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) and
+[Feishu OAuth v3 Refresh](FEISHU_OAUTH_V3_REFRESH.md) and
 [Feishu Reply Execution](FEISHU_REPLY_EXECUTION.md).
 
 TD-208 adds a read-only Feishu diagnostics service behind the Connector health
