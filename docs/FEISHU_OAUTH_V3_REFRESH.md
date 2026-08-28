@@ -128,7 +128,8 @@ inputs and clocks, timeout, cancellation, payload-free errors, and transient
 buffer zeroing. No real credential or network request is used.
 
 Version 1 bundle encoding and the stdin-only atomic Keychain replacement
-primitive are now implemented and tested independently. Remaining work includes
-serialized refresh coordination, durable uncertain-rotation handling,
-authorization-code principal verification, tenant-token acquisition, runtime
+primitive are composed by the
+[durable single-Host rotation coordinator](FEISHU_OAUTH_ROTATION_COORDINATOR.md).
+Remaining work includes an exclusive runtime Connector lease,
+authorization-code principal verification, tenant-token acquisition, operation
 composition, and live-account acceptance.

@@ -100,7 +100,7 @@ checked before probes and after every awaited client call.
 
 ## Remaining Work
 
-- Production operation and diagnostics HTTP clients, atomic Keychain rotation,
+- Production operation and diagnostics HTTP clients, exclusive rotation lease,
   and SQLite diagnostics adapters are not wired.
 - A Connector settings UI has not yet been connected to `diagnose()`.
 - TD-209 now composes healthy diagnostics with the local synthetic

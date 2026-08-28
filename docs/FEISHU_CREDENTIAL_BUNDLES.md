@@ -70,8 +70,10 @@ is authorized, is single-use, and must be replaced with the new token returned
 by a successful refresh. The parser preserves those prerequisites. The separate
 [Feishu OAuth v3 Refresh](FEISHU_OAUTH_V3_REFRESH.md) boundary validates the
 refresh request and response through a bounded production transport. The
-encoder and Keychain replacer remain independent primitives and do not provide
-serialized or recoverable atomic rotation. See the official
+encoder and Keychain replacer remain independent primitives; the
+[Feishu OAuth Rotation Coordinator](FEISHU_OAUTH_ROTATION_COORDINATOR.md)
+provides durable-before-remote single-Host composition and restart
+reconciliation. See the official
 [user access-token v3](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/authentication-management/access-token/get-user-access-token-v3)
 and
 [refresh-token v3](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/authentication-management/access-token/refresh-user-access-token-v3)
@@ -117,8 +119,8 @@ and source plus derived-buffer zeroing. A synthetic replacement is read and
 parsed through fresh primitive instances to cover restart independence without
 touching a live Keychain item.
 
-Remaining TD-209 work includes authorization-code principal verification,
-serialized single-use refresh coordination with durable uncertain-state
-recovery, tenant-token acquisition for Bot operations, minimum scope checks,
-Feishu operation HTTP composition, runtime lifecycle, product UI, and an
-authorized live-account acceptance run.
+Remaining TD-209 work includes an exclusive cross-process runtime lease,
+authorization-code principal verification and blocked-state replacement,
+tenant-token acquisition for Bot operations, minimum scope checks, Feishu
+operation HTTP composition, runtime lifecycle, product UI, and an authorized
+live-account acceptance run.

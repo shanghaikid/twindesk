@@ -59,6 +59,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Feishu System Keychain Resolution and Replacement](docs/FEISHU_SYSTEM_KEYCHAIN.md): fixed macOS SecretReference lookup, stdin-only OAuth replacement, uncertain writes, and transient-byte cleanup.
 - [Feishu Credential Bundles](docs/FEISHU_CREDENTIAL_BUNDLES.md): versioned Bot/User secret parsing, rotated User encoding, exact identity/lifetime checks, and callback-scoped zeroing.
 - [Feishu OAuth v3 Refresh](docs/FEISHU_OAUTH_V3_REFRESH.md): exact form request, rotating-token response validation, recovery classification, and transient-secret cleanup.
+- [Feishu OAuth Rotation Coordinator](docs/FEISHU_OAUTH_ROTATION_COORDINATOR.md): durable-before-remote reservation, Keychain replacement, restart reconciliation, and secret-free journal state.
 - [SQLite Storage](docs/STORAGE_SQLITE.md): TwinDesk database identity, schema, forward migrations, privacy review, and recovery guarantees.
 - [External Event Ingestion](docs/EVENT_INGESTION.md): transactional deduplication, replay, conflict, and out-of-order semantics.
 - [Durable Synchronization Cursors](docs/SYNC_CURSORS.md): atomic event/checkpoint commits, restart recovery, and regression rules.
@@ -121,9 +122,11 @@ configured identity, reports usable, refresh-required, or reauthorization
 state, and clears derived secret buffers after use. An OAuth v3 boundary now
 validates single-use refresh responses, authoritative scopes, server lifetimes,
 and reauthorization failures, with a fixed-endpoint production Fetch transport
-that rejects redirects and bounds streamed responses. Authorization-code
-principal verification, serialized Keychain rotation with durable uncertain
-recovery, runtime scope checks,
+that rejects redirects and bounds streamed responses. A single-Host coordinator
+now reserves refresh attempts durably before network access, replaces the exact
+Keychain bundle, and blocks unproven restarts from reusing an old token.
+Authorization-code principal verification, an exclusive runtime Connector
+lease, runtime scope checks,
 reply HTTP composition, and live composition remain unimplemented. A presentation-safe
 diagnostics boundary now reports configured
 Bot/User authorization and scope coverage, rate-limit state, and durable User

@@ -109,8 +109,11 @@ Keychain item.
 
 Versioned Bot/User credential parsing and rotated User-bundle encoding now
 compose with these callback boundaries in synthetic tests, and a bounded Fetch
-transport validates OAuth v3 refresh responses. Remaining TD-209 integration
-includes serialized refresh coordination, durable uncertain-rotation recovery,
-authorization-code identity verification, revocation, minimum-scope checks,
-tenant-token acquisition, the reply HTTP composition boundary, runtime
-composition, UI, and live-account acceptance.
+transport validates OAuth v3 refresh responses. The
+[Feishu OAuth Rotation Coordinator](FEISHU_OAUTH_ROTATION_COORDINATOR.md) now
+persists a reservation before remote refresh and reconciles an unfinished
+attempt through the exact Keychain reference after restart. Remaining TD-209
+integration includes an exclusive runtime Connector lease, authorization-code
+identity verification, revocation and blocked-state replacement, minimum-scope
+checks, tenant-token acquisition, reply HTTP composition, runtime composition,
+UI, and live-account acceptance.
