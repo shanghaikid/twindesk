@@ -15,16 +15,17 @@ and durable execution state separate:
 - `@twindesk/storage-sqlite` atomically records the normalized ActionReceipt and
   advances the ActionProposal execution state.
 
-The repository contains isolated production Keychain, credential rotation,
-scope-probe, durable dispatch, and bounded reply HTTP primitives. The
+The repository contains production Keychain, credential rotation, scope-probe,
+durable dispatch, and bounded reply HTTP primitives. The
 `FeishuReplyHttpClient` sends one fixed-endpoint plain-text reply and returns
 only its remote message ID and timestamp. It deliberately does not implement
 the execution client's reconciliation method because Feishu history does not
-expose the request UUID. Execution tests still use a synthetic complete client.
-A composed adapter must resolve the supplied `SecretReference`, recheck the
-minimum send scope for the selected Bot or User identity, preserve the exact
-request key, and retain the conservative durable-dispatch recovery rule. See
-[Feishu Reply HTTP Client](FEISHU_REPLY_HTTP_CLIENT.md).
+expose the request UUID. `FeishuReplyExecutionAdapter` now composes that
+send-only boundary with an already-held runtime lease, exact Bot/User scope
+probes, Keychain credential callbacks, and Bot tenant-token acquisition. Host
+approval, dispatch, receipt, and Audit orchestration remains separate. See
+[Feishu Reply HTTP Client](FEISHU_REPLY_HTTP_CLIENT.md) and
+[Feishu Reply Execution Adapter](FEISHU_REPLY_EXECUTION_ADAPTER.md).
 
 ## Exact Execution Binding
 
@@ -96,6 +97,11 @@ reconciliation is available; otherwise an operator or future exact platform
 mechanism must resolve it. All issue codes and summaries are bounded, normalized
 values and never contain a response payload.
 
+A production preflight failure that proves reply HTTP was never reached also
+produces `failed` with `retry_same_key`. This covers temporarily unavailable
+scope evidence, required User credential rotation, or lease loss before
+dispatch. It is distinct from post-POST network ambiguity.
+
 ## Durable State and Recovery
 
 `beginActionExecution()` verifies the durable consumed ApprovalRecord, exact
@@ -148,15 +154,14 @@ data.
 ## Remaining Work
 
 - Authorization-code/PKCE exchange through verified initial Keychain persistence
-  and the exclusive Host lease pass synthetic contracts; runtime composition
-  under the lease is still required. The system-Keychain reader, credential
-  parser, refresh and user-info transports, scope probes, durable dispatch
-  boundary, and reply HTTP primitive do not by themselves form an execution
-  adapter.
-- Fixed Bot and User reply scope policies now gate an injected callback with a
-  fresh identity-bound observation. Concrete User and Bot Keychain probes now
-  exist; composition with this executor and the reply HTTP client remains
-  required. See
+  and the exclusive Host lease pass synthetic contracts. The send-only reply
+  adapter now composes the system-Keychain reader, parser, concrete scope probes,
+  tenant-token acquisition, and reply HTTP primitive while requiring the Host
+  lease to remain held. The Host still must compose approval consumption,
+  execution start, durable dispatch, receipt settlement, and Audit completion
+  around it. See [Feishu Reply Execution Adapter](FEISHU_REPLY_EXECUTION_ADAPTER.md).
+- Fixed Bot and User reply scope policies gate a fresh identity-bound
+  observation before the adapter re-resolves its actual send credential. See
   [Feishu User Credential Scope Probe](FEISHU_USER_CREDENTIAL_SCOPE_PROBE.md)
   and [Feishu Bot Keychain Scope Probe](FEISHU_BOT_KEYCHAIN_SCOPE_PROBE.md).
 - TD-208 now adds identity health, exact scope visibility, rate-limit state,

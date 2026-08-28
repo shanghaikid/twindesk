@@ -49,6 +49,7 @@ export class FeishuReplyExecutionError extends Error {
 export type FeishuReplyExecutionClientErrorCode =
   | 'not_authorized'
   | 'scope_missing'
+  | 'preflight_unavailable'
   | 'rate_limited'
   | 'network'
   | 'rejected'
@@ -63,6 +64,7 @@ export class FeishuReplyExecutionClientError extends Error {
     const supported = [
       'not_authorized',
       'scope_missing',
+      'preflight_unavailable',
       'rate_limited',
       'network',
       'rejected',
@@ -417,6 +419,17 @@ function clientIssue(
       'failed',
       'feishu_rate_limited',
       'Feishu did not accept the reply before its rate-limit window.',
+      true,
+      'retry_same_key',
+    )
+  }
+  if (code === 'preflight_unavailable') {
+    return issueReceipt(
+      action,
+      attemptedAt,
+      'failed',
+      'feishu_preflight_unavailable',
+      'The Feishu reply was not attempted because its preflight checks did not complete.',
       true,
       'retry_same_key',
     )

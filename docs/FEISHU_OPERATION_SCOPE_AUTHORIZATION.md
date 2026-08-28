@@ -105,7 +105,8 @@ accessors, and payload-free errors. They use no live account or credential.
 
 The concrete [Bot Keychain scope probe](FEISHU_BOT_KEYCHAIN_SCOPE_PROBE.md) now
 composes bounded tenant-token acquisition, exact remote Bot-principal binding,
-and tenant-only application-scope observation. The fixed reply HTTP primitive
-also exists. Remaining work includes composing it and future discovery clients
-under the exclusive Host lease, selecting separate context endpoint policies,
-and live-account acceptance.
+and tenant-only application-scope observation. The lease-held reply execution
+adapter now composes both concrete identity probes with the fixed reply HTTP
+primitive. Remaining work includes the complete Host approval, dispatch,
+receipt, and Audit operation, future discovery clients, separate context
+endpoint policies, and live-account acceptance.

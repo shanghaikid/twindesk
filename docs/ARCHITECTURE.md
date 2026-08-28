@@ -220,9 +220,12 @@ reauthorization now replaces only a durably blocked credential and
 records a distinct version 2 `reauthorized` event while preserving version 1
 journal history. A bounded fixed-endpoint reply HTTP primitive now preserves
 post-send ambiguity without inventing remote reconciliation, and the durable
-dispatch reservation already blocks blind restart sends. Runtime composition
-of every polling, refresh, and write boundary under the lease, the complete
-reply execution adapter, and the composed Audit flow remain TD-209 work. See
+dispatch reservation already blocks blind restart sends. A send-only production
+adapter now composes an already-held lease with concrete Bot/User scope probes,
+exact Keychain credential callbacks, Bot tenant-token acquisition, and that HTTP
+primitive. Runtime composition of every polling and refresh boundary, the Host
+approval/execution/receipt operation, and the composed Audit flow remain TD-209
+work. See
 [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) and
 [Feishu OAuth v3 Refresh](FEISHU_OAUTH_V3_REFRESH.md) and
 [Feishu OAuth Authorization Code and PKCE](FEISHU_OAUTH_AUTHORIZATION_CODE.md) and
@@ -230,6 +233,7 @@ reply execution adapter, and the composed Audit flow remain TD-209 work. See
 [Feishu OAuth Reauthorization Replacement](FEISHU_OAUTH_REAUTHORIZATION.md) and
 [Feishu Operation Scope Authorization](FEISHU_OPERATION_SCOPE_AUTHORIZATION.md) and
 [Feishu Reply HTTP Client](FEISHU_REPLY_HTTP_CLIENT.md) and
+[Feishu Reply Execution Adapter](FEISHU_REPLY_EXECUTION_ADAPTER.md) and
 [Feishu User Credential Scope Probe](FEISHU_USER_CREDENTIAL_SCOPE_PROBE.md) and
 [Feishu Runtime Lease](FEISHU_RUNTIME_LEASE.md) and
 [Feishu OAuth Rotation Coordinator](FEISHU_OAUTH_ROTATION_COORDINATOR.md) and
@@ -249,10 +253,11 @@ TD-209 now has a local contract-level acceptance path spanning normalized Bot
 input, atomic Inbox projection, User-bound context, explicit Persona selection,
 an edited Draft revision, exact approval, reconcile-before-send execution,
 durable receipt, restart verification, and reference-validated Audit records. This is
-composition evidence, not a production Connector adapter: its synthetic path
-resolves no live credential and calls no real Feishu API. The isolated system
-Keychain reader, parser, OAuth rotation coordinator, and durable dispatch
-coordinator are not yet composed into a live credential and operation path.
+composition evidence, not a live Connector path: its acceptance fixture
+resolves no live credential and calls no real Feishu API. The production reply
+client now composes the held lease, exact scope probes, Keychain, token, and HTTP
+boundaries under injected tests. It is not yet wired to the durable Host
+approval, dispatch, receipt, and Audit operation.
 The Stage 2 exit remains open until the production runtime actually holds the
 exclusive lease around token rotation and HTTP dispatch, hosted ingestion or
 polling, product editing/approval UI, model-run linkage, and live-account

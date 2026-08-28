@@ -57,13 +57,13 @@ local business records; credentials and raw connector responses do not.
 | User-edited Draft binds the proposal | Passed | Superseded revision 1 and exact revision 2 proposal content |
 | One-time approval is exact and expiring | Passed | Identity, target, and content digests plus responder and expiration |
 | Send is idempotent across restart | Local contract passed | Durable terminal receipt, one external effect, execution refusal, and send-only dispatch blocking without invented reconciliation |
-| Reply request key fits Feishu's 50-character limit | Contract passed | New proposals use a 46-character identity-bound key and the fixed reply HTTP primitive preserves it exactly; the composed adapter is still missing |
+| Reply request key fits Feishu's 50-character limit | Contract passed | New proposals use a 46-character identity-bound key and the lease-held Bot/User reply adapter preserves it through the fixed HTTP primitive |
 | Complete local business trace exists | Passed | Six attributable, reference-validated Audit records |
 | Real Bot callback/subscription reaches the runtime | Not proven | No hosted callback or long-connection composition |
 | Exclusive Feishu Host ownership | Contract passed | A kernel-backed loopback lease excludes real competing processes and releases after `SIGKILL`; the production runtime does not hold it yet |
 | Real User polling/context uses OAuth from Keychain | Not proven | Code/PKCE exchange, verified initial and blocked-state replacement, durable rotation, and exact User scope probing pass synthetically; no hosted redirect listener, live lease composition, HTTP adapter, or scheduler |
 | SecretReference resolves and parses from macOS Keychain | Contract passed | Fixed read-only lookup plus identity-bound Bot/User parsing and zeroed source/derived bytes are tested with injected adapters; no live item is read |
-| Real Feishu reply succeeds | Not proven | Durable dispatch, credential rotation, exclusive ownership, fixed reply-scope gates, User and Bot Keychain probing, and the bounded reply HTTP primitive are covered synthetically; no lease-wrapped execution adapter or live account |
+| Real Feishu reply succeeds | Not proven | The held-lease Bot/User adapter composes exact scope, Keychain, token, and bounded reply HTTP boundaries synthetically; no Host approval/dispatch/receipt/Audit operation or live account |
 | User edits and approves in the product UI | Not implemented | Current Web shell remains read-only fixture UI |
 | Model-backed Draft and Harness trace are linked | Not implemented | The acceptance Draft is deterministic and `modelInvocation: false` |
 
@@ -78,8 +78,9 @@ ownership under the exclusive lease, composed live Feishu API semantics,
 callback or polling lifecycle, interactive approval, and a real external
 receipt.
 
-TD-209 therefore remains open until the production Feishu token lifecycle, HTTP,
-production dispatch coordinator composition, hosted ingestion or polling
+TD-209 therefore remains open until the production Host composes the Feishu
+token lifecycle, approval, dispatch, HTTP, receipt, and Audit operation under
+the exclusive lease, along with hosted ingestion or polling
 lifecycle, product Draft and approval UI, and an authorized live-account
 acceptance run are implemented and verified. Stage 3 must not rely on a claimed
 Stage 2 exit before those checks pass.

@@ -54,7 +54,8 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Feishu Message Normalization](docs/FEISHU_MESSAGE_NORMALIZATION.md): canonical Bot/User events, Inbox routing, replay, privacy, and atomic event/projection/cursor commits.
 - [Feishu Reply Proposal](docs/FEISHU_REPLY_PROPOSAL.md): Draft-bound preview construction, explicit sending identity and target binding, idempotency, and no-side-effect limits.
 - [One-Time Action Approval Policy](docs/ACTION_APPROVAL_POLICY.md): exact identity/target/content binding, expiration, responder decisions, one-time consumption, and execution separation.
-- [Feishu Reply Execution](docs/FEISHU_REPLY_EXECUTION.md): reconcile-before-send execution, exact idempotency, normalized receipts, restart recovery, and uncertain-result handling.
+- [Feishu Reply Execution](docs/FEISHU_REPLY_EXECUTION.md): optional exact reconciliation, send-only durable dispatch safety, normalized receipts, restart recovery, and uncertain-result handling.
+- [Feishu Reply Execution Adapter](docs/FEISHU_REPLY_EXECUTION_ADAPTER.md): lease-held Bot/User scope, Keychain, token, and fixed HTTP composition with preflight-safe retry handling.
 - [Feishu Reply HTTP Client](docs/FEISHU_REPLY_HTTP_CLIENT.md): fixed-endpoint plain-text delivery, bounded responses, payload-free errors, and conservative post-send ambiguity.
 - [Feishu Connector Diagnostics](docs/FEISHU_CONNECTOR_DIAGNOSTICS.md): per-identity authorization/scopes, normalized rate limits, redacted cursor freshness, and overall health.
 - [Feishu System Keychain Resolution and Replacement](docs/FEISHU_SYSTEM_KEYCHAIN.md): fixed macOS SecretReference lookup, stdin-only OAuth replacement, uncertain writes, and transient-byte cleanup.
@@ -124,9 +125,12 @@ uses exact reconciliation before sending when an adapter can prove it. Because
 Feishu does not expose reply `uuid` in history, a send-only adapter may instead
 make its first call only after a durable SQLite dispatch reservation. Any prior
 or uncertain reservation blocks another send. Normalized success, failure, or
-uncertain receipts persist atomically with proposal state. The
-production Feishu operation adapters and the composed real-account flow remain
-unimplemented. The Connector-owned macOS Keychain reader now resolves
+uncertain receipts persist atomically with proposal state. The production reply
+client now composes the held runtime lease, exact Bot/User
+scope probes, Keychain credential callbacks, tenant-token acquisition, and the
+bounded reply HTTP primitive without exposing tokens. The Host operation that
+wraps approval, execution state, durable dispatch, receipt, and Audit remains
+unimplemented, as does the real-account flow. The Connector-owned macOS Keychain reader now resolves
 validated Bot/User SecretReferences into callback-scoped, zeroed byte buffers,
 and a versioned parser binds Bot application and User OAuth bundles to the exact
 configured identity, reports usable, refresh-required, or reauthorization
@@ -146,8 +150,9 @@ reads exact current Keychain token claims. A fixed-endpoint bounded Bot
 tenant-token client and its exact Keychain-to-token scope probe now pass
 synthetic contracts without a live credential. The probe verifies the remote
 Bot principal and retains only current tenant scopes. A bounded fixed-endpoint
-plain-text reply HTTP primitive also passes synthetic contracts; runtime
-composition under the lease and live composition remain unimplemented. A
+plain-text reply HTTP primitive and its lease-held Bot/User execution adapter
+also pass synthetic contracts. Host orchestration of approval, durable dispatch,
+receipt, and Audit under the lease and live composition remain unimplemented. A
 presentation-safe diagnostics boundary now reports configured
 Bot/User authorization and scope coverage, rate-limit state, and durable User
 cursor freshness without exposing credentials or opaque cursor positions.
@@ -155,9 +160,10 @@ The local TD-209 contract acceptance path now composes verified-message
 normalization, bounded context, an edited Draft revision, exact approval,
 idempotent execution, receipt persistence, restart verification, and a complete local
 Audit trace. The restart evidence is a deterministic acceptance completion,
-not an automatic repair service. Stage 2 is not declared complete: production Feishu credential/HTTP
-composition, hosted ingestion or polling, interactive Draft/approval UI, and a
-live-account send remain unimplemented.
+not an automatic repair service. Stage 2 is not declared complete: Host
+approval, dispatch, receipt, and Audit orchestration under the lease, hosted
+ingestion or polling, interactive Draft/approval UI, and a live-account send
+remain unimplemented.
 Versioned domain records and the product-owned Connector contract are
 implemented. The pinned Harness Profile,
 two draft-only Personas, JSONL restart recovery, and bounded Codex specialist

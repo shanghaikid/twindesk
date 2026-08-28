@@ -106,11 +106,10 @@ caller cancellation, redirects, invalid media and UTF-8, duplicate JSON keys,
 declared and streamed overflow, hostile values, and payload-free errors. They
 make no live request and use no real credential.
 
-Remaining TD-209 work is to compose this primitive with exact Keychain
-resolution and rotation, fresh Bot/User scope authorization, the exclusive Host
-lease, the durable dispatch coordinator, `FeishuReplyExecutor`, receipt and
-Audit persistence, product approval UI, and a live authorized account. The
-executor now permits a send-only client only for a first durable dispatch and
-blocks every existing uncertain reservation; it still needs the production
-adapter composition above. The repository must not claim that the isolated
-HTTP contract proves a real Feishu send.
+`FeishuReplyExecutionAdapter` now composes this primitive with an already-held
+Host lease, exact Keychain resolution, fresh Bot/User scope authorization, and
+callback-scoped User or tenant tokens. Remaining TD-209 work is to compose that
+client with the Host approval lifecycle, durable dispatch coordinator,
+`FeishuReplyExecutor`, receipt and Audit persistence, product approval UI, and a
+live authorized account. The repository must not claim that the isolated or
+synthetically composed HTTP contract proves a real Feishu send.

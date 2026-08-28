@@ -199,7 +199,7 @@ function replyClient(options = {}) {
 }
 
 /**
- * @param {{ sendFailure?: 'network' | 'rate_limited' }} [options]
+ * @param {{ sendFailure?: 'network' | 'preflight_unavailable' | 'rate_limited' }} [options]
  * @returns {Pick<import('../packages/plugin-feishu/src/reply-execution.ts').FeishuReplyExecutionClient, 'send'> & {
  *   diagnostics(): { sendCalls: number }
  * }}
@@ -215,6 +215,9 @@ function sendOnlyReplyClient(options = {}) {
       }
       if (options.sendFailure === 'rate_limited') {
         throw new FeishuReplyExecutionClientError('rate_limited')
+      }
+      if (options.sendFailure === 'preflight_unavailable') {
+        throw new FeishuReplyExecutionClientError('preflight_unavailable')
       }
       return {
         status: 'found',
@@ -1150,6 +1153,61 @@ test('a known retryable rejection permits one new same-key dispatch reservation'
   assert.equal(
     database.getLatestActionDispatch(action.executionAttemptId)?.settlement?.outcome,
     'failed',
+  )
+  assert.deepEqual(client.diagnostics(), { sendCalls: 2 })
+  database.close()
+})
+
+test('a preflight failure settles before-send evidence and permits a same-key retry', async (context) => {
+  const path = await temporaryDatabase(context)
+  const clock = policyClock()
+  const database = openTwinDeskDatabase(path, clock.options)
+  const { action } = await approveAction(database, clock, 'execution-preflight-retry')
+  database.beginActionExecution({
+    kind: 'action_execution_start',
+    schemaVersion: 1,
+    action,
+    startedAt: EXECUTION_AT,
+  })
+  const client = sendOnlyReplyClient({ sendFailure: 'preflight_unavailable' })
+  const first = await new FeishuReplyExecutor(
+    configuration(),
+    client,
+    executionOptions(clock, database),
+  ).execute(action, new AbortController().signal)
+  assert.equal(first.outcome, 'failed')
+  assert.equal(first.error.code, 'feishu_preflight_unavailable')
+  assert.equal(first.error.retryable, true)
+  assert.equal(first.retryDisposition, 'retry_same_key')
+  database.recordActionExecutionReceipt({
+    kind: 'action_execution_receipt_write',
+    schemaVersion: 1,
+    action,
+    receipt: first,
+  })
+
+  database.beginActionExecution({
+    kind: 'action_execution_start',
+    schemaVersion: 1,
+    action,
+    startedAt: EXECUTION_AT,
+  })
+  const second = await new FeishuReplyExecutor(
+    configuration(),
+    client,
+    executionOptions(clock, database),
+  ).execute(action, new AbortController().signal)
+  assert.equal(second.outcome, 'failed')
+  assert.equal(database.getLatestActionDispatch(action.executionAttemptId)?.ordinal, 2)
+  database.recordActionExecutionReceipt({
+    kind: 'action_execution_receipt_write',
+    schemaVersion: 1,
+    action,
+    receipt: second,
+  })
+  assert.equal(
+    database.getLatestActionDispatch(action.executionAttemptId)?.settlement?.retryDisposition,
+    'retry_same_key',
   )
   assert.deepEqual(client.diagnostics(), { sendCalls: 2 })
   database.close()

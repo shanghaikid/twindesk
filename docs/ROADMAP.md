@@ -76,10 +76,12 @@ without live I/O; the probe verifies the current Bot `open_id` and tenant-only
 application scopes. A fixed-endpoint bounded reply HTTP primitive now passes
 synthetic contracts without claiming remote reconciliation. Send-only reply
 execution now requires a first durable dispatch reservation and blocks any
-unproven resend across restart. The required live-account path is still missing
-runtime composition under the exclusive lease, reply execution composition,
-hosted ingestion or polling, interactive Draft and approval UI, and a real
-Feishu send. See the
+unproven resend across restart. An already-held lease can now compose concrete
+Bot/User scope probes, Keychain credentials, token acquisition, and the reply
+HTTP client with synthetic boundaries. The required live-account path is still
+missing Host approval/execution/receipt/Audit orchestration under the exclusive
+lease, hosted ingestion or polling, interactive Draft and approval UI, and a
+real Feishu send. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).
 
 ## Stage 3: Jira Context

@@ -96,7 +96,9 @@ responses, duplicate values, cancellation, timeout, payload-free failures, and
 transient-buffer clearing. They use no live Keychain item, credential, account,
 or network request.
 
-Remaining work includes placing this probe and User rotation under the
-exclusive Host runtime lease, composing the reply HTTP primitive and durable
-execution adapter, wiring production diagnostics and settings, hosted event or
-polling lifecycle, and live-account acceptance.
+The reply execution adapter now consumes this probe under an already-held Host
+lease, then reacquires a callback-scoped tenant token for fixed-endpoint HTTP.
+Remaining work includes composing User rotation plus the complete Host
+approval, dispatch, receipt, and Audit operation under that lease, wiring
+production diagnostics and settings, hosted event or polling lifecycle, and
+live-account acceptance.
