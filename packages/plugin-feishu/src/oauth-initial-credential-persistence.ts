@@ -52,6 +52,16 @@ export interface FeishuOAuthInitialCredentialPersisterOptions {
   readonly encoder?: FeishuOAuthCredentialBundleEncoder
 }
 
+export interface FeishuOAuthInitialPersistenceResult {
+  readonly status: 'persisted'
+  readonly obtainedAt: string
+}
+
+export interface FeishuOAuthInitialPersistenceChronology {
+  readonly mustBeNewerThan: string
+  readonly mustNotBeNewerThan: string
+}
+
 type UnknownRecord = Readonly<Record<string, unknown>>
 const fillBytes = Uint8Array.prototype.fill
 
@@ -380,6 +390,32 @@ export class FeishuOAuthInitialCredentialPersister {
     tokenSetValue: FeishuOAuthV3TokenSet,
     signal: AbortSignal,
   ): Promise<void> {
+    await this.#persistWithResult(configurationValue, clientSecretValue, tokenSetValue, signal)
+  }
+
+  persistWithResult(
+    configurationValue: unknown,
+    clientSecretValue: Uint8Array,
+    tokenSetValue: FeishuOAuthV3TokenSet,
+    signal: AbortSignal,
+    chronologyValue?: FeishuOAuthInitialPersistenceChronology,
+  ): Promise<FeishuOAuthInitialPersistenceResult> {
+    return this.#persistWithResult(
+      configurationValue,
+      clientSecretValue,
+      tokenSetValue,
+      signal,
+      chronologyValue,
+    )
+  }
+
+  async #persistWithResult(
+    configurationValue: unknown,
+    clientSecretValue: Uint8Array,
+    tokenSetValue: FeishuOAuthV3TokenSet,
+    signal: AbortSignal,
+    chronologyValue?: FeishuOAuthInitialPersistenceChronology,
+  ): Promise<FeishuOAuthInitialPersistenceResult> {
     signal.throwIfAborted()
     let configuration
     try {
@@ -398,12 +434,48 @@ export class FeishuOAuthInitialCredentialPersister {
         'The Feishu OAuth User identity is not configured.',
       )
     }
+    let mustBeNewerThan: string | undefined
+    let mustNotBeNewerThan: string | undefined
+    if (chronologyValue !== undefined) {
+      try {
+        const chronology = dataRecord(chronologyValue)
+        exactKeys(chronology, ['mustBeNewerThan', 'mustNotBeNewerThan'])
+        mustBeNewerThan = parseIsoTimestamp(chronology.mustBeNewerThan)
+        mustNotBeNewerThan = parseIsoTimestamp(chronology.mustNotBeNewerThan)
+        if (Date.parse(mustNotBeNewerThan) < Date.parse(mustBeNewerThan)) throw new TypeError()
+      } catch {
+        throw fail(
+          'invalid_request',
+          'do_not_retry',
+          'The Feishu OAuth replacement chronology is invalid.',
+        )
+      }
+    }
     const clientSecretCopy = clientSecret(clientSecretValue)
     let tokenSet: FeishuOAuthV3TokenSet | undefined
     try {
       const ownedTokenSet = tokenSetSnapshot(tokenSetValue)
       tokenSet = ownedTokenSet
-      await this.#verify(configuration, ownedTokenSet.accessToken, signal, async () => {
+      if (mustBeNewerThan !== undefined) {
+        if (Date.parse(ownedTokenSet.obtainedAt) <= Date.parse(mustBeNewerThan)) {
+          throw fail(
+            'invalid_request',
+            'do_not_retry',
+            'The Feishu OAuth replacement credential is not newer.',
+          )
+        }
+      }
+      if (
+        mustNotBeNewerThan !== undefined &&
+        Date.parse(ownedTokenSet.obtainedAt) > Date.parse(mustNotBeNewerThan)
+      ) {
+        throw fail(
+          'invalid_request',
+          'do_not_retry',
+          'The Feishu OAuth replacement credential is from the future.',
+        )
+      }
+      return await this.#verify(configuration, ownedTokenSet.accessToken, signal, async () => {
         try {
           await this.#encode(configuration, clientSecretCopy, ownedTokenSet, signal, (bundle) =>
             this.#replace(configuration.user!.credentialReference, bundle, signal),
@@ -418,6 +490,7 @@ export class FeishuOAuthInitialCredentialPersister {
           if (signal.aborted) signal.throwIfAborted()
           mapPersistence(error)
         }
+        return Object.freeze({ status: 'persisted', obtainedAt: ownedTokenSet.obtainedAt })
       })
     } catch (error) {
       if (error instanceof FeishuOAuthInitialPersistenceError) throw error

@@ -63,6 +63,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Feishu OAuth User Principal Verification](docs/FEISHU_OAUTH_PRINCIPAL_VERIFICATION.md): exact `open_id` binding, fixed-endpoint bounded HTTP, minimized user-info data, and transient-secret cleanup.
 - [Feishu OAuth Authorization Code and PKCE](docs/FEISHU_OAUTH_AUTHORIZATION_CODE.md): one-use state-bound authorization, exact callback validation, PKCE exchange, and replay handling.
 - [Feishu OAuth Verified Initial Persistence](docs/FEISHU_OAUTH_INITIAL_PERSISTENCE.md): verified User token snapshot, exact initial Keychain replacement, and uncertain-write recovery.
+- [Feishu OAuth Reauthorization Replacement](docs/FEISHU_OAUTH_REAUTHORIZATION.md): explicit blocked-state replacement, journal migration, and restart reconciliation.
 - [Feishu Runtime Lease](docs/FEISHU_RUNTIME_LEASE.md): kernel-backed cross-process Host exclusion, cancellation behavior, and crash release.
 - [SQLite Storage](docs/STORAGE_SQLITE.md): TwinDesk database identity, schema, forward migrations, privacy review, and recovery guarantees.
 - [External Event Ingestion](docs/EVENT_INGESTION.md): transactional deduplication, replay, conflict, and out-of-order semantics.
@@ -132,9 +133,9 @@ Keychain bundle, and blocks unproven restarts from reusing an old token.
 Post-exchange principal verification now binds a fresh User token to the exact
 configured `open_id` through a fixed-endpoint, bounded production Fetch client.
 Authorization-code/PKCE exchange, verified initial Keychain persistence, and an
-exclusive kernel-backed Host lease now pass synthetic contracts. Runtime
-composition under that lease, scope checks, reply HTTP, and live composition
-remain unimplemented. A presentation-safe
+explicit reauthorization replacement path now pass synthetic contracts, as does
+the exclusive kernel-backed Host lease. Runtime composition under that lease,
+scope checks, reply HTTP, and live composition remain unimplemented. A presentation-safe
 diagnostics boundary now reports configured
 Bot/User authorization and scope coverage, rate-limit state, and durable User
 cursor freshness without exposing credentials or opaque cursor positions.

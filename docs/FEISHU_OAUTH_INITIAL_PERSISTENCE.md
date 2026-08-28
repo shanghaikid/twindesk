@@ -69,8 +69,9 @@ invalid and hostile inputs, shared-memory rejection, uncertain writes,
 completed-write cancellation, payload-free errors, and transient-buffer
 zeroing. No live Feishu request or live Keychain item is used.
 
-The exclusive Host lease now passes real cross-process tests. Remaining work
-includes a hosted loopback redirect listener and browser/UI lifecycle,
-composition of this path under the lease, blocked-state replacement after
-reauthorization, operation scope checks and HTTP clients, runtime composition,
-and live-account acceptance.
+The exclusive Host lease and explicit blocked-state reauthorization replacement
+now pass synthetic contracts. Remaining work includes a hosted loopback redirect
+listener and browser/UI lifecycle, composition of this path under the lease,
+operation scope checks and HTTP clients, runtime composition, and live-account
+acceptance. See
+[Feishu OAuth Reauthorization Replacement](FEISHU_OAUTH_REAUTHORIZATION.md).

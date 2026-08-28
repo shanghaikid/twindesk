@@ -212,13 +212,17 @@ The verified initial-persistence composition then requires the exact configured
 `open_id`, encodes the first version 1 User bundle, and replaces only its
 configured Keychain reference. An exclusive
 kernel-backed Host lease now prevents two processes from operating Feishu at
-once and survives abrupt owner death without stale recovery files. Composition
-of every polling, refresh, and write boundary under that lease, operation HTTP
-and dispatch composition, and composed Audit flow remain TD-209 work. See
+once and survives abrupt owner death without stale recovery files. Explicit
+reauthorization now replaces only a durably blocked credential and
+records a distinct version 2 `reauthorized` event while preserving version 1
+journal history. Runtime composition of every polling, refresh, and write
+boundary under that lease, operation HTTP and dispatch composition, and composed
+Audit flow remain TD-209 work. See
 [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) and
 [Feishu OAuth v3 Refresh](FEISHU_OAUTH_V3_REFRESH.md) and
 [Feishu OAuth Authorization Code and PKCE](FEISHU_OAUTH_AUTHORIZATION_CODE.md) and
 [Feishu OAuth Verified Initial Persistence](FEISHU_OAUTH_INITIAL_PERSISTENCE.md) and
+[Feishu OAuth Reauthorization Replacement](FEISHU_OAUTH_REAUTHORIZATION.md) and
 [Feishu Runtime Lease](FEISHU_RUNTIME_LEASE.md) and
 [Feishu OAuth Rotation Coordinator](FEISHU_OAUTH_ROTATION_COORDINATOR.md) and
 [Feishu OAuth User Principal Verification](FEISHU_OAUTH_PRINCIPAL_VERIFICATION.md) and

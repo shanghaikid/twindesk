@@ -9,10 +9,9 @@ principal-bound User credential whose access token is `refresh_required`. It
 does not start authorization, grant scopes, expose tokens to an operation
 client, or authorize an external write.
 
-The current boundary is designed for one TwinDesk Host process. Instances that
-share one resolved journal path serialize inside that process. Starting two
-independent Host processes against the same account is unsupported until the
-runtime owns an exclusive cross-process Connector lease.
+Instances that share one resolved journal path serialize inside one TwinDesk
+Host process. The production runtime must additionally hold the exclusive
+cross-process Host lease before it starts rotation or reauthorization work.
 
 ## Durable Ordering
 
@@ -46,8 +45,9 @@ by reading and parsing the exact configured Keychain reference again:
   single-use refresh token, so the journal becomes `uncertain` and the old
   token is never submitted again;
 - an explicit invalid, expired, revoked, or used-token response appends
-  `reauthorization_required` and remains blocked until a newer authorized
-  credential is installed.
+  `reauthorization_required` and remains blocked until a strictly newer,
+  principal-verified credential is installed and an explicit `reauthorized`
+  event is durable.
 
 Every other failure after reservation is conservative. Network failure,
 malformed success, bundle-encoding failure, uncertain Keychain replacement,
@@ -60,16 +60,19 @@ uncertainty.
 The append-only JSONL journal contains only:
 
 - schema version and monotonically increasing sequence;
-- `reserved`, `completed`, `uncertain`, or `reauthorization_required` state;
+- `reserved`, `completed`, `uncertain`, `reauthorization_required`, or
+  `reauthorized` state;
 - source, result, and local record timestamps when applicable.
 
 It stores no app ID, account ID, principal, SecretReference locator, client
 secret, access token, refresh token, scope, raw response, or error payload. The
 file must be a private regular file, is opened with `O_NOFOLLOW`, is limited to
-1 MiB, and is `fsync`ed after every event. A torn final line is truncated and
-synced during recovery; invalid transitions and non-private or linked files
-fail closed. There is no automatic compaction yet. Connector account removal
-must eventually own explicit journal retention and deletion.
+1 MiB, and is `fsync`ed after every event. Version 2 reads valid version 1
+history and appends forward events without deleting the journal. A torn final
+line is truncated and synced during recovery; invalid transitions and
+non-private or linked files fail closed. There is no automatic compaction yet.
+Connector account removal must eventually own explicit journal retention and
+deletion.
 
 ## Verification and Remaining Work
 
@@ -80,8 +83,9 @@ cancellation, torn-tail repair, unsafe files, payload-free errors, and absence
 of identity or credential values in the journal. They use injected transports
 and Keychain runners and make no live network or Keychain change.
 
-The authorization-code/PKCE exchange, verified initial persistence, and
-exclusive Host lease now pass synthetic contracts. Remaining work includes
-composing rotation under that lease, replacement of blocked state after explicit
-reauthorization, operation scope checks, reply HTTP composition, hosted
-ingestion or polling, UI, and live-account acceptance.
+The authorization-code/PKCE exchange, verified initial persistence, explicit
+blocked-state replacement, and exclusive Host lease now pass synthetic
+contracts. Remaining work includes composing rotation and reauthorization under
+that lease, operation scope checks, reply HTTP composition, hosted ingestion or
+polling, UI, and live-account acceptance. See
+[Feishu OAuth Reauthorization Replacement](FEISHU_OAUTH_REAUTHORIZATION.md).

@@ -19,15 +19,18 @@ import {
   FeishuSystemKeychainSecretResolver,
 } from './system-keychain.ts'
 
-export const FEISHU_OAUTH_ROTATION_JOURNAL_VERSION = 1 as const
+export const FEISHU_OAUTH_ROTATION_JOURNAL_VERSION = 2 as const
+export const FEISHU_OAUTH_ROTATION_JOURNAL_LEGACY_VERSION = 1 as const
 export const FEISHU_OAUTH_ROTATION_JOURNAL_MAX_BYTES = 1024 * 1024
 
 export type FeishuOAuthRotationState =
-  'reserved' | 'completed' | 'uncertain' | 'reauthorization_required'
+  'reserved' | 'completed' | 'uncertain' | 'reauthorization_required' | 'reauthorized'
 
 export interface FeishuOAuthRotationSnapshot {
   readonly kind: 'feishu_oauth_rotation_event'
-  readonly schemaVersion: typeof FEISHU_OAUTH_ROTATION_JOURNAL_VERSION
+  readonly schemaVersion:
+    | typeof FEISHU_OAUTH_ROTATION_JOURNAL_LEGACY_VERSION
+    | typeof FEISHU_OAUTH_ROTATION_JOURNAL_VERSION
   readonly sequence: number
   readonly state: FeishuOAuthRotationState
   readonly sourceObtainedAt: string
@@ -44,6 +47,7 @@ export type FeishuOAuthRotationErrorCode =
   | 'rotation_pending'
   | 'rotation_uncertain'
   | 'reauthorization_required'
+  | 'reauthorization_not_pending'
 
 export class FeishuOAuthRotationError extends Error {
   readonly code: FeishuOAuthRotationErrorCode
@@ -83,7 +87,7 @@ function parseEvent(value: unknown): FeishuOAuthRotationSnapshot {
   const record = value as Record<string, unknown>
   const state = record.state
   const expected =
-    state === 'completed'
+    state === 'completed' || state === 'reauthorized'
       ? [
           'kind',
           'schemaVersion',
@@ -98,10 +102,15 @@ function parseEvent(value: unknown): FeishuOAuthRotationSnapshot {
     Object.keys(record).length !== expected.length ||
     expected.some((key) => !Object.hasOwn(record, key)) ||
     record.kind !== 'feishu_oauth_rotation_event' ||
-    record.schemaVersion !== FEISHU_OAUTH_ROTATION_JOURNAL_VERSION ||
+    (record.schemaVersion !== FEISHU_OAUTH_ROTATION_JOURNAL_LEGACY_VERSION &&
+      record.schemaVersion !== FEISHU_OAUTH_ROTATION_JOURNAL_VERSION) ||
     !Number.isSafeInteger(record.sequence) ||
     (record.sequence as number) <= 0 ||
-    !['reserved', 'completed', 'uncertain', 'reauthorization_required'].includes(state as string)
+    !['reserved', 'completed', 'uncertain', 'reauthorization_required', 'reauthorized'].includes(
+      state as string,
+    ) ||
+    (record.schemaVersion === FEISHU_OAUTH_ROTATION_JOURNAL_LEGACY_VERSION &&
+      state === 'reauthorized')
   ) {
     throw fail('unsafe_file', 'The Feishu OAuth rotation journal contains invalid data.')
   }
@@ -111,19 +120,25 @@ function parseEvent(value: unknown): FeishuOAuthRotationSnapshot {
   try {
     sourceObtainedAt = instant(record.sourceObtainedAt)
     recordedAt = instant(record.recordedAt)
-    resultObtainedAt = state === 'completed' ? instant(record.resultObtainedAt) : undefined
+    resultObtainedAt =
+      state === 'completed' || state === 'reauthorized'
+        ? instant(record.resultObtainedAt)
+        : undefined
   } catch {
     throw fail('unsafe_file', 'The Feishu OAuth rotation journal contains invalid data.')
   }
   if (
     Date.parse(recordedAt) < Date.parse(sourceObtainedAt) ||
-    (resultObtainedAt !== undefined && Date.parse(resultObtainedAt) <= Date.parse(sourceObtainedAt))
+    (resultObtainedAt !== undefined &&
+      (Date.parse(resultObtainedAt) <= Date.parse(sourceObtainedAt) ||
+        (record.schemaVersion === FEISHU_OAUTH_ROTATION_JOURNAL_VERSION &&
+          Date.parse(recordedAt) < Date.parse(resultObtainedAt))))
   ) {
     throw fail('unsafe_file', 'The Feishu OAuth rotation journal contains invalid data.')
   }
   return Object.freeze({
     kind: 'feishu_oauth_rotation_event',
-    schemaVersion: FEISHU_OAUTH_ROTATION_JOURNAL_VERSION,
+    schemaVersion: record.schemaVersion as 1 | 2,
     sequence: record.sequence as number,
     state: state as FeishuOAuthRotationState,
     sourceObtainedAt,
@@ -140,18 +155,25 @@ function validateTransition(
     if (next.sequence !== 1 || next.state !== 'reserved') throw new TypeError()
     return
   }
-  if (previous.state === 'completed') {
+  if (previous.state === 'completed' || previous.state === 'reauthorized') {
     if (next.sequence !== previous.sequence + 1 || next.state !== 'reserved') throw new TypeError()
     if (Date.parse(next.sourceObtainedAt) < Date.parse(previous.resultObtainedAt as string)) {
       throw new TypeError()
     }
     return
   }
+  const allowed =
+    previous.state === 'reserved'
+      ? ['completed', 'uncertain', 'reauthorization_required']
+      : previous.state === 'uncertain'
+        ? ['completed']
+        : previous.state === 'reauthorization_required'
+          ? ['reauthorized']
+          : []
   if (
     next.sequence !== previous.sequence ||
     next.sourceObtainedAt !== previous.sourceObtainedAt ||
-    next.state === 'reserved' ||
-    (previous.state !== 'reserved' && next.state !== 'completed')
+    !allowed.includes(next.state)
   ) {
     throw new TypeError()
   }
@@ -303,7 +325,7 @@ export class FeishuOAuthRotationJournal {
         throw fail('invalid_request', 'The Feishu OAuth rotation chronology is invalid.')
       }
       const latest = this.#state.latest
-      if (latest !== undefined && latest.state !== 'completed') {
+      if (latest !== undefined && latest.state !== 'completed' && latest.state !== 'reauthorized') {
         throw fail('rotation_pending', 'A Feishu OAuth rotation already requires reconciliation.')
       }
       const event = parseEvent({
@@ -338,8 +360,10 @@ export class FeishuOAuthRotationJournal {
       if (
         latest === undefined ||
         latest.state === 'completed' ||
+        latest.state === 'reauthorized' ||
         latest.sequence !== sequence ||
-        (state === 'completed') !== (resultObtainedAtValue !== undefined)
+        (state === 'completed' || state === 'reauthorized') !==
+          (resultObtainedAtValue !== undefined)
       ) {
         throw fail('invalid_request', 'The Feishu OAuth rotation settlement is invalid.')
       }
@@ -365,6 +389,73 @@ export class FeishuOAuthRotationJournal {
       return event
     })
   }
+
+  replaceAfterReauthorization(
+    replace: (
+      blocked: FeishuOAuthRotationSnapshot,
+    ) => Promise<Readonly<{ recordedAt: string; resultObtainedAt: string }>>,
+  ): Promise<FeishuOAuthRotationSnapshot> {
+    if (typeof replace !== 'function') {
+      throw fail('invalid_request', 'The Feishu OAuth reauthorization replacement is invalid.')
+    }
+    return this.#serialize(async () => {
+      await this.#load()
+      const latest = this.#state.latest
+      if (latest?.state !== 'reauthorization_required') {
+        throw fail(
+          'reauthorization_not_pending',
+          'No Feishu OAuth reauthorization replacement is pending.',
+        )
+      }
+      const replacementValue = await replace(latest)
+      let replacement: Readonly<{ recordedAt: string; resultObtainedAt: string }>
+      try {
+        if (
+          typeof replacementValue !== 'object' ||
+          replacementValue === null ||
+          Array.isArray(replacementValue)
+        ) {
+          throw new TypeError()
+        }
+        const prototype = Object.getPrototypeOf(replacementValue) as unknown
+        const descriptors = Object.getOwnPropertyDescriptors(replacementValue)
+        if (
+          (prototype !== Object.prototype && prototype !== null) ||
+          Object.getOwnPropertySymbols(replacementValue).length !== 0 ||
+          Object.keys(descriptors).length !== 2 ||
+          !['recordedAt', 'resultObtainedAt'].every((key) => Object.hasOwn(descriptors, key)) ||
+          Object.values(descriptors).some((descriptor) => !Object.hasOwn(descriptor, 'value'))
+        ) {
+          throw new TypeError()
+        }
+        replacement = Object.freeze({
+          recordedAt: instant(descriptors.recordedAt?.value),
+          resultObtainedAt: instant(descriptors.resultObtainedAt?.value),
+        })
+      } catch (error) {
+        if (error instanceof FeishuOAuthRotationError) throw error
+        throw fail('invalid_request', 'The Feishu OAuth reauthorization evidence is invalid.')
+      }
+      const event = parseEvent({
+        kind: 'feishu_oauth_rotation_event',
+        schemaVersion: FEISHU_OAUTH_ROTATION_JOURNAL_VERSION,
+        sequence: latest.sequence,
+        state: 'reauthorized',
+        sourceObtainedAt: latest.sourceObtainedAt,
+        recordedAt: replacement.recordedAt,
+        resultObtainedAt: replacement.resultObtainedAt,
+      })
+      try {
+        validateTransition(latest, event)
+      } catch {
+        throw fail('invalid_request', 'The Feishu OAuth reauthorization chronology is invalid.')
+      }
+      await this.#append(event)
+      this.#state.latest = event
+      this.#state.activeSequence = undefined
+      return event
+    })
+  }
 }
 
 export interface FeishuOAuthRotationCoordinatorOptions {
@@ -376,7 +467,7 @@ export interface FeishuOAuthRotationCoordinatorOptions {
 }
 
 export interface FeishuOAuthRotationResult {
-  readonly status: 'not_required' | 'rotated' | 'recovered'
+  readonly status: 'not_required' | 'rotated' | 'recovered' | 'reauthorized'
   readonly obtainedAt: string
 }
 
@@ -495,18 +586,22 @@ export class FeishuOAuthRotationCoordinator {
     latest: FeishuOAuthRotationSnapshot | undefined,
     signal: AbortSignal,
   ): Promise<FeishuOAuthRotationResult> {
-    if (latest !== undefined && latest.state !== 'completed') {
+    if (latest !== undefined && latest.state !== 'completed' && latest.state !== 'reauthorized') {
       if (latest.state === 'reserved' && this.#journal.isActiveReservation(latest.sequence)) {
         throw fail('rotation_pending', 'A Feishu OAuth rotation is already in progress.')
       }
       if (Date.parse(credential.obtainedAt) > Date.parse(latest.sourceObtainedAt)) {
+        const reauthorized = latest.state === 'reauthorization_required'
         await this.#journal.settle(
           latest.sequence,
-          'completed',
+          reauthorized ? 'reauthorized' : 'completed',
           observedAt(this.#now),
           credential.obtainedAt,
         )
-        return Object.freeze({ status: 'recovered', obtainedAt: credential.obtainedAt })
+        return Object.freeze({
+          status: reauthorized ? 'reauthorized' : 'recovered',
+          obtainedAt: credential.obtainedAt,
+        })
       }
       if (latest.state === 'reserved') {
         await this.#journal.settle(latest.sequence, 'uncertain', observedAt(this.#now))
