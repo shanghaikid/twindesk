@@ -27,6 +27,7 @@ export {
   type FeishuOAuthV3TransportRequest,
   type FeishuOAuthV3TransportResponse,
 } from './oauth-v3-token-refresh.ts'
+export * from './operation-scope-authorization.ts'
 export * from './reply-proposal.ts'
 export * from './reply-execution.ts'
 export * from './runtime-lease.ts'

@@ -39,6 +39,12 @@ deterministic presentation. Exact required scope names belong to the concrete
 adapter and its enabled Feishu operations; the diagnostics layer does not
 silently invent grants or infer scopes from a Persona.
 
+TD-209 now provides fixed code-owned policies for Bot reply, User reply, and
+User message discovery. A production diagnostics adapter may reuse those exact
+lists, but a healthy diagnostic is not operation authorization; the operation
+must obtain its own fresh evidence through
+[Feishu Operation Scope Authorization](FEISHU_OPERATION_SCOPE_AUTHORIZATION.md).
+
 One unavailable identity degrades a Connector when another configured identity
 is usable. If no configured identity is currently authorized and observable,
 overall status is `unavailable`. Missing scope, active rate limiting, cursor

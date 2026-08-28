@@ -29,13 +29,13 @@ historical edit, or item visible in a Feishu client. Bot event delivery remains
 the separate TD-201 path.
 
 The adapter contract does not request reactions or resource downloads. The
-future concrete adapter is expected to require the minimum scopes for search,
-message detail retrieval, and chat context (currently `search:message`,
-`im:message:readonly`, and `im:chat:read`) and to surface authorization or scope
-failures rather than returning an empty successful page. Scope health and
-diagnostics are defined by
+concrete adapter must pass the fixed `user_message_discovery` operation policy,
+which requires `search:message`, `im:message:readonly`, and `im:chat:read`, and
+must surface authorization or scope failures rather than returning an empty
+successful page. Scope health and diagnostics are defined by
 [Feishu Connector Diagnostics](FEISHU_CONNECTOR_DIAGNOSTICS.md); the production
-probe remains unwired.
+probe remains unwired. See
+[Feishu Operation Scope Authorization](FEISHU_OPERATION_SCOPE_AUTHORIZATION.md).
 
 ## Bounded Incremental Windows
 
@@ -114,6 +114,8 @@ reply, send request, or other Feishu write.
 
 - A concrete Feishu HTTP/SDK search adapter, OAuth secret resolution, and
   polling scheduler are not wired yet.
+- The fixed operation scope gate exists, but its concrete current-scope probe is
+  not wired yet.
 - TD-203 now defines bounded conversation, document-excerpt, and attachment
   context retrieval; its concrete SDK/HTTP adapter is not wired yet.
 - TD-204 now normalizes Bot and User sources into durable ExternalEvents and

@@ -134,6 +134,10 @@ data.
   and runtime composition under the lease are still required; the system-Keychain reader,
   credential parser, refresh and user-info transports, and durable dispatch
   boundary alone are not an execution adapter.
+- Fixed Bot and User reply scope policies now gate an injected callback with a
+  fresh identity-bound observation. Concrete scope probes and composition with
+  this executor and the reply HTTP client remain required. See
+  [Feishu Operation Scope Authorization](FEISHU_OPERATION_SCOPE_AUTHORIZATION.md).
 - TD-208 now adds identity health, exact scope visibility, rate-limit state,
   and cursor diagnostics; execution still fails closed when its adapter reports
   missing authorization or scope. See

@@ -68,8 +68,9 @@ exchange through verified initial Keychain replacement and restart parsing are
 also covered without live I/O. Explicit reauthorization now replaces a durable
 blocked state through a version 2 journal while preserving version 1 history. A
 kernel-backed exclusive Host lease passes real cross-process and process-death
-tests. The required live-account path is still missing runtime composition
-under that lease, reply HTTP composition, hosted ingestion or polling,
+tests. Fixed Bot/User reply and User-discovery scope gates also pass synthetic
+contracts. The required live-account path is still missing concrete scope
+probes, runtime composition under that lease, reply HTTP composition, hosted ingestion or polling,
 interactive Draft and approval UI, and a real Feishu send. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).
 

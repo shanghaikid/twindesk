@@ -64,6 +64,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Feishu OAuth Authorization Code and PKCE](docs/FEISHU_OAUTH_AUTHORIZATION_CODE.md): one-use state-bound authorization, exact callback validation, PKCE exchange, and replay handling.
 - [Feishu OAuth Verified Initial Persistence](docs/FEISHU_OAUTH_INITIAL_PERSISTENCE.md): verified User token snapshot, exact initial Keychain replacement, and uncertain-write recovery.
 - [Feishu OAuth Reauthorization Replacement](docs/FEISHU_OAUTH_REAUTHORIZATION.md): explicit blocked-state replacement, journal migration, and restart reconciliation.
+- [Feishu Operation Scope Authorization](docs/FEISHU_OPERATION_SCOPE_AUTHORIZATION.md): fixed Bot/User operation policies and fresh fail-closed scope evidence.
 - [Feishu Runtime Lease](docs/FEISHU_RUNTIME_LEASE.md): kernel-backed cross-process Host exclusion, cancellation behavior, and crash release.
 - [SQLite Storage](docs/STORAGE_SQLITE.md): TwinDesk database identity, schema, forward migrations, privacy review, and recovery guarantees.
 - [External Event Ingestion](docs/EVENT_INGESTION.md): transactional deduplication, replay, conflict, and out-of-order semantics.
@@ -134,8 +135,10 @@ Post-exchange principal verification now binds a fresh User token to the exact
 configured `open_id` through a fixed-endpoint, bounded production Fetch client.
 Authorization-code/PKCE exchange, verified initial Keychain persistence, and an
 explicit reauthorization replacement path now pass synthetic contracts, as does
-the exclusive kernel-backed Host lease. Runtime composition under that lease,
-scope checks, reply HTTP, and live composition remain unimplemented. A presentation-safe
+the exclusive kernel-backed Host lease. Fixed operation-level scope authorization
+for reply and User discovery now passes synthetic contracts. Concrete scope probes,
+runtime composition under the lease, reply HTTP, and live composition remain
+unimplemented. A presentation-safe
 diagnostics boundary now reports configured
 Bot/User authorization and scope coverage, rate-limit state, and durable User
 cursor freshness without exposing credentials or opaque cursor positions.

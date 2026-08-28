@@ -63,7 +63,7 @@ local business records; credentials and raw connector responses do not.
 | Exclusive Feishu Host ownership | Contract passed | A kernel-backed loopback lease excludes real competing processes and releases after `SIGKILL`; the production runtime does not hold it yet |
 | Real User polling/context uses OAuth from Keychain | Not proven | Code/PKCE exchange through verified initial and blocked-state replacement, restart parsing, and durable rotation pass synthetically; no hosted redirect listener, live lease composition, or scheduler |
 | SecretReference resolves and parses from macOS Keychain | Contract passed | Fixed read-only lookup plus identity-bound Bot/User parsing and zeroed source/derived bytes are tested with injected adapters; no live item is read |
-| Real Feishu reply succeeds | Not proven | Durable dispatch, single-Host credential rotation, and exclusive ownership contracts are covered synthetically; no reply HTTP client, lease-wrapped adapter, or live account |
+| Real Feishu reply succeeds | Not proven | Durable dispatch, credential rotation, exclusive ownership, and fixed reply-scope gates are covered synthetically; no concrete scope probe, reply HTTP client, lease-wrapped adapter, or live account |
 | User edits and approves in the product UI | Not implemented | Current Web shell remains read-only fixture UI |
 | Model-backed Draft and Harness trace are linked | Not implemented | The acceptance Draft is deterministic and `modelInvocation: false` |
 
