@@ -75,7 +75,8 @@ authorization, missing Keychain items, identity and bundle failures, hostile
 requests, invalid clocks, cancellation, payload absence, and source-buffer
 zeroing without touching a live Keychain item.
 
-Remaining work includes Bot tenant-token acquisition and scope observation,
-lease-wrapped rotation/probe/operation composition, production discovery and
-reply HTTP clients, selected context endpoint policies, and live-account
-acceptance.
+The isolated bounded Bot tenant-token client now exists, but it exposes no scope
+observation. Remaining work includes Bot Keychain-to-token composition and
+separate scope observation, lease-wrapped rotation/probe/operation composition,
+production discovery and reply HTTP clients, selected context endpoint
+policies, and live-account acceptance.

@@ -66,6 +66,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Feishu OAuth Reauthorization Replacement](docs/FEISHU_OAUTH_REAUTHORIZATION.md): explicit blocked-state replacement, journal migration, and restart reconciliation.
 - [Feishu Operation Scope Authorization](docs/FEISHU_OPERATION_SCOPE_AUTHORIZATION.md): fixed Bot/User operation policies and fresh fail-closed scope evidence.
 - [Feishu User Credential Scope Probe](docs/FEISHU_USER_CREDENTIAL_SCOPE_PROBE.md): exact Keychain OAuth scope observation, refresh gating, and transient-secret cleanup.
+- [Feishu Bot Tenant Token Acquisition](docs/FEISHU_BOT_TENANT_TOKEN_ACQUISITION.md): fixed-endpoint bounded token acquisition, callback-scoped cleanup, and the separate scope-observation boundary.
 - [Feishu Runtime Lease](docs/FEISHU_RUNTIME_LEASE.md): kernel-backed cross-process Host exclusion, cancellation behavior, and crash release.
 - [SQLite Storage](docs/STORAGE_SQLITE.md): TwinDesk database identity, schema, forward migrations, privacy review, and recovery guarantees.
 - [External Event Ingestion](docs/EVENT_INGESTION.md): transactional deduplication, replay, conflict, and out-of-order semantics.
@@ -138,9 +139,10 @@ Authorization-code/PKCE exchange, verified initial Keychain persistence, and an
 explicit reauthorization replacement path now pass synthetic contracts, as does
 the exclusive kernel-backed Host lease. Fixed operation-level scope authorization
 for reply and User discovery now passes synthetic contracts, and the User gate
-reads exact current Keychain token claims. Bot token/scope acquisition, runtime
-composition under the lease, reply HTTP, and live composition remain
-unimplemented. A presentation-safe
+reads exact current Keychain token claims. A fixed-endpoint bounded Bot
+tenant-token client now passes synthetic contracts without a live credential;
+Bot Keychain composition and scope observation, runtime composition under the
+lease, reply HTTP, and live composition remain unimplemented. A presentation-safe
 diagnostics boundary now reports configured
 Bot/User authorization and scope coverage, rate-limit state, and durable User
 cursor freshness without exposing credentials or opaque cursor positions.

@@ -70,9 +70,11 @@ blocked state through a version 2 journal while preserving version 1 history. A
 kernel-backed exclusive Host lease passes real cross-process and process-death
 tests. Fixed Bot/User reply and User-discovery scope gates also pass synthetic
 contracts, and the User gate now reads the exact Keychain token claims while
-requiring rotation first when needed. The required live-account path is still
-missing Bot acquisition and scope observation, runtime composition under that
-lease, reply HTTP composition, hosted ingestion or polling,
+requiring rotation first when needed. A bounded fixed-endpoint Bot tenant-token
+client now passes synthetic contracts without live I/O. The required
+live-account path is still missing Bot Keychain composition and scope
+observation, runtime composition under that lease, reply HTTP composition,
+hosted ingestion or polling,
 interactive Draft and approval UI, and a real Feishu send. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).
 

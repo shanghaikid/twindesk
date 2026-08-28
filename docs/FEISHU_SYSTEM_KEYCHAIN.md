@@ -113,8 +113,9 @@ transport validates OAuth v3 refresh responses. The
 [Feishu OAuth Rotation Coordinator](FEISHU_OAUTH_ROTATION_COORDINATOR.md) now
 persists a reservation before remote refresh and reconciles an unfinished
 attempt through the exact Keychain reference after restart. The exclusive Host
-lease now passes real cross-process tests. Remaining TD-209 integration includes
-composing Keychain operations under that lease, revocation, minimum-scope
-checks, tenant-token acquisition, reply HTTP composition, runtime composition,
-UI, and live-account acceptance. Verified blocked-state replacement is covered
+lease now passes real cross-process tests, and the isolated bounded Bot
+tenant-token client passes synthetic contracts. Remaining TD-209 integration
+includes composing Bot Keychain resolution with token acquisition under that
+lease, revocation and minimum-scope checks, reply HTTP composition, runtime
+composition, UI, and live-account acceptance. Verified blocked-state replacement is covered
 by [Feishu OAuth Reauthorization Replacement](FEISHU_OAUTH_REAUTHORIZATION.md).
