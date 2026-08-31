@@ -6,13 +6,15 @@ import {
   FeishuSystemKeychainError,
   FeishuSystemKeychainSecretResolver,
   parseFeishuIdentityConfiguration,
+  parseFeishuOAuthAuthorizationConfiguration,
   type FeishuIdentityConfiguration,
+  type FeishuOAuthAuthorizationConfiguration,
   type FeishuOAuthInitialPersistenceResult,
 } from '@twindesk/plugin-feishu'
 
 export interface WorkbenchFeishuOAuthAuthorizationRuntimeOptions {
   readonly configuration: unknown
-  readonly scopes: readonly string[]
+  readonly authorization: unknown
   readonly flow: FeishuOAuthAuthorizationFlow
   readonly persister: FeishuOAuthInitialCredentialPersister
   readonly resolver: FeishuSystemKeychainSecretResolver
@@ -29,8 +31,9 @@ export type WorkbenchFeishuOAuthAuthorizationPresenter = (
   request: WorkbenchFeishuOAuthAuthorizationRequest,
 ) => Promise<void> | void
 
-export type WorkbenchFeishuOAuthAuthorizationErrorCode = 'credential_exists'
-export type WorkbenchFeishuOAuthAuthorizationRecovery = 'use_reauthorization'
+export type WorkbenchFeishuOAuthAuthorizationErrorCode = 'credential_exists' | 'redirect_mismatch'
+export type WorkbenchFeishuOAuthAuthorizationRecovery =
+  'use_reauthorization' | 'correct_configuration'
 
 export class WorkbenchFeishuOAuthAuthorizationError extends Error {
   readonly code: WorkbenchFeishuOAuthAuthorizationErrorCode
@@ -66,7 +69,7 @@ const fillBytes = Uint8Array.prototype.fill
 
 interface ParsedOptions {
   readonly configuration: FeishuIdentityConfiguration
-  readonly scopes: readonly string[]
+  readonly authorization: FeishuOAuthAuthorizationConfiguration
   readonly flow: FeishuOAuthAuthorizationFlow
   readonly persister: FeishuOAuthInitialCredentialPersister
   readonly resolver: FeishuSystemKeychainSecretResolver
@@ -98,43 +101,16 @@ function dataRecord(value: unknown): UnknownRecord {
   }
 }
 
-function readScopes(value: unknown): readonly string[] {
-  try {
-    if (!Array.isArray(value) || value.length === 0 || value.length > 128) throw new TypeError()
-    const descriptors = Object.getOwnPropertyDescriptors(value)
-    if (
-      Object.getPrototypeOf(value) !== Array.prototype ||
-      Object.getOwnPropertySymbols(value).length !== 0 ||
-      Object.keys(descriptors).length !== value.length + 1
-    ) {
-      throw new TypeError()
-    }
-    const scopes = Array.from({ length: value.length }, (_, index) => {
-      const descriptor = descriptors[String(index)]
-      if (descriptor === undefined || !Object.hasOwn(descriptor, 'value')) throw new TypeError()
-      const scope = descriptor.value
-      if (
-        typeof scope !== 'string' ||
-        scope.length === 0 ||
-        scope.length > 256 ||
-        !/^[A-Za-z0-9][A-Za-z0-9._:-]*$/u.test(scope)
-      ) {
-        throw new TypeError()
-      }
-      return scope
-    })
-    if (new Set(scopes).size !== scopes.length || !scopes.includes('offline_access')) {
-      throw new TypeError()
-    }
-    return Object.freeze([...scopes].sort())
-  } catch {
-    throw invalid()
-  }
-}
-
 function readOptions(value: unknown): ParsedOptions {
   const record = dataRecord(value)
-  const expected = ['configuration', 'scopes', 'flow', 'persister', 'resolver', 'callbackHost']
+  const expected = [
+    'configuration',
+    'authorization',
+    'flow',
+    'persister',
+    'resolver',
+    'callbackHost',
+  ]
   if (Object.hasOwn(record, 'leaseManager')) expected.push('leaseManager')
   if (
     Object.keys(record).length !== expected.length ||
@@ -144,8 +120,10 @@ function readOptions(value: unknown): ParsedOptions {
     throw invalid()
   }
   let configuration: FeishuIdentityConfiguration
+  let authorization: FeishuOAuthAuthorizationConfiguration
   try {
     configuration = parseFeishuIdentityConfiguration(record.configuration)
+    authorization = parseFeishuOAuthAuthorizationConfiguration(record.authorization)
   } catch {
     throw invalid()
   }
@@ -154,6 +132,7 @@ function readOptions(value: unknown): ParsedOptions {
     : new FeishuRuntimeLeaseManager()
   if (
     configuration.user === undefined ||
+    authorization.appId !== configuration.appId ||
     !(record.flow instanceof FeishuOAuthAuthorizationFlow) ||
     !(record.persister instanceof FeishuOAuthInitialCredentialPersister) ||
     !(record.resolver instanceof FeishuSystemKeychainSecretResolver) ||
@@ -164,7 +143,7 @@ function readOptions(value: unknown): ParsedOptions {
   }
   return Object.freeze({
     configuration,
-    scopes: readScopes(record.scopes),
+    authorization,
     flow: record.flow,
     persister: record.persister,
     resolver: record.resolver,
@@ -245,15 +224,23 @@ export function createWorkbenchFeishuOAuthAuthorizationHost(
           signal,
           async (lease) => {
             lease.assertHeld()
-            await assertCredentialMissing(options, signal)
-            lease.assertHeld()
             const listener = await options.callbackHost.listen(signal)
             try {
+              if (listener.redirectUri !== options.authorization.redirectUri) {
+                throw new WorkbenchFeishuOAuthAuthorizationError(
+                  'redirect_mismatch',
+                  'correct_configuration',
+                  'The Feishu OAuth callback listener does not match the registered redirect URI.',
+                )
+              }
+              lease.assertHeld()
+              await assertCredentialMissing(options, signal)
+              lease.assertHeld()
               const session = options.flow.start({
                 clientId: options.configuration.appId,
                 clientSecret,
-                redirectUri: listener.redirectUri,
-                scopes: options.scopes,
+                redirectUri: options.authorization.redirectUri,
+                scopes: options.authorization.scopes,
               })
               try {
                 const callback = listener.wait(session.authorizationUrl, signal)

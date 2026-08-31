@@ -95,16 +95,27 @@ class RecordingLeaseManager extends FeishuRuntimeLeaseManager {
 }
 
 /**
- * @param {{leaseManager: RecordingLeaseManager, resolver: FeishuSystemKeychainSecretResolver, onTransport?: (request: import('../packages/plugin-feishu/dist/index.js').FeishuOAuthV3TransportRequest) => void, onVerify?: (token: Uint8Array) => void, onReplace?: (bundle: Uint8Array) => void}} options
+ * @param {{leaseManager: RecordingLeaseManager, resolver: FeishuSystemKeychainSecretResolver, authorizationAppId?: string, callbackHost?: FeishuOAuthLoopbackCallbackHost, onTransport?: (request: import('../packages/plugin-feishu/dist/index.js').FeishuOAuthV3TransportRequest) => void, onVerify?: (token: Uint8Array) => void, onReplace?: (bundle: Uint8Array) => void}} options
  */
-function runtime(options) {
+async function runtime(options) {
+  const probe = await new FeishuOAuthLoopbackCallbackHost().listen(new AbortController().signal)
+  const port = Number(new URL(probe.redirectUri).port)
+  await probe.close()
   let randomCall = 0
   return createWorkbenchFeishuOAuthAuthorizationHost({
     configuration: CONFIGURATION,
-    scopes: ['im:message:readonly', 'offline_access'],
+    authorization: {
+      kind: 'feishu_oauth_authorization_configuration',
+      schemaVersion: 1,
+      connectorId: 'feishu',
+      appId: options.authorizationAppId ?? CONFIGURATION.appId,
+      redirectUri: `http://127.0.0.1:${port}/oauth/feishu/callback`,
+      scopes: ['im:message:readonly', 'offline_access'],
+    },
     leaseManager: options.leaseManager,
     resolver: options.resolver,
-    callbackHost: new FeishuOAuthLoopbackCallbackHost({ timeoutMs: 2_000 }),
+    callbackHost:
+      options.callbackHost ?? new FeishuOAuthLoopbackCallbackHost({ port, timeoutMs: 2_000 }),
     flow: new FeishuOAuthAuthorizationFlow({
       now: () => NOW,
       randomBytes(length) {
@@ -160,7 +171,7 @@ test('Workbench holds one lease from loopback capture through verified initial p
       },
     },
   })
-  const host = runtime({
+  const host = await runtime({
     leaseManager,
     resolver,
     onTransport(request) {
@@ -225,7 +236,7 @@ test('Workbench refuses initial authorization when a credential already exists',
   const existing = bytes('synthetic-private-existing-credential')
   let presented = 0
   let transports = 0
-  const host = runtime({
+  const host = await runtime({
     leaseManager,
     resolver: new FeishuSystemKeychainSecretResolver({
       platform: 'darwin',
@@ -255,13 +266,54 @@ test('Workbench refuses initial authorization when a credential already exists',
   )
 })
 
+test('Workbench rejects app and listener mismatches before presentation', async () => {
+  let resolverReads = 0
+  const resolver = new FeishuSystemKeychainSecretResolver({
+    platform: 'darwin',
+    runner: {
+      async run() {
+        resolverReads += 1
+        throw missingError()
+      },
+    },
+  })
+  await assert.rejects(
+    runtime({
+      leaseManager: new RecordingLeaseManager(),
+      resolver,
+      authorizationAppId: 'cli_other_registered_app',
+    }),
+    TypeError,
+  )
+
+  let presented = 0
+  const leaseManager = new RecordingLeaseManager()
+  const host = await runtime({
+    leaseManager,
+    resolver,
+    callbackHost: new FeishuOAuthLoopbackCallbackHost({ timeoutMs: 2_000 }),
+  })
+  await assert.rejects(
+    host.authorize(bytes(CLIENT_SECRET), new AbortController().signal, () => {
+      presented += 1
+    }),
+    (error) =>
+      error instanceof WorkbenchFeishuOAuthAuthorizationError &&
+      error.code === 'redirect_mismatch' &&
+      error.recovery === 'correct_configuration',
+  )
+  assert.equal(presented, 0)
+  assert.equal(resolverReads, 0)
+  assert.equal(leaseManager.held, false)
+})
+
 test('Workbench rechecks absence after callback and before consuming the code', async () => {
   const leaseManager = new RecordingLeaseManager()
   const lateCredential = bytes('synthetic-private-late-credential')
   let checks = 0
   let transports = 0
   let replacements = 0
-  const host = runtime({
+  const host = await runtime({
     leaseManager,
     resolver: new FeishuSystemKeychainSecretResolver({
       platform: 'darwin',
@@ -306,7 +358,7 @@ test('Workbench rechecks absence after callback and before consuming the code', 
 test('Workbench rechecks lease ownership immediately before Keychain replacement', async () => {
   const leaseManager = new RecordingLeaseManager()
   let replacements = 0
-  const host = runtime({
+  const host = await runtime({
     leaseManager,
     resolver: new FeishuSystemKeychainSecretResolver({
       platform: 'darwin',
@@ -339,7 +391,7 @@ test('Workbench closes the callback listener when presentation fails', async () 
   const leaseManager = new RecordingLeaseManager()
   let absenceChecks = 0
   let redirectUri = ''
-  const host = runtime({
+  const host = await runtime({
     leaseManager,
     resolver: new FeishuSystemKeychainSecretResolver({
       platform: 'darwin',
@@ -372,7 +424,7 @@ test('Workbench cancellation does not wait for a stalled presenter', async () =>
   const leaseManager = new RecordingLeaseManager()
   const controller = new AbortController()
   let redirectUri = ''
-  const host = runtime({
+  const host = await runtime({
     leaseManager,
     resolver: new FeishuSystemKeychainSecretResolver({
       platform: 'darwin',

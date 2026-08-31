@@ -66,6 +66,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Feishu OAuth Rotation Coordinator](docs/FEISHU_OAUTH_ROTATION_COORDINATOR.md): durable-before-remote reservation, Keychain replacement, restart reconciliation, and secret-free journal state.
 - [Feishu OAuth User Principal Verification](docs/FEISHU_OAUTH_PRINCIPAL_VERIFICATION.md): exact `open_id` binding, fixed-endpoint bounded HTTP, minimized user-info data, and transient-secret cleanup.
 - [Feishu OAuth Authorization Code and PKCE](docs/FEISHU_OAUTH_AUTHORIZATION_CODE.md): one-use state-bound authorization, exact callback validation, PKCE exchange, and replay handling.
+- [Feishu OAuth Authorization Configuration](docs/FEISHU_OAUTH_AUTHORIZATION_CONFIGURATION.md): versioned app-bound scopes and exact registered literal-loopback redirect settings.
 - [Feishu OAuth Loopback Callback Host](docs/FEISHU_OAUTH_LOOPBACK_CALLBACK_HOST.md): bounded one-shot literal-loopback redirect capture and lifecycle cleanup.
 - [Workbench Feishu OAuth Authorization Runtime](docs/WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_RUNTIME.md): lease-held initial authorization from loopback capture through verified Keychain persistence.
 - [Feishu OAuth Verified Initial Persistence](docs/FEISHU_OAUTH_INITIAL_PERSISTENCE.md): verified User token snapshot, exact initial Keychain replacement, and uncertain-write recovery.
@@ -170,9 +171,9 @@ normalization, bounded context, an edited Draft revision, exact approval,
 idempotent execution, receipt persistence, restart verification, and a complete local
 Audit trace. The restart evidence is a deterministic acceptance completion,
 not an automatic repair service. Stage 2 is not declared complete: hosted
-ingestion or polling, authorization and credential-recovery UI, registered
-redirect configuration, interactive Draft/approval UI, model-backed Draft
-linkage, and a live-account send remain unimplemented.
+ingestion or polling, settings-backed authorization and credential-recovery UI,
+interactive Draft/approval UI, model-backed Draft linkage, and a live-account
+send remain unimplemented.
 Versioned domain records and the product-owned Connector contract are
 implemented. The pinned Harness Profile,
 two draft-only Personas, JSONL restart recovery, and bounded Codex specialist

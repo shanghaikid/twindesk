@@ -6,7 +6,9 @@
 Feishu User authorization under the same exclusive Host lease used by polling,
 rotation, reauthorization, and replies. It connects the literal-loopback
 listener, authorization-code/S256 PKCE flow, exact User principal verification,
-and initial system Keychain persistence.
+and initial system Keychain persistence. Its versioned authorization
+configuration must bind the same application as the identity configuration and
+the listener must bind its exact registered redirect URI.
 
 This is a Host composition boundary, not a product UI. A caller-supplied
 presenter receives a frozen authorization URL and redirect URI only. It may
@@ -21,8 +23,9 @@ The only successful ordering is:
 ```text
 validate fixed configuration and collaborators
   -> acquire exclusive Feishu Host lease
-  -> prove the configured User Keychain item is absent
   -> bind the configured literal-loopback listener
+  -> prove the actual listener URI equals the registered redirect
+  -> prove the configured User Keychain item is absent
   -> create and arm one state-bound PKCE transaction
   -> invoke the presentation-only callback
   -> capture one exact callback
@@ -40,12 +43,13 @@ another TwinDesk Feishu runtime cannot poll, rotate, reauthorize, or write
 concurrently. Losing ownership during remote principal verification writes
 nothing.
 
-The Keychain absence check runs both before presenting authorization and before
-consuming the code. An existing item fails with `credential_exists` and directs
-the caller to the separate reauthorization path. This prevents an ordinary
-initial-authorization request from silently replacing a known credential. The
-Host lease excludes other TwinDesk processes; it cannot lock unrelated tools
-that directly mutate the system Keychain.
+An app or redirect mismatch closes the listener and fails before presenting an
+authorization URL. The Keychain absence check runs both before presenting
+authorization and before consuming the code. An existing item fails with
+`credential_exists` and directs the caller to the separate reauthorization
+path. This prevents an ordinary initial-authorization request from silently
+replacing a known credential. The Host lease excludes other TwinDesk processes;
+it cannot lock unrelated tools that directly mutate the system Keychain.
 
 ## Cancellation, Recovery, and Privacy
 
@@ -77,8 +81,7 @@ network endpoint, browser, or Keychain item is used.
 
 Still open:
 
-- product settings and recovery UI plus browser launching;
-- validated registered redirect configuration instead of test-time ephemeral
-  ports;
+- recovery UI plus browser launching;
+- Settings persistence and editing for the versioned authorization configuration;
 - Cordis lifecycle activation and hosted polling coexistence;
 - live-account authorization and Keychain acceptance.
