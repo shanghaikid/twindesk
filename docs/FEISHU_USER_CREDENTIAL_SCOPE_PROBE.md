@@ -77,8 +77,8 @@ zeroing without touching a live Keychain item.
 
 The separate [Bot Keychain scope probe](FEISHU_BOT_KEYCHAIN_SCOPE_PROBE.md) now
 composes bounded token acquisition with remote Bot-principal and tenant-scope
-observation. The lease-held reply adapter now uses both probes and rechecks the
-actual User send bundle before fixed-endpoint HTTP. Remaining work includes
-binding the separate Host execution operation and User rotation under the
-actual Feishu lease, a production discovery client, selected context endpoint
-policies, and live-account acceptance.
+observation. The Workbench reply path now rotates an expired User credential
+under the real lease, then uses this probe and rechecks the actual send bundle
+before fixed-endpoint HTTP. Remaining work includes a production discovery
+client, selected context endpoint policies, hosted recovery, and live-account
+acceptance.

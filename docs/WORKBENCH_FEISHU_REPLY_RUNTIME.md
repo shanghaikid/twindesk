@@ -7,6 +7,7 @@ composition boundary for one approved Feishu reply. It binds the
 Connector-neutral `WorkHubActionExecutionHost` to:
 
 - the real kernel-backed `FeishuRuntimeLeaseManager`;
+- the durable `FeishuOAuthRotationCoordinator` for configured User identity;
 - `FeishuReplyExecutor` and its durable dispatch-reservation callback;
 - the lease-held `FeishuReplyExecutionAdapter`;
 - the exact configured Bot or User scope probe, Keychain resolver, token
@@ -20,16 +21,17 @@ target, content, and idempotency binding comes from durable TwinDesk records.
 
 The default lease manager owns the fixed loopback lease for the complete Host
 callback. Approval validation and consumption, approval Audit, execution
-start, credential and scope preflight, dispatch reservation, HTTP dispatch,
-receipt settlement, and execution Audit therefore run without another Feishu
-runtime entering the callback. The adapter checks the held lease again before
-credential access and immediately before the external write.
+start, durable User credential rotation when required, durable reply dispatch
+reservation, credential and scope preflight, HTTP dispatch, receipt settlement,
+and execution Audit therefore run without another Feishu runtime entering the
+callback. The adapter checks the held lease after rotation, before credential
+access, and immediately before the external write.
 
 The factory validates the required database methods and concrete security
 collaborators before returning a Host. A User configuration requires its User
-scope probe. A Bot configuration requires both its Bot scope probe and tenant
-token acquirer. Missing or substituted collaborators fail before approval
-consumption.
+scope probe and rotation coordinator. A Bot configuration requires both its Bot
+scope probe and tenant token acquirer. Missing or substituted collaborators
+fail before approval consumption.
 
 ## Verification
 
@@ -38,8 +40,9 @@ production classes with injected Keychain-command and Fetch boundaries. It
 proves:
 
 - one exact User approval is consumed and audited before dispatch;
-- two callback-scoped Keychain reads cover scope and send-time credential
-  validation;
+- an expired User access token rotates once before reply dispatch reservation,
+  then three callback-scoped Keychain reads cover rotation, scope, and
+  send-time credential validation;
 - one durable dispatch reservation precedes one reply request;
 - the successful receipt, proposal settlement, and execution Audit persist;
 - secret, response, and request buffers are cleared at their boundaries;
@@ -52,8 +55,9 @@ No live Keychain item, credential, Feishu account, or network endpoint is used.
 ## Remaining Work
 
 This factory is an executable composition API, not yet a hosted Cordis
-Connector lifecycle. User OAuth rotation must be invoked under the same lease
-before retrying a refresh-required preflight. Hosted callback or polling,
+Connector lifecycle. A rotation result that requires reauthorization or
+Keychain reconciliation terminates the approved reply without blind retry;
+hosted recovery and reauthorization UX remain open. Hosted callback or polling,
 interactive Draft editing and exact approval UI, model-backed Draft linkage,
-and an authorized live-account acceptance run remain open. Synthetic evidence
-must not be presented as a live Feishu guarantee.
+and an authorized live-account acceptance run also remain open. Synthetic
+evidence must not be presented as a live Feishu guarantee.

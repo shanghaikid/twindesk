@@ -50,6 +50,8 @@ export type FeishuReplyExecutionClientErrorCode =
   | 'not_authorized'
   | 'scope_missing'
   | 'preflight_unavailable'
+  | 'credential_reauthorization_required'
+  | 'credential_rotation_uncertain'
   | 'rate_limited'
   | 'network'
   | 'rejected'
@@ -65,6 +67,8 @@ export class FeishuReplyExecutionClientError extends Error {
       'not_authorized',
       'scope_missing',
       'preflight_unavailable',
+      'credential_reauthorization_required',
+      'credential_rotation_uncertain',
       'rate_limited',
       'network',
       'rejected',
@@ -95,6 +99,8 @@ export interface FeishuReplyExecutionRequest {
 }
 
 export interface FeishuReplyExecutionClient {
+  /** Complete credential maintenance that must precede durable reply dispatch. */
+  prepare?(request: FeishuReplyExecutionRequest, signal: AbortSignal): Promise<void>
   /** Look up the exact idempotency key when the remote system exposes it. */
   reconcile?(request: FeishuReplyExecutionRequest, signal: AbortSignal): Promise<unknown>
   /** Resolve the credential reference, recheck scopes, and send with the exact key. */
@@ -102,6 +108,7 @@ export interface FeishuReplyExecutionClient {
 }
 
 type FeishuReplyReconciliationMethod = NonNullable<FeishuReplyExecutionClient['reconcile']>
+type FeishuReplyPreparationMethod = NonNullable<FeishuReplyExecutionClient['prepare']>
 
 export interface FeishuReplyExecutorOptions {
   readonly now?: () => number
@@ -434,6 +441,28 @@ function clientIssue(
       'retry_same_key',
     )
   }
+  if (code === 'credential_reauthorization_required') {
+    return issueReceipt(
+      action,
+      attemptedAt,
+      'failed',
+      'feishu_credential_reauthorization_required',
+      'The Feishu reply was not attempted because the User authorization must be renewed.',
+      false,
+      'do_not_retry',
+    )
+  }
+  if (code === 'credential_rotation_uncertain') {
+    return issueReceipt(
+      action,
+      attemptedAt,
+      'failed',
+      'feishu_credential_rotation_uncertain',
+      'The Feishu reply was not attempted because credential rotation requires reconciliation.',
+      false,
+      'do_not_retry',
+    )
+  }
   if (code === 'network' || code === 'unknown') {
     return issueReceipt(
       action,
@@ -456,17 +485,38 @@ function clientIssue(
   )
 }
 
-function reconciliationMethod(
+function optionalClientMethod<Method extends (...args: never[]) => unknown>(
   client: FeishuReplyExecutionClient,
-): FeishuReplyReconciliationMethod | undefined {
+  name: 'prepare' | 'reconcile',
+): Method | undefined {
   try {
-    const reconcile = client.reconcile
-    if (reconcile === undefined) return undefined
-    if (typeof reconcile !== 'function') throw new TypeError()
-    return reconcile
+    let owner: object | null = client
+    while (owner !== null) {
+      const descriptor = Object.getOwnPropertyDescriptor(owner, name)
+      if (descriptor !== undefined) {
+        if (!('value' in descriptor) || typeof descriptor.value !== 'function') {
+          throw new TypeError()
+        }
+        return descriptor.value as Method
+      }
+      owner = Object.getPrototypeOf(owner)
+    }
+    return undefined
   } catch {
     throw new FeishuReplyExecutionClientError('invalid_response')
   }
+}
+
+function reconciliationMethod(
+  client: FeishuReplyExecutionClient,
+): FeishuReplyReconciliationMethod | undefined {
+  return optionalClientMethod<FeishuReplyReconciliationMethod>(client, 'reconcile')
+}
+
+function preparationMethod(
+  client: FeishuReplyExecutionClient,
+): FeishuReplyPreparationMethod | undefined {
+  return optionalClientMethod<FeishuReplyPreparationMethod>(client, 'prepare')
 }
 
 export class FeishuReplyExecutor {
@@ -528,6 +578,22 @@ export class FeishuReplyExecutor {
       if (reconciliation.status === 'found') {
         return successReceipt(action, reconciliation, attemptedAt)
       }
+    }
+    let prepare: FeishuReplyPreparationMethod | undefined
+    try {
+      prepare = preparationMethod(this.#client)
+    } catch (error) {
+      signal.throwIfAborted()
+      return clientIssue(action, attemptedAt, error, 'send', exactReconciliationAvailable)
+    }
+    if (prepare !== undefined) {
+      try {
+        await prepare.call(this.#client, request, signal)
+      } catch (error) {
+        signal.throwIfAborted()
+        return clientIssue(action, attemptedAt, error, 'send', exactReconciliationAvailable)
+      }
+      signal.throwIfAborted()
     }
     try {
       if (this.#reserveDispatch === undefined) {

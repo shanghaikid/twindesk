@@ -89,22 +89,33 @@ This means a crash after reservation but before the HTTP request can require
 manual recovery, and a crash after a successful HTTP request but before receipt
 persistence cannot be confirmed automatically. Both cases prefer a visible
 false-positive uncertainty over a duplicate external reply. A durably settled
-`rate_limited` rejection remains the sole automatic same-key retry path because
-it explicitly proves that Feishu did not accept that call.
+`rate_limited` rejection remains the sole automatic same-key retry path after a
+Feishu reply call starts because it explicitly proves that Feishu did not
+accept that call. Proven pre-reply preflight failures may also retry the same
+key.
 
 A rate limit that is known to reject the request produces `failed` with
-`retry_same_key`. Authorization, missing scope, or explicit rejection produces
-`failed` with `do_not_retry`. A network failure, unknown adapter failure,
+`retry_same_key`. Authorization, missing scope, required reauthorization,
+uncertain credential rotation, or explicit rejection produces `failed` with
+`do_not_retry`. A network failure, unknown adapter failure,
 identity-inconsistent response, or malformed post-send response produces
 `uncertain` with `reconcile_first`. Its error is retryable only when exact
 reconciliation is available; otherwise an operator or future exact platform
-mechanism must resolve it. All issue codes and summaries are bounded, normalized
-values and never contain a response payload.
+mechanism must resolve it. All issue codes and summaries are bounded,
+normalized values and never contain a response payload.
 
 A production preflight failure that proves reply HTTP was never reached also
 produces `failed` with `retry_same_key`. This covers temporarily unavailable
-scope evidence, required User credential rotation, or lease loss before
-dispatch. It is distinct from post-POST network ambiguity.
+scope evidence, a pending or pre-reservation-unavailable User rotation, or
+lease loss before reply HTTP. A required rotation is attempted under the lease;
+its uncertain or reauthorization-required outcomes are terminal instead. This
+is distinct from post-POST network ambiguity.
+
+The optional client `prepare()` phase runs after exact reconciliation but
+before durable reply dispatch reservation. The production adapter uses it only
+for lease-held User credential rotation. A process stop during OAuth rotation
+therefore leaves no false-positive reply dispatch; restart follows the separate
+rotation journal before a reply reservation can exist.
 
 ## Durable State and Recovery
 

@@ -115,10 +115,10 @@ persists a reservation before remote refresh and reconciles an unfinished
 attempt through the exact Keychain reference after restart. The exclusive Host
 lease now passes real cross-process tests, and the bounded Bot tenant-token
 client composes with exact Keychain resolution, remote Bot-principal
-verification, and tenant-only scope observation in synthetic contracts.
-The lease-held reply adapter now composes that probe with fixed-endpoint HTTP.
-The Connector-neutral Host execution operation now exists separately. Remaining
-TD-209 integration includes binding both plus User rotation under the actual
-lease, UI, and live-account acceptance.
+verification, and tenant-only scope observation in synthetic contracts. The
+Workbench root now composes User rotation, exact Keychain replacement and
+resolution, scope checks, and fixed-endpoint reply HTTP under the actual lease.
+Remaining TD-209 integration includes hosted recovery lifecycle, UI, and
+live-account acceptance.
 Verified blocked-state replacement is covered
 by [Feishu OAuth Reauthorization Replacement](FEISHU_OAUTH_REAUTHORIZATION.md).

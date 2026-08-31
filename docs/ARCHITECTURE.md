@@ -267,11 +267,11 @@ composition evidence, not a live Connector path: its acceptance fixture
 resolves no live credential and calls no real Feishu API. The production reply
 client now composes the held lease, exact scope probes, Keychain, token, and HTTP
 boundaries under injected tests. The Workbench composition root now wires the
-durable Host operation to the real lease and production reply adapter, while
-injecting only synthetic Keychain and Fetch boundaries for its full-stack test.
-The Stage 2 exit remains open until the production runtime actually holds the
-exclusive lease around token rotation as well as HTTP dispatch, hosts ingestion
-or polling, and passes product editing/approval UI, model-run linkage, and
+durable Host operation to the real lease, User rotation coordinator, and
+production reply adapter, while injecting only synthetic Keychain and Fetch
+boundaries for its full-stack test. The Stage 2 exit remains open until the
+production runtime hosts ingestion, polling, and credential-recovery
+lifecycles, and passes product editing/approval UI, model-run linkage, and
 live-account acceptance boundaries. See
 [Stage 2 Exit Gate](STAGE_2_EXIT_GATE.md).
 

@@ -85,7 +85,8 @@ and Keychain runners and make no live network or Keychain change.
 
 The authorization-code/PKCE exchange, verified initial persistence, explicit
 blocked-state replacement, and exclusive Host lease now pass synthetic
-contracts. Remaining work includes composing rotation and reauthorization under
-that lease, operation scope checks, reply HTTP composition, hosted ingestion or
-polling, UI, and live-account acceptance. See
+contracts. The Workbench User reply path now composes rotation under that lease
+before scope checks and reply HTTP. Remaining work includes hosted
+reauthorization and recovery, ingestion or polling, UI, and live-account
+acceptance. See
 [Feishu OAuth Reauthorization Replacement](FEISHU_OAUTH_REAUTHORIZATION.md).

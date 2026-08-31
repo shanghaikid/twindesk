@@ -110,4 +110,4 @@ adapter now composes both concrete identity probes with the fixed reply HTTP
 primitive. The Workbench composition root now binds the concrete reply probes
 and Connector-neutral Host execution operation under the real runtime lease.
 Remaining work includes future discovery clients, separate context endpoint
-policies, User rotation under the lease, and live-account acceptance.
+policies, hosted credential recovery, and live-account acceptance.

@@ -11,6 +11,10 @@ import {
   type FeishuIdentityConfiguration,
 } from './identity-configuration.ts'
 import {
+  FeishuOAuthRotationCoordinator,
+  FeishuOAuthRotationError,
+} from './oauth-rotation-coordinator.ts'
+import {
   FeishuOperationScopeAuthorizationError,
   FeishuOperationScopeAuthorizer,
   type FeishuOperationScopeProbeClient,
@@ -41,6 +45,7 @@ export interface FeishuReplyExecutionAdapterOptions {
   readonly botScopeProbe?: FeishuBotKeychainScopeProbe
   readonly botTokenAcquirer?: FeishuBotTenantTokenAcquirer
   readonly userScopeProbe?: FeishuUserCredentialScopeProbe
+  readonly userRotationCoordinator?: FeishuOAuthRotationCoordinator
   readonly now?: () => number
 }
 
@@ -54,6 +59,7 @@ interface ParsedOptions {
   readonly replyClient: FeishuReplyHttpClient
   readonly botTokenAcquirer?: FeishuBotTenantTokenAcquirer
   readonly scopeClient: FeishuOperationScopeProbeClient
+  readonly userRotationCoordinator?: FeishuOAuthRotationCoordinator
   readonly now: () => number
 }
 
@@ -119,6 +125,9 @@ function readOptions(value: unknown): ParsedOptions {
     const expected = ['configuration', 'lease', 'resolver', 'replyClient']
     if (configuration.bot !== undefined) expected.push('botScopeProbe', 'botTokenAcquirer')
     if (configuration.user !== undefined) expected.push('userScopeProbe')
+    if (configuration.user !== undefined && Object.hasOwn(record, 'userRotationCoordinator')) {
+      expected.push('userRotationCoordinator')
+    }
     if (Object.hasOwn(record, 'now')) expected.push('now')
     exactKeys(record, expected)
     const resolver = record.resolver
@@ -127,6 +136,7 @@ function readOptions(value: unknown): ParsedOptions {
     const botScopeProbe = record.botScopeProbe
     const botTokenAcquirer = record.botTokenAcquirer
     const userScopeProbe = record.userScopeProbe
+    const userRotationCoordinator = record.userRotationCoordinator
     if (
       !(resolver instanceof FeishuSystemKeychainSecretResolver) ||
       !(replyClient instanceof FeishuReplyHttpClient) ||
@@ -135,7 +145,9 @@ function readOptions(value: unknown): ParsedOptions {
         (!(botScopeProbe instanceof FeishuBotKeychainScopeProbe) ||
           !(botTokenAcquirer instanceof FeishuBotTenantTokenAcquirer))) ||
       (configuration.user !== undefined &&
-        !(userScopeProbe instanceof FeishuUserCredentialScopeProbe))
+        !(userScopeProbe instanceof FeishuUserCredentialScopeProbe)) ||
+      (userRotationCoordinator !== undefined &&
+        !(userRotationCoordinator instanceof FeishuOAuthRotationCoordinator))
     ) {
       throw new TypeError()
     }
@@ -155,6 +167,7 @@ function readOptions(value: unknown): ParsedOptions {
         ? {}
         : { botTokenAcquirer: botTokenAcquirer as FeishuBotTenantTokenAcquirer }),
       scopeClient,
+      ...(userRotationCoordinator === undefined ? {} : { userRotationCoordinator }),
       now: now as () => number,
     })
   } catch (error) {
@@ -292,6 +305,18 @@ function mapPreflightError(error: unknown): FeishuReplyExecutionClientError {
     if (error.code === 'credential_expired') return clientError('not_authorized')
     return clientError('invalid_response')
   }
+  if (error instanceof FeishuOAuthRotationError) {
+    if (error.code === 'reauthorization_required') {
+      return clientError('credential_reauthorization_required')
+    }
+    if (error.code === 'rotation_uncertain') {
+      return clientError('credential_rotation_uncertain')
+    }
+    if (error.code === 'rotation_pending' || error.code === 'journal_unavailable') {
+      return clientError('preflight_unavailable')
+    }
+    return clientError('invalid_response')
+  }
   return clientError('preflight_unavailable')
 }
 
@@ -309,6 +334,7 @@ export class FeishuReplyExecutionAdapter implements FeishuReplyExecutionClient {
   readonly #replyClient: FeishuReplyHttpClient
   readonly #botTokenAcquirer: FeishuBotTenantTokenAcquirer | undefined
   readonly #scopeAuthorizer: FeishuOperationScopeAuthorizer
+  readonly #userRotationCoordinator: FeishuOAuthRotationCoordinator | undefined
   readonly #now: () => number
 
   constructor(options: FeishuReplyExecutionAdapterOptions) {
@@ -323,7 +349,24 @@ export class FeishuReplyExecutionAdapter implements FeishuReplyExecutionClient {
       client: validated.scopeClient,
       now: validated.now,
     })
+    this.#userRotationCoordinator = validated.userRotationCoordinator
     this.#now = validated.now
+  }
+
+  async prepare(requestValue: FeishuReplyExecutionRequest, signal: AbortSignal): Promise<void> {
+    if (!(signal instanceof AbortSignal)) throw clientError('invalid_response')
+    signal.throwIfAborted()
+    const request = readRequest(requestValue, this.#configuration)
+    try {
+      this.#assertLeaseHeld()
+      if (request.identityType === 'user' && this.#userRotationCoordinator !== undefined) {
+        await this.#userRotationCoordinator.refreshIfNeeded(this.#configuration, signal)
+        this.#assertLeaseHeld()
+      }
+    } catch (error) {
+      if (signal.aborted) signal.throwIfAborted()
+      throw mapPreflightError(error)
+    }
   }
 
   async send(requestValue: FeishuReplyExecutionRequest, signal: AbortSignal): Promise<unknown> {

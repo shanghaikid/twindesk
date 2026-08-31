@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 
 import {
@@ -7,10 +9,15 @@ import {
   FeishuBotIdentityScopeHttpClient,
   FeishuBotKeychainScopeProbe,
   FeishuBotTenantTokenAcquirer,
+  FeishuOAuthRotationCoordinator,
+  FeishuOAuthRotationError,
+  FeishuOAuthRotationJournal,
+  FeishuOAuthV3TokenRefresher,
   FeishuReplyExecutionAdapter,
   FeishuReplyExecutionClientError,
   FeishuReplyHttpClient,
   FeishuRuntimeLeaseManager,
+  FeishuSystemKeychainSecretReplacer,
   FeishuSystemKeychainSecretResolver,
   FeishuUserCredentialScopeProbe,
 } from '../packages/plugin-feishu/dist/index.js'
@@ -140,7 +147,7 @@ function leaseFixture(options = {}) {
 }
 
 /**
- * @param {{scopes?: string[], scopesByRead?: string[][], accessTokenExpiresAt?: string, lostLease?: boolean, replyFailure?: 'network', runtimeLease?: import('../packages/plugin-feishu/dist/index.js').FeishuRuntimeLease}} [options]
+ * @param {{scopes?: string[], scopesByRead?: string[][], accessTokenExpiresAt?: string, lostLease?: boolean, replyFailure?: 'network', rotationError?: 'rotation_pending' | 'rotation_uncertain' | 'reauthorization_required', runtimeLease?: import('../packages/plugin-feishu/dist/index.js').FeishuRuntimeLease}} [options]
  */
 function userFixture(options = {}) {
   const configuration = userConfiguration()
@@ -184,6 +191,34 @@ function userFixture(options = {}) {
     resolver,
     now: () => NOW,
   })
+  let userRotationCoordinator
+  const rotationError = options.rotationError
+  if (rotationError !== undefined) {
+    userRotationCoordinator = new FeishuOAuthRotationCoordinator({
+      resolver,
+      refresher: new FeishuOAuthV3TokenRefresher({
+        now: () => NOW,
+        transport: {
+          async send() {
+            return { status: 200, body: encoded({}) }
+          },
+        },
+      }),
+      replacer: new FeishuSystemKeychainSecretReplacer({
+        platform: 'darwin',
+        runner: { async replace() {} },
+      }),
+      journal: new FeishuOAuthRotationJournal(
+        join(tmpdir(), 'twindesk-unused-reply-adapter-rotation.jsonl'),
+      ),
+      now: () => NOW,
+    })
+    Object.defineProperty(userRotationCoordinator, 'refreshIfNeeded', {
+      value: async () => {
+        throw new FeishuOAuthRotationError(rotationError, 'Synthetic private rotation detail.')
+      },
+    })
+  }
   /** @type {Uint8Array[]} */
   const replyResponses = []
   const replyClient = new FeishuReplyHttpClient({
@@ -215,6 +250,7 @@ function userFixture(options = {}) {
       resolver,
       replyClient,
       userScopeProbe,
+      ...(userRotationCoordinator === undefined ? {} : { userRotationCoordinator }),
       now: () => NOW,
     }),
     diagnostics: () => ({ keychainReads, replyCalls, leaseChecks: lease.checks() }),
@@ -306,6 +342,30 @@ test('User scope, refresh, lease, and request failures occur before reply HTTP',
     'invalid_response',
     0,
   )
+})
+
+test('User rotation recovery classes stay payload-free and never reach scope or reply HTTP', async () => {
+  const scenarios = [
+    ['rotation_pending', 'preflight_unavailable'],
+    ['rotation_uncertain', 'credential_rotation_uncertain'],
+    ['reauthorization_required', 'credential_reauthorization_required'],
+  ]
+  for (const [rotationError, expectedCode] of scenarios) {
+    const current = userFixture({
+      rotationError:
+        /** @type {'rotation_pending' | 'rotation_uncertain' | 'reauthorization_required'} */ (
+          rotationError
+        ),
+    })
+    await assert.rejects(
+      current.adapter.prepare(request('user'), new AbortController().signal),
+      (error) =>
+        error instanceof FeishuReplyExecutionClientError &&
+        error.code === expectedCode &&
+        !error.message.includes('Synthetic private rotation detail.'),
+    )
+    assert.deepEqual(current.diagnostics(), { keychainReads: 0, replyCalls: 0, leaseChecks: 1 })
+  }
 })
 
 test('post-dispatch network ambiguity remains distinct from retryable preflight failure', async () => {

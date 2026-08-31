@@ -107,9 +107,9 @@ declared and streamed overflow, hostile values, and payload-free errors. They
 make no live request and use no real credential.
 
 `FeishuReplyExecutionAdapter` now composes this primitive with an already-held
-Host lease, exact Keychain resolution, fresh Bot/User scope authorization, and
-callback-scoped User or tenant tokens. Remaining TD-209 work is to compose that
-client with the separately completed Connector-neutral Host operation and User
-rotation under the actual Feishu lease, then add product approval UI and a live
-authorized account. The repository must not claim that the isolated or
-synthetically composed HTTP contract proves a real Feishu send.
+Host lease, durable User rotation, exact Keychain resolution, fresh Bot/User
+scope authorization, and callback-scoped User or tenant tokens. The Workbench
+root now composes that client with the Connector-neutral Host operation under
+the real lease. Remaining TD-209 work includes hosted lifecycle, product
+approval UI, and a live authorized account. The repository must not claim that
+the isolated or synthetically composed HTTP contract proves a real Feishu send.

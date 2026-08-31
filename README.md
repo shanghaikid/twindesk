@@ -156,8 +156,8 @@ synthetic contracts without a live credential. The probe verifies the remote
 Bot principal and retains only current tenant scopes. A bounded fixed-endpoint
 plain-text reply HTTP primitive and its lease-held Bot/User execution adapter
 also pass synthetic contracts. The Workbench composition root now binds the
-Connector-neutral Host orchestration, real lease, and adapter in a complete
-synthetic User reply test. A
+Connector-neutral Host orchestration, real lease, durable User rotation, and
+adapter in a complete synthetic User reply test. A
 presentation-safe diagnostics boundary now reports configured
 Bot/User authorization and scope coverage, rate-limit state, and durable User
 cursor freshness without exposing credentials or opaque cursor positions.
@@ -165,10 +165,10 @@ The local TD-209 contract acceptance path now composes verified-message
 normalization, bounded context, an edited Draft revision, exact approval,
 idempotent execution, receipt persistence, restart verification, and a complete local
 Audit trace. The restart evidence is a deterministic acceptance completion,
-not an automatic repair service. Stage 2 is not declared complete: the live
-Feishu token rotation under the same lease, hosted ingestion or polling,
-interactive Draft/approval UI, model-backed Draft linkage, and a live-account
-send remain unimplemented.
+not an automatic repair service. Stage 2 is not declared complete: hosted
+ingestion or polling and credential-recovery lifecycle, interactive
+Draft/approval UI, model-backed Draft linkage, and a live-account send remain
+unimplemented.
 Versioned domain records and the product-owned Connector contract are
 implemented. The pinned Harness Profile,
 two draft-only Personas, JSONL restart recovery, and bounded Codex specialist

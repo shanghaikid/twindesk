@@ -51,12 +51,13 @@ Failures proven to occur before reply HTTP are normalized as
 `preflight_unavailable`. The executor persists them as `failed` with
 `retry_same_key`, so a later attempt can obtain a new durable dispatch ordinal
 without pretending that an external write may have happened. Examples include
-a temporarily unavailable scope probe, an access token that requires rotation,
-or a lost Host lease before dispatch.
+a temporarily unavailable scope probe, a pending or pre-reservation-unavailable
+rotation, or a lost Host lease before reply HTTP.
 
-Missing authorization and missing scope remain terminal until configuration or
-authorization changes. Invalid composition or malformed credentials fail
-closed. Once the reply HTTP primitive starts, its existing result classes remain
+Missing authorization, missing scope, reauthorization-required rotation, and
+uncertain rotation remain terminal until explicit recovery. Invalid composition
+or malformed credentials fail closed. Once the reply HTTP primitive starts, its
+existing result classes remain
 authoritative: explicit rate limiting permits the same-key retry, while network,
 service, unknown, or malformed success outcomes are uncertain and cannot
 authorize a blind resend.
@@ -92,7 +93,11 @@ This adapter is not the complete hosted runtime. The Connector-neutral
 settlement, and recoverable append-only Audit completion. The
 [Workbench Feishu Reply Runtime](WORKBENCH_FEISHU_REPLY_RUNTIME.md) now binds its
 callback and executor to this adapter and the actual Feishu lease in a
-production-shaped composition API. User OAuth rotation must still run under
-the same Host lease before retrying `preflight_unavailable`.
+production-shaped composition API. Its User path now invokes the durable OAuth
+rotation coordinator in the executor's pre-dispatch preparation phase under
+that same Host lease before reply reservation and scope authorization.
+Temporary preflight failures retain `retry_same_key`; reauthorization-required
+or uncertain rotation results produce distinct terminal reply receipts and
+never reach reply HTTP.
 Hosted ingestion or polling, interactive Draft and approval UI, model-backed
 Draft linkage, and live-account acceptance also remain open.

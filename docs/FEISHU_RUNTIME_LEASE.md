@@ -67,7 +67,7 @@ after a child Host is terminated with `SIGKILL`. They use no live Feishu account
 credential, Keychain item, or external network request.
 
 The Workbench reply composition now holds this lease across durable approval,
-scope and credential checks, dispatch, receipt, and Audit, with `assertHeld()`
-at the adapter's operation boundaries. Remaining TD-209 work includes User
-rotation under the same lease, hosting authorization and ingestion or polling
-lifecycles, and passing live-account acceptance.
+User rotation, dispatch reservation, scope and credential checks, reply HTTP,
+receipt, and Audit, with `assertHeld()` at the adapter's operation boundaries.
+Remaining TD-209 work includes hosting authorization, recovery, ingestion, or
+polling lifecycles and passing live-account acceptance.

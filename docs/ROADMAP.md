@@ -78,11 +78,11 @@ synthetic contracts without claiming remote reconciliation. Send-only reply
 execution now requires a first durable dispatch reservation and blocks any
 unproven resend across restart. The Workbench composition root now binds the
 Connector-neutral Host approval operation to the real kernel lease and the
-concrete Bot/User reply stack; a synthetic full-stack User test proves one send
-and no resend after restart and approval expiry. The required live-account path
-is still missing User rotation under that lease, hosted ingestion or polling,
-interactive Draft and approval UI, model-backed linkage, and a real Feishu
-send. See the
+concrete Bot/User reply stack; a synthetic full-stack User test proves one
+durably rotated expired token, one send, and no resend after restart and
+approval expiry. The required live-account path is still missing hosted
+ingestion or polling and credential-recovery lifecycle, interactive Draft and
+approval UI, model-backed linkage, and a real Feishu send. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).
 
 ## Stage 3: Jira Context

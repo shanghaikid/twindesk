@@ -99,7 +99,7 @@ or network request.
 The reply execution adapter now consumes this probe under an already-held Host
 lease, then reacquires a callback-scoped tenant token for fixed-endpoint HTTP.
 The Connector-neutral Host operation now owns approval, dispatch, receipt, and
-Audit ordering under injected exclusive ownership. Remaining work includes
-binding both boundaries plus User rotation under the actual Feishu lease,
-wiring production diagnostics and settings, hosted event or polling lifecycle,
-and live-account acceptance.
+Audit ordering under injected exclusive ownership, and the Workbench root binds
+both under the actual lease while also rotating User credentials. Remaining
+work includes wiring production diagnostics and settings, hosted event or
+polling lifecycle, and live-account acceptance.

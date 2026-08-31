@@ -1,6 +1,7 @@
 import {
   FeishuBotKeychainScopeProbe,
   FeishuBotTenantTokenAcquirer,
+  FeishuOAuthRotationCoordinator,
   FeishuReplyExecutionAdapter,
   FeishuReplyExecutor,
   FeishuReplyHttpClient,
@@ -26,6 +27,7 @@ export interface WorkbenchFeishuReplyRuntimeOptions {
   readonly botScopeProbe?: FeishuBotKeychainScopeProbe
   readonly botTokenAcquirer?: FeishuBotTenantTokenAcquirer
   readonly userScopeProbe?: FeishuUserCredentialScopeProbe
+  readonly userRotationCoordinator?: FeishuOAuthRotationCoordinator
   readonly now?: () => number
 }
 
@@ -40,6 +42,7 @@ interface ParsedOptions {
   readonly botScopeProbe?: FeishuBotKeychainScopeProbe
   readonly botTokenAcquirer?: FeishuBotTenantTokenAcquirer
   readonly userScopeProbe?: FeishuUserCredentialScopeProbe
+  readonly userRotationCoordinator?: FeishuOAuthRotationCoordinator
   readonly now: () => number
 }
 
@@ -124,7 +127,7 @@ function readOptions(value: unknown): ParsedOptions {
   const expected = ['database', 'configuration', 'resolver', 'replyClient']
   if (Object.hasOwn(record, 'leaseManager')) expected.push('leaseManager')
   if (configuration.bot !== undefined) expected.push('botScopeProbe', 'botTokenAcquirer')
-  if (configuration.user !== undefined) expected.push('userScopeProbe')
+  if (configuration.user !== undefined) expected.push('userScopeProbe', 'userRotationCoordinator')
   if (Object.hasOwn(record, 'now')) expected.push('now')
   exactKeys(record, expected)
 
@@ -142,7 +145,8 @@ function readOptions(value: unknown): ParsedOptions {
       (!(record.botScopeProbe instanceof FeishuBotKeychainScopeProbe) ||
         !(record.botTokenAcquirer instanceof FeishuBotTenantTokenAcquirer))) ||
     (configuration.user !== undefined &&
-      !(record.userScopeProbe instanceof FeishuUserCredentialScopeProbe))
+      (!(record.userScopeProbe instanceof FeishuUserCredentialScopeProbe) ||
+        !(record.userRotationCoordinator instanceof FeishuOAuthRotationCoordinator)))
   ) {
     throw invalid()
   }
@@ -160,7 +164,10 @@ function readOptions(value: unknown): ParsedOptions {
         }),
     ...(configuration.user === undefined
       ? {}
-      : { userScopeProbe: record.userScopeProbe as FeishuUserCredentialScopeProbe }),
+      : {
+          userScopeProbe: record.userScopeProbe as FeishuUserCredentialScopeProbe,
+          userRotationCoordinator: record.userRotationCoordinator as FeishuOAuthRotationCoordinator,
+        }),
     now: now as () => number,
   })
 }
@@ -193,7 +200,11 @@ export function createWorkbenchFeishuReplyExecutionHost(
             }),
         ...(options.configuration.user === undefined
           ? {}
-          : { userScopeProbe: options.userScopeProbe as FeishuUserCredentialScopeProbe }),
+          : {
+              userScopeProbe: options.userScopeProbe as FeishuUserCredentialScopeProbe,
+              userRotationCoordinator:
+                options.userRotationCoordinator as FeishuOAuthRotationCoordinator,
+            }),
         now: options.now,
       })
       return new FeishuReplyExecutor(options.configuration, client, {

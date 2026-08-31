@@ -73,7 +73,8 @@ applies.
   executor callback. The default without that callback is fail-closed.
 - The Workbench composition root now binds the lease-held credential, scope,
   token, and reply HTTP client to the Connector-neutral Host operation under
-  the actual Feishu lease. It still must include User rotation. Synthetic
-  composition does not make this durability evidence a live-account guarantee.
+  the actual Feishu lease, including durable User rotation before scope and
+  send checks. Synthetic composition does not make this durability evidence a
+  live-account guarantee.
 - User-visible recovery controls remain required for the complete Stage 2
   experience.

@@ -199,7 +199,7 @@ function replyClient(options = {}) {
 }
 
 /**
- * @param {{ sendFailure?: 'network' | 'preflight_unavailable' | 'rate_limited' }} [options]
+ * @param {{ sendFailure?: 'network' | 'preflight_unavailable' | 'rate_limited' | 'credential_reauthorization_required' | 'credential_rotation_uncertain' }} [options]
  * @returns {Pick<import('../packages/plugin-feishu/src/reply-execution.ts').FeishuReplyExecutionClient, 'send'> & {
  *   diagnostics(): { sendCalls: number }
  * }}
@@ -218,6 +218,12 @@ function sendOnlyReplyClient(options = {}) {
       }
       if (options.sendFailure === 'preflight_unavailable') {
         throw new FeishuReplyExecutionClientError('preflight_unavailable')
+      }
+      if (options.sendFailure === 'credential_reauthorization_required') {
+        throw new FeishuReplyExecutionClientError('credential_reauthorization_required')
+      }
+      if (options.sendFailure === 'credential_rotation_uncertain') {
+        throw new FeishuReplyExecutionClientError('credential_rotation_uncertain')
       }
       return {
         status: 'found',
@@ -847,9 +853,11 @@ test('a hostile reconciliation capability fails before reservation without expos
       sendCalls += 1
     },
   }
+  let accessorCalls = 0
   Object.defineProperty(client, 'reconcile', {
     enumerable: true,
     get() {
+      accessorCalls += 1
       throw new Error('synthetic-private-reconciliation-error')
     },
   })
@@ -861,12 +869,13 @@ test('a hostile reconciliation capability fails before reservation without expos
   assert.equal(receipt.outcome, 'uncertain')
   assert.equal(receipt.error.code, 'feishu_reconciliation_invalid_response')
   assert.equal(JSON.stringify(receipt).includes('synthetic-private-reconciliation-error'), false)
+  assert.equal(accessorCalls, 0)
   assert.equal(sendCalls, 0)
   assert.equal(database.getLatestActionDispatch(action.executionAttemptId), undefined)
   database.close()
 })
 
-test('cancellation during reconciliation capability access never reserves or sends', async (context) => {
+test('cancellation during reconciliation capability inspection never reserves or sends', async (context) => {
   const path = await temporaryDatabase(context)
   const clock = policyClock()
   const database = openTwinDeskDatabase(path, clock.options)
@@ -879,24 +888,63 @@ test('cancellation during reconciliation capability access never reserves or sen
   })
   const controller = new AbortController()
   let sendCalls = 0
-  const client = {
-    async send() {
-      sendCalls += 1
+  const client = new Proxy(
+    {
+      async send() {
+        sendCalls += 1
+      },
     },
-  }
-  Object.defineProperty(client, 'reconcile', {
-    enumerable: true,
-    get() {
-      controller.abort()
-      return undefined
+    {
+      getOwnPropertyDescriptor(target, property) {
+        if (property === 'reconcile') controller.abort()
+        return Reflect.getOwnPropertyDescriptor(target, property)
+      },
     },
-  })
+  )
   const executor = new FeishuReplyExecutor(
     configuration(),
     /** @type {any} */ (client),
     executionOptions(clock, database),
   )
   await assert.rejects(executor.execute(action, controller.signal), { name: 'AbortError' })
+  assert.equal(sendCalls, 0)
+  assert.equal(database.getLatestActionDispatch(action.executionAttemptId), undefined)
+  database.close()
+})
+
+test('a hostile preparation capability fails before reservation without invoking its accessor', async (context) => {
+  const path = await temporaryDatabase(context)
+  const clock = policyClock()
+  const database = openTwinDeskDatabase(path, clock.options)
+  const { action } = await approveAction(database, clock, 'execution-hostile-prepare')
+  database.beginActionExecution({
+    kind: 'action_execution_start',
+    schemaVersion: 1,
+    action,
+    startedAt: EXECUTION_AT,
+  })
+  let accessorCalls = 0
+  let sendCalls = 0
+  const client = {
+    async send() {
+      sendCalls += 1
+    },
+  }
+  Object.defineProperty(client, 'prepare', {
+    get() {
+      accessorCalls += 1
+      throw new Error('synthetic-private-preparation-error')
+    },
+  })
+  const receipt = await new FeishuReplyExecutor(
+    configuration(),
+    /** @type {any} */ (client),
+    executionOptions(clock, database),
+  ).execute(action, new AbortController().signal)
+  assert.equal(receipt.outcome, 'failed')
+  assert.equal(receipt.error.code, 'feishu_send_invalid_response')
+  assert.equal(JSON.stringify(receipt).includes('synthetic-private-preparation-error'), false)
+  assert.equal(accessorCalls, 0)
   assert.equal(sendCalls, 0)
   assert.equal(database.getLatestActionDispatch(action.executionAttemptId), undefined)
   database.close()
@@ -1211,6 +1259,62 @@ test('a preflight failure settles before-send evidence and permits a same-key re
   )
   assert.deepEqual(client.diagnostics(), { sendCalls: 2 })
   database.close()
+})
+
+test('User credential recovery failures are terminal reply receipts with no blind retry', async (context) => {
+  const scenarios = [
+    {
+      clientCode: 'credential_reauthorization_required',
+      receiptCode: 'feishu_credential_reauthorization_required',
+    },
+    {
+      clientCode: 'credential_rotation_uncertain',
+      receiptCode: 'feishu_credential_rotation_uncertain',
+    },
+  ]
+  for (const [index, scenario] of scenarios.entries()) {
+    const path = await temporaryDatabase(context)
+    const clock = policyClock()
+    const database = openTwinDeskDatabase(path, clock.options)
+    const { action } = await approveAction(database, clock, `credential-recovery-${index}`)
+    database.beginActionExecution({
+      kind: 'action_execution_start',
+      schemaVersion: 1,
+      action,
+      startedAt: EXECUTION_AT,
+    })
+    const client = sendOnlyReplyClient()
+    Object.defineProperty(client, 'prepare', {
+      value: async () => {
+        throw new FeishuReplyExecutionClientError(
+          /** @type {'credential_reauthorization_required' | 'credential_rotation_uncertain'} */ (
+            scenario.clientCode
+          ),
+        )
+      },
+    })
+    const receipt = await new FeishuReplyExecutor(
+      configuration(),
+      client,
+      executionOptions(clock, database),
+    ).execute(action, new AbortController().signal)
+    assert.equal(receipt.outcome, 'failed')
+    assert.equal(receipt.error.code, scenario.receiptCode)
+    assert.equal(receipt.error.retryable, false)
+    assert.equal(receipt.retryDisposition, 'do_not_retry')
+    assert.deepEqual(client.diagnostics(), { sendCalls: 0 })
+    assert.equal(database.getLatestActionDispatch(action.executionAttemptId), undefined)
+    assert.equal(
+      database.recordActionExecutionReceipt({
+        kind: 'action_execution_receipt_write',
+        schemaVersion: 1,
+        action,
+        receipt,
+      }).proposal.state,
+      'failed',
+    )
+    database.close()
+  }
 })
 
 test('a failed reconciliation never calls send and expired approval cannot restart execution', async (context) => {

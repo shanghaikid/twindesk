@@ -13,14 +13,19 @@ import {
 } from '../packages/domain/dist/index.js'
 import {
   FEISHU_REPLY_ACTION_TYPE,
+  FeishuOAuthRotationCoordinator,
+  FeishuOAuthRotationJournal,
+  FeishuOAuthV3TokenRefresher,
   FeishuReplyHttpClient,
   FeishuReplyProposer,
+  FeishuSystemKeychainSecretReplacer,
   FeishuSystemKeychainSecretResolver,
   FeishuUserCredentialScopeProbe,
   toFeishuActionIdentity,
 } from '../packages/plugin-feishu/dist/index.js'
 import {
   computeActionApprovalBindings,
+  computeApprovalExecutionAttemptId,
   openTwinDeskDatabase,
 } from '../packages/storage-sqlite/dist/index.js'
 
@@ -39,6 +44,8 @@ const RESULT_MESSAGE_ID = 'om_synthetic_workbench_runtime_result'
 const PRIVATE_ACCESS_TOKEN = 'u-synthetic-private-workbench-access-token'
 const PRIVATE_REFRESH_TOKEN = 'synthetic-private-workbench-refresh-token'
 const PRIVATE_CLIENT_SECRET = 'synthetic-private-workbench-client-secret'
+const PRIVATE_ROTATED_ACCESS_TOKEN = 'u-synthetic-private-workbench-rotated-access-token'
+const PRIVATE_ROTATED_REFRESH_TOKEN = 'synthetic-private-workbench-rotated-refresh-token'
 const SOURCE_AT = /** @type {IsoTimestamp} */ ('2026-08-31T08:00:00.000Z')
 const DRAFTED_AT = /** @type {IsoTimestamp} */ ('2026-08-31T08:01:00.000Z')
 const PROPOSED_AT = /** @type {IsoTimestamp} */ ('2026-08-31T08:02:00.000Z')
@@ -249,32 +256,77 @@ test('Workbench binds one approved reply through the real Feishu lease and adapt
     responderUserId: 'user:synthetic-local-owner',
   })
 
+  let storedCredential = {
+    kind: 'feishu_user_oauth_credential_bundle',
+    schemaVersion: 1,
+    appId: APP_ID,
+    principalId: USER_PRINCIPAL_ID,
+    clientSecret: PRIVATE_CLIENT_SECRET,
+    tokenType: 'Bearer',
+    accessToken: PRIVATE_ACCESS_TOKEN,
+    obtainedAt: '2026-08-31T07:00:00.000Z',
+    accessTokenExpiresAt: '2026-08-31T08:04:00.000Z',
+    refreshToken: PRIVATE_REFRESH_TOKEN,
+    refreshTokenExpiresAt: '2026-09-07T07:00:00.000Z',
+    scopes: ['im:message:send_as_user', 'offline_access'],
+  }
   /** @type {Uint8Array[]} */
-  const secretBuffers = []
+  const transientBuffers = []
   let keychainReads = 0
   const resolver = new FeishuSystemKeychainSecretResolver({
     platform: 'darwin',
     runner: {
       async run() {
         keychainReads += 1
-        const value = encoded({
-          kind: 'feishu_user_oauth_credential_bundle',
-          schemaVersion: 1,
-          appId: APP_ID,
-          principalId: USER_PRINCIPAL_ID,
-          clientSecret: PRIVATE_CLIENT_SECRET,
-          tokenType: 'Bearer',
-          accessToken: PRIVATE_ACCESS_TOKEN,
-          obtainedAt: '2026-08-31T07:00:00.000Z',
-          accessTokenExpiresAt: '2026-08-31T10:00:00.000Z',
-          refreshToken: PRIVATE_REFRESH_TOKEN,
-          refreshTokenExpiresAt: '2026-09-07T07:00:00.000Z',
-          scopes: ['im:message:send_as_user', 'offline_access'],
-        })
-        secretBuffers.push(value)
+        const value = encoded(storedCredential)
+        transientBuffers.push(value)
         return value
       },
     },
+  })
+  let refreshCalls = 0
+  const refresher = new FeishuOAuthV3TokenRefresher({
+    now: currentClock.now,
+    transport: {
+      async send(request, signal) {
+        signal.throwIfAborted()
+        refreshCalls += 1
+        assert.equal(
+          database.getLatestActionDispatch(computeApprovalExecutionAttemptId(pending.approval.id)),
+          undefined,
+        )
+        transientBuffers.push(request.body)
+        const body = encoded({
+          code: 0,
+          access_token: PRIVATE_ROTATED_ACCESS_TOKEN,
+          expires_in: 7_200,
+          refresh_token: PRIVATE_ROTATED_REFRESH_TOKEN,
+          refresh_token_expires_in: 604_800,
+          scope: 'im:message:send_as_user offline_access',
+          token_type: 'Bearer',
+        })
+        transientBuffers.push(body)
+        return { status: 200, body }
+      },
+    },
+  })
+  let replacementCalls = 0
+  const replacer = new FeishuSystemKeychainSecretReplacer({
+    platform: 'darwin',
+    runner: {
+      async replace(_request, secret) {
+        replacementCalls += 1
+        transientBuffers.push(secret)
+        storedCredential = JSON.parse(decoded(secret))
+      },
+    },
+  })
+  const userRotationCoordinator = new FeishuOAuthRotationCoordinator({
+    resolver,
+    refresher,
+    replacer,
+    journal: new FeishuOAuthRotationJournal(`${path}.oauth-rotation.jsonl`),
+    now: currentClock.now,
   })
   const userScopeProbe = new FeishuUserCredentialScopeProbe({
     configuration: identityConfiguration,
@@ -293,6 +345,11 @@ test('Workbench binds one approved reply through the real Feishu lease and adapt
   const replyClient = new FeishuReplyHttpClient({
     fetch: async (_url, init) => {
       replyCalls += 1
+      assert.equal(
+        database.getLatestActionDispatch(computeApprovalExecutionAttemptId(pending.approval.id))
+          ?.ordinal,
+        1,
+      )
       authorization = new Headers(init?.headers).get('authorization')
       assert.ok(init?.body instanceof Uint8Array)
       requestBody = init.body
@@ -315,6 +372,7 @@ test('Workbench binds one approved reply through the real Feishu lease and adapt
     resolver,
     replyClient,
     userScopeProbe,
+    userRotationCoordinator,
     now: currentClock.now,
   })
   const request = /** @type {WorkHubActionExecutionRequest} */ ({
@@ -330,9 +388,11 @@ test('Workbench binds one approved reply through the real Feishu lease and adapt
   assert.equal(executed.receipt.outcome, 'succeeded')
   assert.equal(executed.receipt.externalReference?.externalId, RESULT_MESSAGE_ID)
   assert.equal(executed.auditInsertedCount, 2)
-  assert.equal(keychainReads, 2)
+  assert.equal(keychainReads, 3)
+  assert.equal(refreshCalls, 1)
+  assert.equal(replacementCalls, 1)
   assert.equal(replyCalls, 1)
-  assert.equal(authorization, `Bearer ${PRIVATE_ACCESS_TOKEN}`)
+  assert.equal(authorization, `Bearer ${PRIVATE_ROTATED_ACCESS_TOKEN}`)
   assert.deepEqual(sentBody, {
     content: JSON.stringify({ text: draft.content.text }),
     msg_type: 'text',
@@ -349,7 +409,7 @@ test('Workbench binds one approved reply through the real Feishu lease and adapt
     new Set(['approval', 'execution']),
   )
   assert.ok(requestBody instanceof Uint8Array)
-  for (const buffer of [...secretBuffers, ...responseBuffers, requestBody]) {
+  for (const buffer of [...transientBuffers, ...responseBuffers, requestBody]) {
     assert.equal(
       buffer.every((byte) => byte === 0),
       true,
@@ -364,6 +424,7 @@ test('Workbench binds one approved reply through the real Feishu lease and adapt
     resolver,
     replyClient,
     userScopeProbe,
+    userRotationCoordinator,
     now: currentClock.now,
   })
   currentClock.set(AFTER_EXPIRY)
@@ -372,7 +433,9 @@ test('Workbench binds one approved reply through the real Feishu lease and adapt
   assert.equal(recovered.receipt.outcome, 'succeeded')
   assert.equal(recovered.receiptDisposition, 'existing')
   assert.equal(replyCalls, 1)
-  assert.equal(keychainReads, 2)
+  assert.equal(keychainReads, 3)
+  assert.equal(refreshCalls, 1)
+  assert.equal(replacementCalls, 1)
 })
 
 test('Workbench rejects incomplete runtime collaborators before execution', () => {
@@ -391,6 +454,25 @@ test('Workbench rejects incomplete runtime collaborators before execution', () =
   const userScopeProbe = new FeishuUserCredentialScopeProbe({
     configuration: identityConfiguration,
     resolver,
+    now: () => Date.parse(EXECUTED_AT),
+  })
+  const userRotationCoordinator = new FeishuOAuthRotationCoordinator({
+    resolver,
+    refresher: new FeishuOAuthV3TokenRefresher({
+      now: () => Date.parse(EXECUTED_AT),
+      transport: {
+        async send() {
+          return { status: 200, body: encoded({}) }
+        },
+      },
+    }),
+    replacer: new FeishuSystemKeychainSecretReplacer({
+      platform: 'darwin',
+      runner: { async replace() {} },
+    }),
+    journal: new FeishuOAuthRotationJournal(
+      join(tmpdir(), 'twindesk-unused-workbench-rotation.jsonl'),
+    ),
     now: () => Date.parse(EXECUTED_AT),
   })
   assert.throws(
@@ -416,6 +498,7 @@ test('Workbench rejects incomplete runtime collaborators before execution', () =
           resolver,
           replyClient,
           userScopeProbe,
+          userRotationCoordinator,
         }),
       ),
     (error) =>
@@ -439,6 +522,7 @@ test('Workbench rejects incomplete runtime collaborators before execution', () =
           resolver,
           replyClient,
           userScopeProbe,
+          userRotationCoordinator,
         }),
       ),
     (error) =>
