@@ -68,6 +68,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Feishu OAuth Authorization Code and PKCE](docs/FEISHU_OAUTH_AUTHORIZATION_CODE.md): one-use state-bound authorization, exact callback validation, PKCE exchange, and replay handling.
 - [Feishu OAuth Verified Initial Persistence](docs/FEISHU_OAUTH_INITIAL_PERSISTENCE.md): verified User token snapshot, exact initial Keychain replacement, and uncertain-write recovery.
 - [Feishu OAuth Reauthorization Replacement](docs/FEISHU_OAUTH_REAUTHORIZATION.md): explicit blocked-state replacement, journal migration, and restart reconciliation.
+- [Workbench Feishu OAuth Reauthorization Runtime](docs/WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_RUNTIME.md): lease-held composition for already-exchanged blocked-state replacement evidence.
 - [Feishu Operation Scope Authorization](docs/FEISHU_OPERATION_SCOPE_AUTHORIZATION.md): fixed Bot/User operation policies and fresh fail-closed scope evidence.
 - [Feishu User Credential Scope Probe](docs/FEISHU_USER_CREDENTIAL_SCOPE_PROBE.md): exact Keychain OAuth scope observation, refresh gating, and transient-secret cleanup.
 - [Feishu Bot Tenant Token Acquisition](docs/FEISHU_BOT_TENANT_TOKEN_ACQUISITION.md): fixed-endpoint bounded token acquisition, callback-scoped cleanup, and the separate scope-observation boundary.
@@ -132,9 +133,9 @@ client now composes the held runtime lease, exact Bot/User
 scope probes, Keychain credential callbacks, tenant-token acquisition, and the
 bounded reply HTTP primitive without exposing tokens. A Connector-neutral Work
 Hub operation now wraps exclusive ownership, approval, execution state, durable
-dispatch, receipt, and recoverable Audit completion. Binding that Host operation
-to the Feishu adapter in the runtime composition root and the real-account flow
-remain unimplemented. The Connector-owned macOS Keychain reader now resolves
+dispatch, receipt, and recoverable Audit completion. The Workbench root now
+binds that Host operation to the Feishu adapter; the real-account flow remains
+unimplemented. The Connector-owned macOS Keychain reader now resolves
 validated Bot/User SecretReferences into callback-scoped, zeroed byte buffers,
 and a versioned parser binds Bot application and User OAuth bundles to the exact
 configured identity, reports usable, refresh-required, or reauthorization
@@ -147,10 +148,11 @@ Keychain bundle, and blocks unproven restarts from reusing an old token.
 Post-exchange principal verification now binds a fresh User token to the exact
 configured `open_id` through a fixed-endpoint, bounded production Fetch client.
 Authorization-code/PKCE exchange, verified initial Keychain persistence, and an
-explicit reauthorization replacement path now pass synthetic contracts, as does
-the exclusive kernel-backed Host lease. Fixed operation-level scope authorization
-for reply and User discovery now passes synthetic contracts, and the User gate
-reads exact current Keychain token claims. A fixed-endpoint bounded Bot
+explicit reauthorization replacement path now pass synthetic contracts. The
+Workbench reauthorization host also holds the exclusive kernel-backed lease
+across an already-exchanged blocked-state replacement. Fixed operation-level
+scope authorization for reply and User discovery now passes synthetic
+contracts, and the User gate reads exact current Keychain token claims. A fixed-endpoint bounded Bot
 tenant-token client and its exact Keychain-to-token scope probe now pass
 synthetic contracts without a live credential. The probe verifies the remote
 Bot principal and retains only current tenant scopes. A bounded fixed-endpoint
@@ -166,9 +168,9 @@ normalization, bounded context, an edited Draft revision, exact approval,
 idempotent execution, receipt persistence, restart verification, and a complete local
 Audit trace. The restart evidence is a deterministic acceptance completion,
 not an automatic repair service. Stage 2 is not declared complete: hosted
-ingestion or polling and credential-recovery lifecycle, interactive
-Draft/approval UI, model-backed Draft linkage, and a live-account send remain
-unimplemented.
+ingestion or polling, hosted authorization callbacks and credential-recovery
+UI, interactive Draft/approval UI, model-backed Draft linkage, and a
+live-account send remain unimplemented.
 Versioned domain records and the product-owned Connector contract are
 implemented. The pinned Harness Profile,
 two draft-only Personas, JSONL restart recovery, and bounded Codex specialist

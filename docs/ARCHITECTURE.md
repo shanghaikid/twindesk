@@ -269,11 +269,15 @@ client now composes the held lease, exact scope probes, Keychain, token, and HTT
 boundaries under injected tests. The Workbench composition root now wires the
 durable Host operation to the real lease, User rotation coordinator, and
 production reply adapter, while injecting only synthetic Keychain and Fetch
-boundaries for its full-stack test. The Stage 2 exit remains open until the
+boundaries for its full-stack test. A separate Workbench reauthorization host
+now holds that same lease while the existing coordinator verifies and persists
+already-exchanged replacement evidence; it neither hosts the redirect nor
+retries a reply. The Stage 2 exit remains open until the
 production runtime hosts ingestion, polling, and credential-recovery
 lifecycles, and passes product editing/approval UI, model-run linkage, and
 live-account acceptance boundaries. See
-[Stage 2 Exit Gate](STAGE_2_EXIT_GATE.md).
+[Workbench Feishu OAuth Reauthorization Runtime](WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_RUNTIME.md)
+and [Stage 2 Exit Gate](STAGE_2_EXIT_GATE.md).
 
 ### `@twindesk/plugin-jira`
 
