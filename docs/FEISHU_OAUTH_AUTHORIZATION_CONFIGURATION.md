@@ -45,17 +45,27 @@ no accessors, and returns a deeply frozen value. The shape contains no client
 secret, authorization code, PKCE state or verifier, token, principal, account,
 or Keychain reference.
 
+`FeishuOAuthAuthorizationConfigurationStore` persists only that parsed shape in
+a bounded JSON file. Writes validate before touching disk, use a private `0600`
+temporary file, flush it, and atomically rename it over the prior regular file.
+The parent directory is flushed after the rename. Reads use `O_NOFOLLOW` and a
+bounded read, reject symlinks, directories, files above 64 KiB, malformed UTF-8,
+invalid JSON, and unsupported versions, and return `undefined` only when the
+file is absent. A validation-rejected write retains the last valid document.
+
 ## Verification and Remaining Work
 
 Synthetic tests cover IPv4 and IPv6 loopback configuration, canonicalization,
 sorting, immutability, missing and duplicate scopes, hostile data, wrong
 versions, non-loopback and dynamic redirects, app mismatch, and listener
-mismatch before presentation. No live port registration or Feishu account is
-used as acceptance evidence.
+mismatch before presentation. Store tests prove atomic restart recovery, `0600`
+mode, rejected-write rollback, and fail-closed symlink, oversized, corrupt, and
+invalid-path handling. No live port registration or Feishu account is used as
+acceptance evidence.
 
 Still open:
 
-- persistence and editing through product Settings;
+- editing and runtime loading through product Settings;
 - browser launching and authorization recovery UI;
 - live verification that the configured URI is registered for the application;
 - Cordis lifecycle activation and live-account acceptance.

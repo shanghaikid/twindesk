@@ -84,9 +84,9 @@ approval expiry. A separate Workbench host now holds the same lease while the
 existing coordinator persists already-exchanged blocked-state reauthorization
 evidence, without starting OAuth or retrying a reply. The required live-account
 path is still missing hosted ingestion or polling, browser and Cordis lifecycle
-composition, Settings persistence for authorization configuration,
-credential-recovery UI, interactive Draft and approval UI, model-backed linkage,
-and a real Feishu send. See the
+composition, Settings UI/runtime loading for authorization configuration,
+credential-recovery UI, interactive Draft and approval UI, model-backed
+linkage, and a real Feishu send. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).
 
 ## Stage 3: Jira Context

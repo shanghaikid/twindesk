@@ -82,6 +82,6 @@ network endpoint, browser, or Keychain item is used.
 Still open:
 
 - recovery UI plus browser launching;
-- Settings persistence and editing for the versioned authorization configuration;
+- Settings editing and runtime loading for the persisted authorization configuration;
 - Cordis lifecycle activation and hosted polling coexistence;
 - live-account authorization and Keychain acceptance.

@@ -171,7 +171,7 @@ normalization, bounded context, an edited Draft revision, exact approval,
 idempotent execution, receipt persistence, restart verification, and a complete local
 Audit trace. The restart evidence is a deterministic acceptance completion,
 not an automatic repair service. Stage 2 is not declared complete: hosted
-ingestion or polling, settings-backed authorization and credential-recovery UI,
+ingestion or polling, authorization and credential-recovery UI/runtime wiring,
 interactive Draft/approval UI, model-backed Draft linkage, and a live-account
 send remain unimplemented.
 Versioned domain records and the product-owned Connector contract are

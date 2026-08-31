@@ -1,4 +1,27 @@
+import { randomUUID } from 'node:crypto'
+import { constants } from 'node:fs'
+import { lstat, mkdir, open, rename, unlink } from 'node:fs/promises'
+import { basename, dirname, join } from 'node:path'
+import { TextDecoder } from 'node:util'
+
 export const FEISHU_OAUTH_AUTHORIZATION_CONFIGURATION_VERSION = 1 as const
+
+export type FeishuOAuthAuthorizationConfigurationErrorCode =
+  | 'invalid_configuration'
+  | 'invalid_store_path'
+  | 'configuration_too_large'
+  | 'unsafe_file'
+  | 'io_error'
+
+export class FeishuOAuthAuthorizationConfigurationError extends Error {
+  readonly code: FeishuOAuthAuthorizationConfigurationErrorCode
+
+  constructor(code: FeishuOAuthAuthorizationConfigurationErrorCode, message: string) {
+    super(message)
+    this.name = 'FeishuOAuthAuthorizationConfigurationError'
+    this.code = code
+  }
+}
 
 export interface FeishuOAuthAuthorizationConfiguration {
   readonly kind: 'feishu_oauth_authorization_configuration'
@@ -10,9 +33,18 @@ export interface FeishuOAuthAuthorizationConfiguration {
 }
 
 type UnknownRecord = Readonly<Record<string, unknown>>
+const MAX_CONFIGURATION_BYTES = 64 * 1024
+const UTF8_DECODER = new TextDecoder('utf-8', { fatal: true })
 
-function invalid(): TypeError {
-  return new TypeError('The Feishu OAuth authorization configuration is invalid.')
+function fail(
+  code: FeishuOAuthAuthorizationConfigurationErrorCode,
+  message: string,
+): FeishuOAuthAuthorizationConfigurationError {
+  return new FeishuOAuthAuthorizationConfigurationError(code, message)
+}
+
+function invalid(): FeishuOAuthAuthorizationConfigurationError {
+  return fail('invalid_configuration', 'The Feishu OAuth authorization configuration is invalid.')
 }
 
 function dataRecord(value: unknown): UnknownRecord {
@@ -128,4 +160,164 @@ export function parseFeishuOAuthAuthorizationConfiguration(
     redirectUri: redirectUri(record.redirectUri),
     scopes: scopes(record.scopes),
   })
+}
+
+function storePath(value: string): string {
+  if (typeof value !== 'string' || value.length === 0 || value.includes('\u0000')) {
+    throw fail('invalid_store_path', 'The Feishu OAuth authorization store path is invalid.')
+  }
+  return value
+}
+
+async function existingFileIsSafe(filePath: string): Promise<boolean> {
+  try {
+    const stats = await lstat(filePath)
+    if (stats.isSymbolicLink() || !stats.isFile()) {
+      throw fail('unsafe_file', 'The Feishu OAuth authorization store is not a regular file.')
+    }
+    if (stats.size > MAX_CONFIGURATION_BYTES) {
+      throw fail(
+        'configuration_too_large',
+        'The Feishu OAuth authorization configuration is too large.',
+      )
+    }
+    return true
+  } catch (error) {
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT') {
+      return false
+    }
+    throw error
+  }
+}
+
+async function readBoundedConfiguration(handle: Awaited<ReturnType<typeof open>>): Promise<string> {
+  const document = Buffer.alloc(MAX_CONFIGURATION_BYTES + 1)
+  let bytesRead = 0
+  try {
+    while (bytesRead < document.byteLength) {
+      const result = await handle.read(
+        document,
+        bytesRead,
+        document.byteLength - bytesRead,
+        bytesRead,
+      )
+      if (result.bytesRead === 0) break
+      bytesRead += result.bytesRead
+    }
+    if (bytesRead > MAX_CONFIGURATION_BYTES) {
+      throw fail(
+        'configuration_too_large',
+        'The Feishu OAuth authorization configuration is too large.',
+      )
+    }
+    try {
+      return UTF8_DECODER.decode(document.subarray(0, bytesRead))
+    } catch {
+      throw invalid()
+    }
+  } finally {
+    document.fill(0)
+  }
+}
+
+/** Persist only the versioned, non-secret Feishu OAuth authorization settings. */
+export class FeishuOAuthAuthorizationConfigurationStore {
+  readonly #filePath: string
+
+  constructor(filePath: string) {
+    this.#filePath = storePath(filePath)
+  }
+
+  async read(): Promise<FeishuOAuthAuthorizationConfiguration | undefined> {
+    let handle: Awaited<ReturnType<typeof open>> | undefined
+    try {
+      try {
+        handle = await open(this.#filePath, constants.O_RDONLY | constants.O_NOFOLLOW)
+      } catch (error) {
+        if (
+          typeof error === 'object' &&
+          error !== null &&
+          'code' in error &&
+          error.code === 'ENOENT'
+        ) {
+          return undefined
+        }
+        if (
+          typeof error === 'object' &&
+          error !== null &&
+          'code' in error &&
+          error.code === 'ELOOP'
+        ) {
+          throw fail('unsafe_file', 'The Feishu OAuth authorization store is not a regular file.')
+        }
+        throw error
+      }
+      const stats = await handle.stat()
+      if (!stats.isFile()) {
+        throw fail('unsafe_file', 'The Feishu OAuth authorization store is not a regular file.')
+      }
+      if (stats.size > MAX_CONFIGURATION_BYTES) {
+        throw fail(
+          'configuration_too_large',
+          'The Feishu OAuth authorization configuration is too large.',
+        )
+      }
+      const document = await readBoundedConfiguration(handle)
+      let value: unknown
+      try {
+        value = JSON.parse(document) as unknown
+      } catch {
+        throw invalid()
+      }
+      return parseFeishuOAuthAuthorizationConfiguration(value)
+    } catch (error) {
+      if (error instanceof FeishuOAuthAuthorizationConfigurationError) throw error
+      throw fail('io_error', 'The Feishu OAuth authorization configuration could not be read.')
+    } finally {
+      await handle?.close().catch(() => undefined)
+    }
+  }
+
+  async write(value: unknown): Promise<FeishuOAuthAuthorizationConfiguration> {
+    const configuration = parseFeishuOAuthAuthorizationConfiguration(value)
+    const document = `${JSON.stringify(configuration, null, 2)}\n`
+    if (Buffer.byteLength(document) > MAX_CONFIGURATION_BYTES) {
+      throw fail(
+        'configuration_too_large',
+        'The Feishu OAuth authorization configuration is too large.',
+      )
+    }
+
+    const parent = dirname(this.#filePath)
+    const temporaryPath = join(
+      parent,
+      `.${basename(this.#filePath)}.${process.pid}.${randomUUID()}.tmp`,
+    )
+    let temporaryExists = false
+    try {
+      await mkdir(parent, { recursive: true, mode: 0o700 })
+      await existingFileIsSafe(this.#filePath)
+      const handle = await open(temporaryPath, 'wx', 0o600)
+      temporaryExists = true
+      try {
+        await handle.writeFile(document, { encoding: 'utf8' })
+        await handle.sync()
+      } finally {
+        await handle.close()
+      }
+      await rename(temporaryPath, this.#filePath)
+      temporaryExists = false
+      const directoryHandle = await open(parent, 'r')
+      try {
+        await directoryHandle.sync()
+      } finally {
+        await directoryHandle.close()
+      }
+      return configuration
+    } catch (error) {
+      if (temporaryExists) await unlink(temporaryPath).catch(() => undefined)
+      if (error instanceof FeishuOAuthAuthorizationConfigurationError) throw error
+      throw fail('io_error', 'The Feishu OAuth authorization configuration could not be stored.')
+    }
+  }
 }

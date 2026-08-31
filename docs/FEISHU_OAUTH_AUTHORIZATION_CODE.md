@@ -109,7 +109,7 @@ version 1 encoding, and exact Keychain replacement as described in
 The exclusive Host lease also passes cross-process tests, and the bounded
 loopback listener passes real ephemeral-port lifecycle tests. The Workbench
 initial-authorization host now composes the listener through verified
-persistence under that lease. Browser/UI lifecycle, Settings persistence,
+persistence under that lease. Browser/UI lifecycle, Settings runtime wiring,
 operation clients, and live-account acceptance remain open. The strict runtime
 configuration now binds the exact app, scopes, and
 registered literal-loopback redirect. See
