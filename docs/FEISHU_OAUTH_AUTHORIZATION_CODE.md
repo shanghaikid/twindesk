@@ -5,9 +5,10 @@
 TD-209 adds an in-memory `FeishuOAuthAuthorizationFlow` for one explicit User
 authorization transaction. It creates a state-bound S256 PKCE authorization
 URL, validates the exact redirect callback, consumes a matched callback once,
-and exchanges its code through the existing bounded OAuth v3 transport. It
-does not host the loopback listener, open a browser, select the configured User
-principal, or persist the returned credential.
+and exchanges its code through the existing bounded OAuth v3 transport. A
+separate literal-loopback callback Host now captures one exact state-bound
+redirect without exchanging it. The flow does not open a browser, select the
+configured User principal, or independently persist the returned credential.
 
 The contract follows Feishu's official
 [authorization-code request](https://open.feishu.cn/document/authentication-management/access-token/obtain-oauth-code)
@@ -105,6 +106,8 @@ request.
 The verified callback now composes the bounded User-info endpoint, initial
 version 1 encoding, and exact Keychain replacement as described in
 [Feishu OAuth Verified Initial Persistence](FEISHU_OAUTH_INITIAL_PERSISTENCE.md).
-The exclusive Host lease also passes cross-process tests. A hosted loopback
-listener, browser/UI lifecycle, runtime composition under the lease, operation
-clients, and live-account acceptance remain open.
+The exclusive Host lease also passes cross-process tests, and the bounded
+loopback listener passes real ephemeral-port lifecycle tests. Browser/UI
+lifecycle, Workbench composition from listener through verified persistence
+under the lease, operation clients, and live-account acceptance remain open.
+See [Feishu OAuth Loopback Callback Host](FEISHU_OAUTH_LOOPBACK_CALLBACK_HOST.md).

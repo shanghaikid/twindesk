@@ -83,9 +83,9 @@ durably rotated expired token, one send, and no resend after restart and
 approval expiry. A separate Workbench host now holds the same lease while the
 existing coordinator persists already-exchanged blocked-state reauthorization
 evidence, without starting OAuth or retrying a reply. The required live-account
-path is still missing hosted ingestion or polling, authorization callbacks and
-credential-recovery UI, interactive Draft and approval UI, model-backed
-linkage, and a real Feishu send. See the
+path is still missing hosted ingestion or polling, listener-to-persistence and
+browser lifecycle composition, credential-recovery UI, interactive Draft and
+approval UI, model-backed linkage, and a real Feishu send. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).
 
 ## Stage 3: Jira Context
