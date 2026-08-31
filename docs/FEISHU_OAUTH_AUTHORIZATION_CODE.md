@@ -107,7 +107,8 @@ The verified callback now composes the bounded User-info endpoint, initial
 version 1 encoding, and exact Keychain replacement as described in
 [Feishu OAuth Verified Initial Persistence](FEISHU_OAUTH_INITIAL_PERSISTENCE.md).
 The exclusive Host lease also passes cross-process tests, and the bounded
-loopback listener passes real ephemeral-port lifecycle tests. Browser/UI
-lifecycle, Workbench composition from listener through verified persistence
-under the lease, operation clients, and live-account acceptance remain open.
+loopback listener passes real ephemeral-port lifecycle tests. The Workbench
+initial-authorization host now composes the listener through verified
+persistence under that lease. Browser/UI lifecycle, registered redirect
+configuration, operation clients, and live-account acceptance remain open.
 See [Feishu OAuth Loopback Callback Host](FEISHU_OAUTH_LOOPBACK_CALLBACK_HOST.md).

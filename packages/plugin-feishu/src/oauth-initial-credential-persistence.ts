@@ -409,12 +409,42 @@ export class FeishuOAuthInitialCredentialPersister {
     )
   }
 
+  /**
+   * Persist only if the caller's external ownership is still current at the
+   * final boundary immediately before Keychain replacement.
+   */
+  persistWithResultGuarded(
+    configurationValue: unknown,
+    clientSecretValue: Uint8Array,
+    tokenSetValue: FeishuOAuthV3TokenSet,
+    signal: AbortSignal,
+    assertBeforeWrite: () => void,
+    chronologyValue?: FeishuOAuthInitialPersistenceChronology,
+  ): Promise<FeishuOAuthInitialPersistenceResult> {
+    if (typeof assertBeforeWrite !== 'function') {
+      throw fail(
+        'invalid_request',
+        'do_not_retry',
+        'The Feishu OAuth persistence ownership guard is invalid.',
+      )
+    }
+    return this.#persistWithResult(
+      configurationValue,
+      clientSecretValue,
+      tokenSetValue,
+      signal,
+      chronologyValue,
+      assertBeforeWrite,
+    )
+  }
+
   async #persistWithResult(
     configurationValue: unknown,
     clientSecretValue: Uint8Array,
     tokenSetValue: FeishuOAuthV3TokenSet,
     signal: AbortSignal,
     chronologyValue?: FeishuOAuthInitialPersistenceChronology,
+    assertBeforeWrite?: () => void,
   ): Promise<FeishuOAuthInitialPersistenceResult> {
     signal.throwIfAborted()
     let configuration
@@ -453,6 +483,8 @@ export class FeishuOAuthInitialCredentialPersister {
     }
     const clientSecretCopy = clientSecret(clientSecretValue)
     let tokenSet: FeishuOAuthV3TokenSet | undefined
+    let guardFailure: unknown
+    let guardFailed = false
     try {
       const ownedTokenSet = tokenSetSnapshot(tokenSetValue)
       tokenSet = ownedTokenSet
@@ -477,10 +509,21 @@ export class FeishuOAuthInitialCredentialPersister {
       }
       return await this.#verify(configuration, ownedTokenSet.accessToken, signal, async () => {
         try {
-          await this.#encode(configuration, clientSecretCopy, ownedTokenSet, signal, (bundle) =>
-            this.#replace(configuration.user!.credentialReference, bundle, signal),
-          )
+          await this.#encode(configuration, clientSecretCopy, ownedTokenSet, signal, (bundle) => {
+            if (assertBeforeWrite !== undefined) {
+              try {
+                signal.throwIfAborted()
+                assertBeforeWrite()
+              } catch (error) {
+                guardFailed = true
+                guardFailure = error
+                throw error
+              }
+            }
+            return this.#replace(configuration.user!.credentialReference, bundle, signal)
+          })
         } catch (error) {
+          if (guardFailed && error === guardFailure) throw error
           if (
             error instanceof FeishuOAuthCredentialBundleEncoderError ||
             error instanceof FeishuSystemKeychainError
@@ -493,6 +536,7 @@ export class FeishuOAuthInitialCredentialPersister {
         return Object.freeze({ status: 'persisted', obtainedAt: ownedTokenSet.obtainedAt })
       })
     } catch (error) {
+      if (guardFailed && error === guardFailure) throw error
       if (error instanceof FeishuOAuthInitialPersistenceError) throw error
       if (error instanceof FeishuOAuthUserPrincipalVerificationError) mapVerification(error)
       if (signal.aborted) signal.throwIfAborted()

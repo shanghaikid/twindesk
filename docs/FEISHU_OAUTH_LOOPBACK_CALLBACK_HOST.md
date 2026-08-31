@@ -50,10 +50,12 @@ wrong-state and malformed-request survival, response minimization, one-shot
 closure, timeout, cancellation, manual close, hostile configuration, and
 authorization/redirect binding. The listener makes no external request.
 
-Still open:
+The Workbench initial-authorization host now composes this listener, the
+authorization flow, and verified initial persistence under one Host lease. Still
+open:
 
-- Workbench composition that starts the listener, authorization flow, verified
-  persistence or blocked-state replacement under one Host lease;
+- UI-driven selection between initial authorization and the separate
+  blocked-state replacement path;
 - browser launch and product recovery UI;
 - settings-derived application credentials and registered redirect handling;
 - live Feishu authorization and Keychain acceptance.
