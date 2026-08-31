@@ -106,11 +106,12 @@ Audit records, and TD-209 must verify the complete source-to-receipt trace.
 
 - Product UI for displaying the exact proposal and collecting the responder's
   decision is not implemented here.
-- Host composition of Feishu Keychain rotation, approval, durable dispatch,
-  receipt, and Audit remains unimplemented. The lease-held reply adapter now
-  composes exact Keychain, scope, token, and HTTP boundaries, but grants no
-  execution authority by itself; TD-207 defines and tests the fail-closed client
-  contract.
+- The Connector-neutral Work Hub Host now composes approval consumption,
+  durable dispatch, receipt, and recoverable Audit ordering inside an injected
+  exclusive-operation callback. Binding it to Feishu Keychain rotation and the
+  lease-held reply adapter remains runtime composition work; neither boundary
+  grants execution authority by itself. See
+  [Work Hub Action Execution Host](ACTION_EXECUTION_HOST.md).
 - TD-209 local acceptance integrates approval Audit records; the product
   runtime still needs to append them in the live Feishu loop.
 

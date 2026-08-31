@@ -98,7 +98,8 @@ or network request.
 
 The reply execution adapter now consumes this probe under an already-held Host
 lease, then reacquires a callback-scoped tenant token for fixed-endpoint HTTP.
-Remaining work includes composing User rotation plus the complete Host
-approval, dispatch, receipt, and Audit operation under that lease, wiring
-production diagnostics and settings, hosted event or polling lifecycle, and
-live-account acceptance.
+The Connector-neutral Host operation now owns approval, dispatch, receipt, and
+Audit ordering under injected exclusive ownership. Remaining work includes
+binding both boundaries plus User rotation under the actual Feishu lease,
+wiring production diagnostics and settings, hosted event or polling lifecycle,
+and live-account acceptance.

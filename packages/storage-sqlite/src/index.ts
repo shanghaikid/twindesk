@@ -3,6 +3,7 @@ export {
   MAX_APPROVAL_TTL_MS,
   ApprovalStateError,
   computeActionApprovalBindings,
+  computeApprovalExecutionAttemptId,
   type ActionApprovalBindings,
   type ActionApprovalConsumption,
   type ActionApprovalConsumptionResult,

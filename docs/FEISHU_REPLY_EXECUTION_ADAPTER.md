@@ -86,10 +86,13 @@ Feishu account is accessed.
 
 ## Remaining Work
 
-This adapter is not the complete runtime operation. The Host still must hold the
-exclusive lease around its full lifecycle and compose approval consumption,
-`beginActionExecution()`, durable dispatch reservation, adapter execution,
-atomic receipt settlement, and append-only Audit completion. User OAuth rotation
-must run under the same Host lease before retrying `preflight_unavailable`.
+This adapter is not the complete runtime operation. The Connector-neutral
+`WorkHubActionExecutionHost` now composes approval consumption,
+`beginActionExecution()`, durable dispatch reservation, atomic receipt
+settlement, and recoverable append-only Audit completion under an injected
+exclusive-operation callback. The runtime composition root still must bind that
+callback and executor to this adapter and the actual Feishu lease. User OAuth
+rotation must run under the same Host lease before retrying
+`preflight_unavailable`.
 Hosted ingestion or polling, interactive Draft and approval UI, model-backed
 Draft linkage, and live-account acceptance also remain open.

@@ -78,10 +78,12 @@ synthetic contracts without claiming remote reconciliation. Send-only reply
 execution now requires a first durable dispatch reservation and blocks any
 unproven resend across restart. An already-held lease can now compose concrete
 Bot/User scope probes, Keychain credentials, token acquisition, and the reply
-HTTP client with synthetic boundaries. The required live-account path is still
-missing Host approval/execution/receipt/Audit orchestration under the exclusive
-lease, hosted ingestion or polling, interactive Draft and approval UI, and a
-real Feishu send. See the
+HTTP client with synthetic boundaries. A Connector-neutral Host operation now
+orders approval, durable dispatch, receipt, and recoverable Audit under injected
+exclusive ownership. The required live-account path is still missing the
+runtime binding of those two boundaries plus User rotation under the actual
+Feishu lease, hosted ingestion or polling, interactive Draft and approval UI,
+and a real Feishu send. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).
 
 ## Stage 3: Jira Context

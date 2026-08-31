@@ -134,8 +134,13 @@ metadata without importing Harness types or producing authority. TD-112
 completes the deterministic Stage 1 fixture path by persisting two
 `ready_for_review` Drafts and Persona-attributed Audit records across restart.
 It does not invoke Harness, create Session or Run references, or grant
-Connector authority. Connector registry, real event routing, Run association,
-dynamic Personas, and action dispatch remain later-stage work.
+Connector authority. TD-209 now adds a Connector-neutral action execution Host
+that holds an injected exclusive-operation callback across approval consumption,
+execution start, durable dispatch, receipt persistence, and deterministic Audit
+completion. A committed receipt repairs missing Audit after restart without
+another external effect. Connector registry, real event routing, Run
+association, dynamic Personas, and live Connector composition remain open. See
+[Work Hub Action Execution Host](ACTION_EXECUTION_HOST.md).
 
 ### `@twindesk/plugin-feishu`
 
@@ -223,9 +228,10 @@ post-send ambiguity without inventing remote reconciliation, and the durable
 dispatch reservation already blocks blind restart sends. A send-only production
 adapter now composes an already-held lease with concrete Bot/User scope probes,
 exact Keychain credential callbacks, Bot tenant-token acquisition, and that HTTP
-primitive. Runtime composition of every polling and refresh boundary, the Host
-approval/execution/receipt operation, and the composed Audit flow remain TD-209
-work. See
+primitive. The Connector-neutral Work Hub Host operation now owns approval,
+dispatch, receipt, and recoverable Audit ordering under injected exclusive
+ownership. Binding both boundaries together in the runtime composition root,
+plus every polling and refresh boundary, remains TD-209 work. See
 [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) and
 [Feishu OAuth v3 Refresh](FEISHU_OAUTH_V3_REFRESH.md) and
 [Feishu OAuth Authorization Code and PKCE](FEISHU_OAUTH_AUTHORIZATION_CODE.md) and
@@ -234,6 +240,7 @@ work. See
 [Feishu Operation Scope Authorization](FEISHU_OPERATION_SCOPE_AUTHORIZATION.md) and
 [Feishu Reply HTTP Client](FEISHU_REPLY_HTTP_CLIENT.md) and
 [Feishu Reply Execution Adapter](FEISHU_REPLY_EXECUTION_ADAPTER.md) and
+[Work Hub Action Execution Host](ACTION_EXECUTION_HOST.md) and
 [Feishu User Credential Scope Probe](FEISHU_USER_CREDENTIAL_SCOPE_PROBE.md) and
 [Feishu Runtime Lease](FEISHU_RUNTIME_LEASE.md) and
 [Feishu OAuth Rotation Coordinator](FEISHU_OAUTH_ROTATION_COORDINATOR.md) and
@@ -256,8 +263,9 @@ durable receipt, restart verification, and reference-validated Audit records. Th
 composition evidence, not a live Connector path: its acceptance fixture
 resolves no live credential and calls no real Feishu API. The production reply
 client now composes the held lease, exact scope probes, Keychain, token, and HTTP
-boundaries under injected tests. It is not yet wired to the durable Host
-approval, dispatch, receipt, and Audit operation.
+boundaries under injected tests. The durable Host approval, dispatch, receipt,
+and Audit operation also passes separately injected tests; the production
+composition root does not wire them together yet.
 The Stage 2 exit remains open until the production runtime actually holds the
 exclusive lease around token rotation and HTTP dispatch, hosted ingestion or
 polling, product editing/approval UI, model-run linkage, and live-account

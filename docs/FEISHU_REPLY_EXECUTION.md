@@ -22,10 +22,13 @@ only its remote message ID and timestamp. It deliberately does not implement
 the execution client's reconciliation method because Feishu history does not
 expose the request UUID. `FeishuReplyExecutionAdapter` now composes that
 send-only boundary with an already-held runtime lease, exact Bot/User scope
-probes, Keychain credential callbacks, and Bot tenant-token acquisition. Host
-approval, dispatch, receipt, and Audit orchestration remains separate. See
+probes, Keychain credential callbacks, and Bot tenant-token acquisition. The
+Connector-neutral Work Hub Host now owns approval, dispatch, receipt, and Audit
+ordering under injected exclusive ownership, but the runtime composition root
+does not bind these boundaries yet. See
 [Feishu Reply HTTP Client](FEISHU_REPLY_HTTP_CLIENT.md) and
-[Feishu Reply Execution Adapter](FEISHU_REPLY_EXECUTION_ADAPTER.md).
+[Feishu Reply Execution Adapter](FEISHU_REPLY_EXECUTION_ADAPTER.md) and
+[Work Hub Action Execution Host](ACTION_EXECUTION_HOST.md).
 
 ## Exact Execution Binding
 
@@ -157,9 +160,11 @@ data.
   and the exclusive Host lease pass synthetic contracts. The send-only reply
   adapter now composes the system-Keychain reader, parser, concrete scope probes,
   tenant-token acquisition, and reply HTTP primitive while requiring the Host
-  lease to remain held. The Host still must compose approval consumption,
-  execution start, durable dispatch, receipt settlement, and Audit completion
-  around it. See [Feishu Reply Execution Adapter](FEISHU_REPLY_EXECUTION_ADAPTER.md).
+  lease to remain held. The Connector-neutral Host operation now composes
+  approval consumption, execution start, durable dispatch, receipt settlement,
+  and Audit completion; the runtime composition root still must bind the two
+  boundaries. See [Feishu Reply Execution Adapter](FEISHU_REPLY_EXECUTION_ADAPTER.md)
+  and [Work Hub Action Execution Host](ACTION_EXECUTION_HOST.md).
 - Fixed Bot and User reply scope policies gate a fresh identity-bound
   observation before the adapter re-resolves its actual send credential. See
   [Feishu User Credential Scope Probe](FEISHU_USER_CREDENTIAL_SCOPE_PROBE.md)

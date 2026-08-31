@@ -117,8 +117,8 @@ lease now passes real cross-process tests, and the bounded Bot tenant-token
 client composes with exact Keychain resolution, remote Bot-principal
 verification, and tenant-only scope observation in synthetic contracts.
 The lease-held reply adapter now composes that probe with fixed-endpoint HTTP.
-Remaining TD-209 integration includes User rotation plus Host approval,
-dispatch, receipt, and Audit orchestration under the lease, UI, and live-account
-acceptance.
+The Connector-neutral Host execution operation now exists separately. Remaining
+TD-209 integration includes binding both plus User rotation under the actual
+lease, UI, and live-account acceptance.
 Verified blocked-state replacement is covered
 by [Feishu OAuth Reauthorization Replacement](FEISHU_OAUTH_REAUTHORIZATION.md).

@@ -109,7 +109,7 @@ make no live request and use no real credential.
 `FeishuReplyExecutionAdapter` now composes this primitive with an already-held
 Host lease, exact Keychain resolution, fresh Bot/User scope authorization, and
 callback-scoped User or tenant tokens. Remaining TD-209 work is to compose that
-client with the Host approval lifecycle, durable dispatch coordinator,
-`FeishuReplyExecutor`, receipt and Audit persistence, product approval UI, and a
-live authorized account. The repository must not claim that the isolated or
+client with the separately completed Connector-neutral Host operation and User
+rotation under the actual Feishu lease, then add product approval UI and a live
+authorized account. The repository must not claim that the isolated or
 synthetically composed HTTP contract proves a real Feishu send.

@@ -71,9 +71,10 @@ applies.
   executor currently consumes the reservation callback.
 - Production composition must pass `reserveActionDispatch()` through the
   executor callback. The default without that callback is fail-closed.
-- The lease-held credential, scope, token, and reply HTTP client now exists, but
-  the Host operation still must wrap it with approval, execution start, this
-  dispatch coordinator, receipt settlement, and Audit completion. Synthetic
-  composition does not make this durability evidence a live-account guarantee.
+- The lease-held credential, scope, token, and reply HTTP client and the
+  Connector-neutral Host operation now exist as separate boundaries. The
+  runtime composition root still must bind them under the actual Feishu lease
+  and include User rotation. Synthetic composition does not make this
+  durability evidence a live-account guarantee.
 - User-visible recovery controls and append-only execution Audit events remain
   required for the complete Stage 2 experience.

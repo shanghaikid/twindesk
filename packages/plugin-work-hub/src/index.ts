@@ -6,6 +6,7 @@ import {
 
 import { renderRedactedModelContext } from './model-context.ts'
 
+export * from './action-execution-host.ts'
 export { renderRedactedModelContext } from './model-context.ts'
 
 /** Stable Host plugin name. */
