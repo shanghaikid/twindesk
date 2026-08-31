@@ -86,9 +86,10 @@ Synthetic SQLite tests prove:
 
 ## Remaining Work
 
-The Connector-neutral Host boundary is not yet the live Feishu composition.
-The Workbench composition root still must bind it to the real Feishu runtime
-lease, `FeishuReplyExecutor`, and `FeishuReplyExecutionAdapter`, and must place
-User token rotation under that same ownership callback. Hosted ingestion or
-polling, product Draft and approval UI, model-backed Draft linkage, and a real
-authorized account acceptance run remain open.
+The [Workbench Feishu Reply Runtime](WORKBENCH_FEISHU_REPLY_RUNTIME.md) now binds
+this Host boundary to the real Feishu runtime lease, `FeishuReplyExecutor`, and
+`FeishuReplyExecutionAdapter`. The binding passes a synthetic full-stack test;
+it is not yet a hosted or live Connector. User token rotation must still run
+under that same ownership callback. Hosted ingestion or polling, product Draft
+and approval UI, model-backed Draft linkage, and a real authorized account
+acceptance run remain open.

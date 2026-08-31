@@ -66,8 +66,8 @@ and cancellation, reacquisition after restart, and automatic kernel release
 after a child Host is terminated with `SIGKILL`. They use no live Feishu account,
 credential, Keychain item, or external network request.
 
-Remaining TD-209 work includes composing the complete production Feishu runtime
-inside this lease, calling `assertHeld()` at every operation boundary, replacing
-blocked OAuth state after reauthorization, implementing operation scope checks
-and HTTP clients, hosting authorization and ingestion or polling lifecycles, and
-passing live-account acceptance.
+The Workbench reply composition now holds this lease across durable approval,
+scope and credential checks, dispatch, receipt, and Audit, with `assertHeld()`
+at the adapter's operation boundaries. Remaining TD-209 work includes User
+rotation under the same lease, hosting authorization and ingestion or polling
+lifecycles, and passing live-account acceptance.

@@ -55,7 +55,7 @@ Goal: complete the first real end-to-end value loop.
 
 Exit criterion: a real Feishu message can safely produce an approved and sent reply, with a complete trace.
 
-Current gate status (2026-08-28): **NOT PASSED**. The local contract acceptance
+Current gate status (2026-08-31): **NOT PASSED**. The local contract acceptance
 path now completes normalization → Inbox → bounded context → edited Draft →
 one-time approval → idempotent receipt → Audit across restart with synthetic
 clients. Durable pre-send dispatch reservation is now covered by synthetic
@@ -76,14 +76,13 @@ without live I/O; the probe verifies the current Bot `open_id` and tenant-only
 application scopes. A fixed-endpoint bounded reply HTTP primitive now passes
 synthetic contracts without claiming remote reconciliation. Send-only reply
 execution now requires a first durable dispatch reservation and blocks any
-unproven resend across restart. An already-held lease can now compose concrete
-Bot/User scope probes, Keychain credentials, token acquisition, and the reply
-HTTP client with synthetic boundaries. A Connector-neutral Host operation now
-orders approval, durable dispatch, receipt, and recoverable Audit under injected
-exclusive ownership. The required live-account path is still missing the
-runtime binding of those two boundaries plus User rotation under the actual
-Feishu lease, hosted ingestion or polling, interactive Draft and approval UI,
-and a real Feishu send. See the
+unproven resend across restart. The Workbench composition root now binds the
+Connector-neutral Host approval operation to the real kernel lease and the
+concrete Bot/User reply stack; a synthetic full-stack User test proves one send
+and no resend after restart and approval expiry. The required live-account path
+is still missing User rotation under that lease, hosted ingestion or polling,
+interactive Draft and approval UI, model-backed linkage, and a real Feishu
+send. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).
 
 ## Stage 3: Jira Context

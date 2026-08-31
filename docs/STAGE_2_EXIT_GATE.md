@@ -60,10 +60,10 @@ local business records; credentials and raw connector responses do not.
 | Reply request key fits Feishu's 50-character limit | Contract passed | New proposals use a 46-character identity-bound key and the lease-held Bot/User reply adapter preserves it through the fixed HTTP primitive |
 | Complete local business trace exists | Passed | Six attributable, reference-validated Audit records |
 | Real Bot callback/subscription reaches the runtime | Not proven | No hosted callback or long-connection composition |
-| Exclusive Feishu Host ownership | Contract passed | A kernel-backed loopback lease excludes real competing processes and releases after `SIGKILL`; the production runtime does not hold it yet |
+| Exclusive Feishu Host ownership | Contract passed | A kernel-backed loopback lease excludes real competing processes, releases after `SIGKILL`, and now owns one full synthetic Workbench reply operation; hosted polling and rotation are not bound yet |
 | Real User polling/context uses OAuth from Keychain | Not proven | Code/PKCE exchange, verified initial and blocked-state replacement, durable rotation, and exact User scope probing pass synthetically; no hosted redirect listener, live lease composition, HTTP adapter, or scheduler |
 | SecretReference resolves and parses from macOS Keychain | Contract passed | Fixed read-only lookup plus identity-bound Bot/User parsing and zeroed source/derived bytes are tested with injected adapters; no live item is read |
-| Real Feishu reply succeeds | Not proven | The held-lease Bot/User adapter and Connector-neutral Host approval/dispatch/receipt/Audit operation pass separate synthetic contracts; no runtime binding or live account |
+| Real Feishu reply succeeds | Not proven | The Workbench composition root binds the held lease, Host approval/dispatch/receipt/Audit operation, and production Bot/User adapter; its complete test injects Keychain and Fetch and uses no live account |
 | User edits and approves in the product UI | Not implemented | Current Web shell remains read-only fixture UI |
 | Model-backed Draft and Harness trace are linked | Not implemented | The acceptance Draft is deterministic and `modelInvocation: false` |
 
@@ -78,11 +78,11 @@ ownership under the exclusive lease, composed live Feishu API semantics,
 callback or polling lifecycle, interactive approval, and a real external
 receipt.
 
-TD-209 therefore remains open until the production composition root binds the
-Feishu token lifecycle and reply adapter to the Work Hub Host operation under
-the exclusive lease, along with hosted ingestion or polling
-lifecycle, product Draft and approval UI, and an authorized live-account
-acceptance run are implemented and verified. Stage 3 must not rely on a claimed
+TD-209 therefore remains open until the hosted runtime binds the Feishu token
+lifecycle under the same exclusive lease as the now-composed Work Hub reply
+operation, and hosted ingestion or polling lifecycle, product Draft and
+approval UI, and an authorized live-account acceptance run are implemented and
+verified. Stage 3 must not rely on a claimed
 Stage 2 exit before those checks pass.
 
 ## Verification

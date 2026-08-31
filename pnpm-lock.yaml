@@ -44,12 +44,18 @@ importers:
       '@deepseek-ai/dsh-tool-subagent':
         specifier: 0.1.1-rc.2
         version: 0.1.1-rc.2(fff99afb66eb5f78f92e1168a4be0359)
+      '@twindesk/plugin-feishu':
+        specifier: workspace:*
+        version: link:../plugin-feishu
       '@twindesk/plugin-ui':
         specifier: workspace:*
         version: link:../plugin-ui
       '@twindesk/plugin-work-hub':
         specifier: workspace:*
         version: link:../plugin-work-hub
+      '@twindesk/storage-sqlite':
+        specifier: workspace:*
+        version: link:../storage-sqlite
 
   packages/domain: {}
 

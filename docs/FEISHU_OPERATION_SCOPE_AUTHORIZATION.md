@@ -107,7 +107,7 @@ The concrete [Bot Keychain scope probe](FEISHU_BOT_KEYCHAIN_SCOPE_PROBE.md) now
 composes bounded tenant-token acquisition, exact remote Bot-principal binding,
 and tenant-only application-scope observation. The lease-held reply execution
 adapter now composes both concrete identity probes with the fixed reply HTTP
-primitive. The Connector-neutral Host execution operation now exists
-separately. Remaining work includes their Feishu runtime binding, future
-discovery clients, separate context endpoint policies, and live-account
-acceptance.
+primitive. The Workbench composition root now binds the concrete reply probes
+and Connector-neutral Host execution operation under the real runtime lease.
+Remaining work includes future discovery clients, separate context endpoint
+policies, User rotation under the lease, and live-account acceptance.

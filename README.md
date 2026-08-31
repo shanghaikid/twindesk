@@ -55,6 +55,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Feishu Reply Proposal](docs/FEISHU_REPLY_PROPOSAL.md): Draft-bound preview construction, explicit sending identity and target binding, idempotency, and no-side-effect limits.
 - [One-Time Action Approval Policy](docs/ACTION_APPROVAL_POLICY.md): exact identity/target/content binding, expiration, responder decisions, one-time consumption, and execution separation.
 - [Work Hub Action Execution Host](docs/ACTION_EXECUTION_HOST.md): exclusive-operation approval consumption, durable dispatch and receipt ordering, and no-resend Audit recovery.
+- [Workbench Feishu Reply Runtime](docs/WORKBENCH_FEISHU_REPLY_RUNTIME.md): production-shaped binding of the durable Host operation, real runtime lease, and concrete Feishu reply stack.
 - [Feishu Reply Execution](docs/FEISHU_REPLY_EXECUTION.md): optional exact reconciliation, send-only durable dispatch safety, normalized receipts, restart recovery, and uncertain-result handling.
 - [Feishu Reply Execution Adapter](docs/FEISHU_REPLY_EXECUTION_ADAPTER.md): lease-held Bot/User scope, Keychain, token, and fixed HTTP composition with preflight-safe retry handling.
 - [Feishu Reply HTTP Client](docs/FEISHU_REPLY_HTTP_CLIENT.md): fixed-endpoint plain-text delivery, bounded responses, payload-free errors, and conservative post-send ambiguity.
@@ -154,9 +155,9 @@ tenant-token client and its exact Keychain-to-token scope probe now pass
 synthetic contracts without a live credential. The probe verifies the remote
 Bot principal and retains only current tenant scopes. A bounded fixed-endpoint
 plain-text reply HTTP primitive and its lease-held Bot/User execution adapter
-also pass synthetic contracts. The Connector-neutral Host orchestration also
-passes synthetic contracts; its Feishu lease/adapter binding and live
-composition remain unimplemented. A
+also pass synthetic contracts. The Workbench composition root now binds the
+Connector-neutral Host orchestration, real lease, and adapter in a complete
+synthetic User reply test. A
 presentation-safe diagnostics boundary now reports configured
 Bot/User authorization and scope coverage, rate-limit state, and durable User
 cursor freshness without exposing credentials or opaque cursor positions.
@@ -165,9 +166,9 @@ normalization, bounded context, an edited Draft revision, exact approval,
 idempotent execution, receipt persistence, restart verification, and a complete local
 Audit trace. The restart evidence is a deterministic acceptance completion,
 not an automatic repair service. Stage 2 is not declared complete: the live
-Feishu binding of the Host operation and token rotation under one lease, hosted
-ingestion or polling, interactive Draft/approval UI, and a live-account send
-remain unimplemented.
+Feishu token rotation under the same lease, hosted ingestion or polling,
+interactive Draft/approval UI, model-backed Draft linkage, and a live-account
+send remain unimplemented.
 Versioned domain records and the product-owned Connector contract are
 implemented. The pinned Harness Profile,
 two draft-only Personas, JSONL restart recovery, and bounded Codex specialist

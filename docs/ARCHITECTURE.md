@@ -228,10 +228,12 @@ post-send ambiguity without inventing remote reconciliation, and the durable
 dispatch reservation already blocks blind restart sends. A send-only production
 adapter now composes an already-held lease with concrete Bot/User scope probes,
 exact Keychain credential callbacks, Bot tenant-token acquisition, and that HTTP
-primitive. The Connector-neutral Work Hub Host operation now owns approval,
-dispatch, receipt, and recoverable Audit ordering under injected exclusive
-ownership. Binding both boundaries together in the runtime composition root,
-plus every polling and refresh boundary, remains TD-209 work. See
+primitive. The Connector-neutral Work Hub Host operation owns approval,
+dispatch, receipt, and recoverable Audit ordering under exclusive ownership.
+The Workbench composition root now binds both boundaries with the real runtime
+lease in a production-shaped API and synthetic end-to-end test. Hosting that
+API and placing every polling and refresh boundary under the same lease remain
+TD-209 work. See
 [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) and
 [Feishu OAuth v3 Refresh](FEISHU_OAUTH_V3_REFRESH.md) and
 [Feishu OAuth Authorization Code and PKCE](FEISHU_OAUTH_AUTHORIZATION_CODE.md) and
@@ -241,6 +243,7 @@ plus every polling and refresh boundary, remains TD-209 work. See
 [Feishu Reply HTTP Client](FEISHU_REPLY_HTTP_CLIENT.md) and
 [Feishu Reply Execution Adapter](FEISHU_REPLY_EXECUTION_ADAPTER.md) and
 [Work Hub Action Execution Host](ACTION_EXECUTION_HOST.md) and
+[Workbench Feishu Reply Runtime](WORKBENCH_FEISHU_REPLY_RUNTIME.md) and
 [Feishu User Credential Scope Probe](FEISHU_USER_CREDENTIAL_SCOPE_PROBE.md) and
 [Feishu Runtime Lease](FEISHU_RUNTIME_LEASE.md) and
 [Feishu OAuth Rotation Coordinator](FEISHU_OAUTH_ROTATION_COORDINATOR.md) and
@@ -263,13 +266,13 @@ durable receipt, restart verification, and reference-validated Audit records. Th
 composition evidence, not a live Connector path: its acceptance fixture
 resolves no live credential and calls no real Feishu API. The production reply
 client now composes the held lease, exact scope probes, Keychain, token, and HTTP
-boundaries under injected tests. The durable Host approval, dispatch, receipt,
-and Audit operation also passes separately injected tests; the production
-composition root does not wire them together yet.
+boundaries under injected tests. The Workbench composition root now wires the
+durable Host operation to the real lease and production reply adapter, while
+injecting only synthetic Keychain and Fetch boundaries for its full-stack test.
 The Stage 2 exit remains open until the production runtime actually holds the
-exclusive lease around token rotation and HTTP dispatch, hosted ingestion or
-polling, product editing/approval UI, model-run linkage, and live-account
-acceptance boundaries pass. See
+exclusive lease around token rotation as well as HTTP dispatch, hosts ingestion
+or polling, and passes product editing/approval UI, model-run linkage, and
+live-account acceptance boundaries. See
 [Stage 2 Exit Gate](STAGE_2_EXIT_GATE.md).
 
 ### `@twindesk/plugin-jira`
@@ -303,6 +306,11 @@ The local product presentation boundary:
 ### `@twindesk/bundle-workbench`
 
 A Profile Bundle that composes the plugins above, default Agent Presets, model Tools, and configuration overlays.
+
+Its exported Workbench Feishu reply runtime factory composes the exact durable
+approval operation, real kernel-backed lease, production reply adapter, and
+injected credential/scope/HTTP collaborators. It is production-shaped
+composition evidence but is not activated as a hosted Cordis lifecycle yet.
 
 The Stage 0 bundle inserts `@twindesk/plugin-work-hub` and
 `@twindesk/plugin-ui` after the pinned Harness base and Web application
