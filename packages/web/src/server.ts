@@ -10,11 +10,16 @@ import {
 } from '@twindesk/plugin-work-hub/fixture-inbox'
 
 import { resolveTwinDeskRoute } from './routes.ts'
+import { parseFeishuSettingsSnapshot } from './feishu-settings-contract.ts'
 
 const outputRoot = dirname(fileURLToPath(import.meta.url))
 const ASSETS = new Map([
   ['/app.js', { file: 'app.js', type: 'text/javascript; charset=utf-8' }],
   ['/audit-contract.js', { file: 'audit-contract.js', type: 'text/javascript; charset=utf-8' }],
+  [
+    '/feishu-settings-contract.js',
+    { file: 'feishu-settings-contract.js', type: 'text/javascript; charset=utf-8' },
+  ],
   ['/inbox-contract.js', { file: 'inbox-contract.js', type: 'text/javascript; charset=utf-8' }],
   ['/routes.js', { file: 'routes.js', type: 'text/javascript; charset=utf-8' }],
   ['/styles.css', { file: 'styles.css', type: 'text/css; charset=utf-8' }],
@@ -38,6 +43,52 @@ export interface TwinDeskWebServerOptions {
   readonly port?: number
   /** Stage 1 business database. Omit to keep fixture data in memory. */
   readonly databasePath?: string
+  /** Presentation-safe Feishu Settings reader supplied by the Workbench composition root. */
+  readonly feishuSettings?: { read(): Promise<unknown> }
+}
+
+async function serveFeishuSettingsApi(
+  response: ServerResponse,
+  requestUrl: URL,
+  headOnly: boolean,
+  settings: TwinDeskWebServerOptions['feishuSettings'],
+): Promise<void> {
+  if (requestUrl.search.length > 0) {
+    send(
+      response,
+      400,
+      headOnly ? '' : 'Invalid Feishu Settings query.\n',
+      'text/plain; charset=utf-8',
+    )
+    return
+  }
+  if (settings === undefined) {
+    send(
+      response,
+      503,
+      headOnly ? '' : 'Feishu Settings unavailable.\n',
+      'text/plain; charset=utf-8',
+    )
+    return
+  }
+  let snapshot: unknown
+  try {
+    snapshot = parseFeishuSettingsSnapshot(await settings.read())
+  } catch {
+    send(
+      response,
+      503,
+      headOnly ? '' : 'Feishu Settings unavailable.\n',
+      'text/plain; charset=utf-8',
+    )
+    return
+  }
+  const body = JSON.stringify(snapshot)
+  response.writeHead(200, {
+    ...commonHeaders('application/json; charset=utf-8'),
+    'content-length': String(Buffer.byteLength(body)),
+  })
+  response.end(headOnly ? undefined : body)
 }
 
 /** Running local server with explicit, idempotent shutdown. */
@@ -193,6 +244,15 @@ export async function startTwinDeskWebServer(
       }
       if (requestUrl.pathname === '/api/audit') {
         serveAuditApi(response, requestUrl, method === 'HEAD', inbox)
+        return
+      }
+      if (requestUrl.pathname === '/api/settings/feishu') {
+        await serveFeishuSettingsApi(
+          response,
+          requestUrl,
+          method === 'HEAD',
+          options.feishuSettings,
+        )
         return
       }
       if (ASSETS.has(requestUrl.pathname)) {

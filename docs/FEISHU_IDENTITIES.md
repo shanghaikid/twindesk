@@ -57,14 +57,17 @@ person. They remain in the selected local configuration file until it is
 replaced or explicitly removed. They are not part of Thread export or deletion
 because Connector identity configuration is shared across Threads. They must
 not enter model context, diagnostic logs, telemetry, or the Audit Timeline by
-default. A future Connectors UI must expose an explicit disconnect and local
+default. A future Connectors editing flow must expose an explicit disconnect and local
 configuration deletion path, separately from OAuth revocation and Keychain
 secret deletion.
 
 ## Current Limitations
 
-- The Workbench now selects the private macOS product configuration path;
-  Connectors UI editing and other platform paths remain open.
+- The Workbench now selects the private macOS product configuration path and
+  the default Web launcher projects identity types plus OAuth completeness into
+  a minimized read-only Connectors status. Editing, disconnect, revocation,
+  credential health, and other platform paths remain open. See
+  [Workbench Feishu Settings Presentation](WORKBENCH_FEISHU_SETTINGS_PRESENTATION.md).
 - A macOS system-Keychain reader now resolves validated Bot/User references
   into callback-scoped byte buffers and zeroes them afterward. A versioned
   parser now binds Bot application and User OAuth bundles to the exact identity

@@ -11,6 +11,25 @@ import {
 } from '../packages/web/dist/routes.js'
 import { startTwinDeskWebServer } from '../packages/web/dist/server.js'
 
+const FEISHU_SETTINGS = Object.freeze({
+  version: 1,
+  connectorId: 'feishu',
+  state: 'ready',
+  identities: ['bot', 'user'],
+  oauth: Object.freeze({
+    redirectHost: '127.0.0.1',
+    redirectPort: 43121,
+    scopes: ['im:message:readonly', 'offline_access'],
+    appMatchesIdentity: true,
+  }),
+})
+
+const feishuSettingsReader = Object.freeze({
+  async read() {
+    return FEISHU_SETTINGS
+  },
+})
+
 /**
  * @param {string | URL} url
  * @param {RequestInit} [init]
@@ -48,7 +67,11 @@ test('the product Web shell owns deterministic top-level routes', () => {
 
 test('the local Web server serves product routes and restarts on the same port', async (context) => {
   const databasePath = await temporaryDatabase(context)
-  const running = await startTwinDeskWebServer({ databasePath, port: 0 })
+  const running = await startTwinDeskWebServer({
+    databasePath,
+    feishuSettings: feishuSettingsReader,
+    port: 0,
+  })
   context.after(() => running.close())
 
   const rootResponse = await request(`${running.url}/`)
@@ -68,6 +91,7 @@ test('the local Web server serves product routes and restarts on the same port',
   assert.match(appSource, /history\.pushState/u)
   assert.match(appSource, /\/api\/inbox\?state=/u)
   assert.match(appSource, /\/api\/audit/u)
+  assert.match(appSource, /\/api\/settings\/feishu/u)
   assert.match(appSource, /function escapeHtml/u)
 
   const contractResponse = await request(`${running.url}/inbox-contract.js`)
@@ -77,6 +101,10 @@ test('the local Web server serves product routes and restarts on the same port',
   const auditContractResponse = await request(`${running.url}/audit-contract.js`)
   assert.equal(auditContractResponse.status, 200)
   assert.match(await auditContractResponse.text(), /function parseAuditSnapshot/u)
+
+  const settingsContractResponse = await request(`${running.url}/feishu-settings-contract.js`)
+  assert.equal(settingsContractResponse.status, 200)
+  assert.match(await settingsContractResponse.text(), /function parseFeishuSettingsSnapshot/u)
 
   const stylesResponse = await request(`${running.url}/styles.css`)
   assert.equal(stylesResponse.status, 200)
@@ -141,23 +169,75 @@ test('the local Web server serves product routes and restarts on the same port',
   assert.equal(await headAudit.text(), '')
   assert.equal((await request(`${running.url}/api/audit?extra=true`)).status, 400)
 
+  const settingsResponse = await request(`${running.url}/api/settings/feishu`)
+  assert.equal(settingsResponse.status, 200)
+  assert.match(settingsResponse.headers.get('content-type') ?? '', /^application\/json/u)
+  assert.deepEqual(await settingsResponse.json(), FEISHU_SETTINGS)
+  const settingsBody = JSON.stringify(FEISHU_SETTINGS)
+  assert.doesNotMatch(
+    settingsBody,
+    /appId|accountId|displayName|principalId|credentialReference|secret_reference|filePath/u,
+  )
+  const headSettings = await request(`${running.url}/api/settings/feishu`, { method: 'HEAD' })
+  assert.equal(headSettings.status, 200)
+  assert.equal(await headSettings.text(), '')
+  assert.equal((await request(`${running.url}/api/settings/feishu?extra=true`)).status, 400)
+
   const postResponse = await request(`${running.url}/health`, { method: 'POST' })
   assert.equal(postResponse.status, 405)
   assert.equal(postResponse.headers.get('allow'), 'GET, HEAD')
   assert.equal((await request(`${running.url}/api/inbox`, { method: 'POST' })).status, 405)
   assert.equal((await request(`${running.url}/api/audit`, { method: 'POST' })).status, 405)
+  assert.equal(
+    (await request(`${running.url}/api/settings/feishu`, { method: 'POST' })).status,
+    405,
+  )
   assert.equal((await request(`${running.url}/unknown`)).status, 404)
 
   const port = running.port
   await running.close()
   await running.close()
-  const restarted = await startTwinDeskWebServer({ databasePath, port })
+  const restarted = await startTwinDeskWebServer({
+    databasePath,
+    feishuSettings: feishuSettingsReader,
+    port,
+  })
   try {
     assert.equal((await request(`${restarted.url}/inbox`)).status, 200)
     const restartedInbox = await request(`${restarted.url}/api/inbox`)
     assert.deepEqual((await restartedInbox.json()).counts, inbox.counts)
   } finally {
     await restarted.close()
+  }
+})
+
+test('the Web server fails closed when Feishu Settings are unavailable or invalid', async () => {
+  for (const feishuSettings of [
+    undefined,
+    {
+      async read() {
+        throw new Error('synthetic-private-reader-failure')
+      },
+    },
+    {
+      async read() {
+        return { ...FEISHU_SETTINGS, appId: 'synthetic-private-app-id' }
+      },
+    },
+  ]) {
+    const running = await startTwinDeskWebServer(
+      feishuSettings === undefined ? { port: 0 } : { feishuSettings, port: 0 },
+    )
+    try {
+      const response = await request(`${running.url}/api/settings/feishu`)
+      assert.equal(response.status, 503)
+      assert.equal(await response.text(), 'Feishu Settings unavailable.\n')
+      const head = await request(`${running.url}/api/settings/feishu`, { method: 'HEAD' })
+      assert.equal(head.status, 503)
+      assert.equal(await head.text(), '')
+    } finally {
+      await running.close()
+    }
   }
 })
 

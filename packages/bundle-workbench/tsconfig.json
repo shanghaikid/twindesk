@@ -11,6 +11,7 @@
   "references": [
     { "path": "../plugin-feishu" },
     { "path": "../plugin-work-hub" },
-    { "path": "../storage-sqlite" }
+    { "path": "../storage-sqlite" },
+    { "path": "../web" }
   ]
 }

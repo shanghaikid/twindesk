@@ -24,7 +24,7 @@
     "repo:check": "node scripts/check-repository.mjs",
     "check": "node scripts/check-all.mjs",
     "web:build": "tsc -b packages/web && node scripts/build-web.mjs",
-    "web:start": "node packages/web/dist/cli.js"
+    "web:start": "node scripts/start-web.mjs"
   },
   "devDependencies": {
     "@deepseek-ai/dsh": "0.1.1-rc.2",

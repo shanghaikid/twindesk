@@ -29,6 +29,7 @@
     "@twindesk/plugin-feishu": "workspace:*",
     "@twindesk/plugin-ui": "workspace:*",
     "@twindesk/plugin-work-hub": "workspace:*",
-    "@twindesk/storage-sqlite": "workspace:*"
+    "@twindesk/storage-sqlite": "workspace:*",
+    "@twindesk/web": "workspace:*"
   }
 }

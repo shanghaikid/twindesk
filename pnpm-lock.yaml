@@ -56,6 +56,9 @@ importers:
       '@twindesk/storage-sqlite':
         specifier: workspace:*
         version: link:../storage-sqlite
+      '@twindesk/web':
+        specifier: workspace:*
+        version: link:../web
 
   packages/domain: {}
 

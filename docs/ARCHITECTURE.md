@@ -275,7 +275,15 @@ already-exchanged replacement evidence; it neither hosts the redirect nor
 retries a reply. The Workbench also owns the fixed private macOS product path
 for the Connector-owned identity and OAuth authorization Settings stores; it
 does not place credentials, Harness Sessions, or TwinDesk business tables in
-those files. See [ADR 0003](decisions/0003-macos-local-data-root.md). The Stage 2
+those files. A Workbench presentation service projects those stores into a
+versioned identity-minimized status that the Web server revalidates before the
+Connectors page consumes it. The projection omits application, account,
+principal, SecretReference, and filesystem identifiers and does not claim
+credential or connectivity health. The Workbench Web launcher owns default-path
+store construction and injection while `@twindesk/web` remains independent of
+Connector persistence. Cordis activation remains open. See
+[Workbench Feishu Settings Presentation](WORKBENCH_FEISHU_SETTINGS_PRESENTATION.md)
+and [ADR 0003](decisions/0003-macos-local-data-root.md). The Stage 2
 exit remains open until the
 production runtime hosts ingestion, polling, and credential-recovery
 lifecycles, and passes product editing/approval UI, model-run linkage, and
@@ -308,6 +316,8 @@ The local product presentation boundary:
 - serves only on loopback and applies restrictive browser security headers;
 - consumes the loopback Work Hub Inbox and Audit APIs rather than Harness or
   database internals;
+- accepts a presentation-safe Feishu Settings reader at the composition
+  boundary, revalidates its minimized response, and serves it read-only;
 - presents drafts, approvals, execution receipts, and partial context without
   implying authority from Persona or page visibility.
 

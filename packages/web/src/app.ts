@@ -11,6 +11,10 @@ import {
   type InboxState,
 } from './inbox-contract.ts'
 import { parseAuditSnapshot, type AuditSnapshot } from './audit-contract.ts'
+import {
+  parseFeishuSettingsSnapshot,
+  type FeishuSettingsSnapshot,
+} from './feishu-settings-contract.ts'
 
 const INBOX_STATES: readonly { readonly id: InboxState; readonly label: string }[] = [
   { id: 'needs_reply', label: 'Needs reply' },
@@ -38,6 +42,10 @@ let auditSnapshot: AuditSnapshot | undefined
 let auditLoading = false
 let auditError: string | undefined
 let auditRequest = 0
+let feishuSettings: FeishuSettingsSnapshot | undefined
+let feishuSettingsLoading = false
+let feishuSettingsError: string | undefined
+let feishuSettingsRequest = 0
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/gu, (character) => {
@@ -179,6 +187,34 @@ function personasContent(): string {
 }
 
 function connectorsContent(): string {
+  let feishuStatus: string
+  let feishuDetails: string
+  if (feishuSettingsLoading) {
+    feishuStatus = '<span class="badge neutral">Loading…</span>'
+    feishuDetails = 'Reading local non-secret Settings.'
+  } else if (feishuSettingsError !== undefined) {
+    feishuStatus = '<span class="badge neutral">Unavailable</span>'
+    feishuDetails = `${escapeHtml(feishuSettingsError)} <button class="inline-button" type="button" data-feishu-settings-retry>Retry</button>`
+  } else if (feishuSettings?.state === 'ready') {
+    feishuStatus = '<span class="badge success">Settings ready</span>'
+    feishuDetails = `Configured identities: ${escapeHtml(feishuSettings.identities.join(', '))}. OAuth callback: ${escapeHtml(feishuSettings.oauth?.redirectHost ?? '')}:${feishuSettings.oauth?.redirectPort ?? ''}. Requested scopes: ${escapeHtml(feishuSettings.oauth?.scopes.join(', ') ?? '')}.`
+  } else if (feishuSettings?.state === 'incomplete') {
+    feishuStatus = '<span class="badge neutral">Incomplete</span>'
+    const identities =
+      feishuSettings.identities.length === 0
+        ? 'none'
+        : escapeHtml(feishuSettings.identities.join(', '))
+    const oauth =
+      feishuSettings.oauth === null
+        ? 'OAuth settings missing'
+        : feishuSettings.oauth.appMatchesIdentity
+          ? 'OAuth settings present'
+          : 'OAuth app mismatch'
+    feishuDetails = `Configured identities: ${identities}. ${oauth}.`
+  } else {
+    feishuStatus = '<span class="badge neutral">Not configured</span>'
+    feishuDetails = 'No local Feishu identity or OAuth authorization Settings are configured.'
+  }
   return `
     <section class="panel">
       <div class="panel-header">
@@ -187,8 +223,8 @@ function connectorsContent(): string {
       <div class="resource-list">
         <article class="resource-row">
           <span class="resource-icon">飞</span>
-          <div class="resource-main"><h3>Feishu</h3><p>Bot and User identities, message ingestion, context retrieval, and approved replies.</p></div>
-          <span class="badge neutral">Not configured</span>
+          <div class="resource-main"><h3>Feishu</h3><p>${feishuDetails}</p><p class="muted">Settings status only — credentials, authorization validity, and live connectivity are not shown or implied.</p></div>
+          ${feishuStatus}
         </article>
         <article class="resource-row">
           <span class="resource-icon">J</span>
@@ -344,11 +380,38 @@ async function loadAudit(): Promise<void> {
   }
 }
 
+async function loadFeishuSettings(): Promise<void> {
+  const request = ++feishuSettingsRequest
+  feishuSettingsLoading = true
+  feishuSettingsError = undefined
+  render()
+  try {
+    const response = await fetch('/api/settings/feishu', {
+      headers: { accept: 'application/json' },
+    })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseFeishuSettingsSnapshot(await response.json())
+    if (request !== feishuSettingsRequest) return
+    feishuSettings = snapshot
+  } catch (error) {
+    if (request !== feishuSettingsRequest) return
+    feishuSettings = undefined
+    feishuSettingsError =
+      error instanceof Error ? error.message : 'The local Feishu Settings request failed.'
+  } finally {
+    if (request === feishuSettingsRequest) {
+      feishuSettingsLoading = false
+      render()
+    }
+  }
+}
+
 function renderRouteAndLoad(): void {
   render()
   const route = currentRoute()
   if (route.id === 'inbox') void loadInbox(activeInboxState)
   if (route.id === 'audit') void loadAudit()
+  if (route.id === 'connectors') void loadFeishuSettings()
 }
 
 document.addEventListener('click', (event) => {
@@ -375,6 +438,7 @@ document.addEventListener('click', (event) => {
   }
   if (target.closest('[data-inbox-retry]') !== null) void loadInbox(activeInboxState)
   if (target.closest('[data-audit-retry]') !== null) void loadAudit()
+  if (target.closest('[data-feishu-settings-retry]') !== null) void loadFeishuSettings()
 })
 window.addEventListener('popstate', renderRouteAndLoad)
 renderRouteAndLoad()

@@ -10,3 +10,10 @@ export {
   type TwinDeskRoute,
   type TwinDeskRouteId,
 } from './routes.ts'
+export {
+  parseFeishuSettingsSnapshot,
+  type FeishuConfiguredIdentity,
+  type FeishuOAuthSettingsView,
+  type FeishuSettingsSnapshot,
+  type FeishuSettingsState,
+} from './feishu-settings-contract.ts'
