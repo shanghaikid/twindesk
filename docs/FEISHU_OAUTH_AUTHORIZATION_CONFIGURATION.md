@@ -65,7 +65,7 @@ acceptance evidence.
 
 Still open:
 
-- editing and runtime loading through product Settings;
+- editing and default path selection through product Settings;
 - browser launching and authorization recovery UI;
 - live verification that the configured URI is registered for the application;
 - Cordis lifecycle activation and live-account acceptance.

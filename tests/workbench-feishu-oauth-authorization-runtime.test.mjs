@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 
 import {
   WorkbenchFeishuOAuthAuthorizationError,
   createWorkbenchFeishuOAuthAuthorizationHost,
+  loadWorkbenchFeishuOAuthAuthorizationHost,
 } from '../packages/bundle-workbench/dist/index.js'
 import {
+  FeishuIdentityConfigurationStore,
+  FeishuOAuthAuthorizationConfigurationStore,
   FeishuOAuthAuthorizationFlow,
   FeishuOAuthInitialCredentialPersister,
   FeishuOAuthLoopbackCallbackError,
@@ -95,27 +101,13 @@ class RecordingLeaseManager extends FeishuRuntimeLeaseManager {
 }
 
 /**
- * @param {{leaseManager: RecordingLeaseManager, resolver: FeishuSystemKeychainSecretResolver, authorizationAppId?: string, callbackHost?: FeishuOAuthLoopbackCallbackHost, onTransport?: (request: import('../packages/plugin-feishu/dist/index.js').FeishuOAuthV3TransportRequest) => void, onVerify?: (token: Uint8Array) => void, onReplace?: (bundle: Uint8Array) => void}} options
+ * @param {{leaseManager: RecordingLeaseManager, resolver: FeishuSystemKeychainSecretResolver, onTransport?: (request: import('../packages/plugin-feishu/dist/index.js').FeishuOAuthV3TransportRequest) => void, onVerify?: (token: Uint8Array) => void, onReplace?: (bundle: Uint8Array) => void}} options
  */
-async function runtime(options) {
-  const probe = await new FeishuOAuthLoopbackCallbackHost().listen(new AbortController().signal)
-  const port = Number(new URL(probe.redirectUri).port)
-  await probe.close()
+function authorizationCollaborators(options) {
   let randomCall = 0
-  return createWorkbenchFeishuOAuthAuthorizationHost({
-    configuration: CONFIGURATION,
-    authorization: {
-      kind: 'feishu_oauth_authorization_configuration',
-      schemaVersion: 1,
-      connectorId: 'feishu',
-      appId: options.authorizationAppId ?? CONFIGURATION.appId,
-      redirectUri: `http://127.0.0.1:${port}/oauth/feishu/callback`,
-      scopes: ['im:message:readonly', 'offline_access'],
-    },
+  return {
     leaseManager: options.leaseManager,
     resolver: options.resolver,
-    callbackHost:
-      options.callbackHost ?? new FeishuOAuthLoopbackCallbackHost({ port, timeoutMs: 2_000 }),
     flow: new FeishuOAuthAuthorizationFlow({
       now: () => NOW,
       randomBytes(length) {
@@ -147,8 +139,198 @@ async function runtime(options) {
         },
       }),
     }),
+  }
+}
+
+/**
+ * @param {{leaseManager: RecordingLeaseManager, resolver: FeishuSystemKeychainSecretResolver, authorizationAppId?: string, callbackHost?: FeishuOAuthLoopbackCallbackHost, onTransport?: (request: import('../packages/plugin-feishu/dist/index.js').FeishuOAuthV3TransportRequest) => void, onVerify?: (token: Uint8Array) => void, onReplace?: (bundle: Uint8Array) => void}} options
+ */
+async function runtime(options) {
+  const probe = await new FeishuOAuthLoopbackCallbackHost().listen(new AbortController().signal)
+  const port = Number(new URL(probe.redirectUri).port)
+  await probe.close()
+  return createWorkbenchFeishuOAuthAuthorizationHost({
+    configuration: CONFIGURATION,
+    authorization: {
+      kind: 'feishu_oauth_authorization_configuration',
+      schemaVersion: 1,
+      connectorId: 'feishu',
+      appId: options.authorizationAppId ?? CONFIGURATION.appId,
+      redirectUri: `http://127.0.0.1:${port}/oauth/feishu/callback`,
+      scopes: ['im:message:readonly', 'offline_access'],
+    },
+    ...authorizationCollaborators(options),
+    callbackHost:
+      options.callbackHost ?? new FeishuOAuthLoopbackCallbackHost({ port, timeoutMs: 2_000 }),
   })
 }
+
+test('Workbench loads persisted Settings and binds the registered callback after restart', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'twindesk-workbench-oauth-settings-'))
+  context.after(() => rm(root, { force: true, recursive: true }))
+  const identityPath = join(root, 'identity.json')
+  const authorizationPath = join(root, 'authorization.json')
+  const probe = await new FeishuOAuthLoopbackCallbackHost({ host: '::1' }).listen(
+    new AbortController().signal,
+  )
+  const redirectUri = probe.redirectUri
+  await probe.close()
+  await new FeishuIdentityConfigurationStore(identityPath).write(CONFIGURATION)
+  await new FeishuOAuthAuthorizationConfigurationStore(authorizationPath).write({
+    kind: 'feishu_oauth_authorization_configuration',
+    schemaVersion: 1,
+    connectorId: 'feishu',
+    appId: CONFIGURATION.appId,
+    redirectUri,
+    scopes: ['offline_access', 'im:message:readonly'],
+  })
+
+  const leaseManager = new RecordingLeaseManager()
+  let replacements = 0
+  const host = await loadWorkbenchFeishuOAuthAuthorizationHost({
+    identityStore: new FeishuIdentityConfigurationStore(identityPath),
+    authorizationStore: new FeishuOAuthAuthorizationConfigurationStore(authorizationPath),
+    ...authorizationCollaborators({
+      leaseManager,
+      resolver: new FeishuSystemKeychainSecretResolver({
+        platform: 'darwin',
+        runner: { run: async () => Promise.reject(missingError()) },
+      }),
+      onReplace() {
+        replacements += 1
+      },
+    }),
+  })
+  const result = await host.authorize(
+    bytes(CLIENT_SECRET),
+    new AbortController().signal,
+    async (request) => {
+      assert.equal(request.redirectUri, redirectUri)
+      const state = new URL(request.authorizationUrl).searchParams.get('state')
+      assert.ok(state !== null)
+      assert.equal(
+        (await fetch(`${request.redirectUri}?code=synthetic_stored_code&state=${state}`)).status,
+        200,
+      )
+    },
+  )
+  assert.deepEqual(result, { status: 'persisted', obtainedAt: '2026-08-31T12:00:00.000Z' })
+  assert.deepEqual(
+    { replacements, leaseEntries: leaseManager.entries, held: leaseManager.held },
+    { replacements: 1, leaseEntries: 1, held: false },
+  )
+})
+
+test('Workbench persisted Settings loader fails closed on missing or mismatched configuration', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'twindesk-workbench-oauth-invalid-settings-'))
+  context.after(() => rm(root, { force: true, recursive: true }))
+  const identityStore = new FeishuIdentityConfigurationStore(join(root, 'identity.json'))
+  const authorizationStore = new FeishuOAuthAuthorizationConfigurationStore(
+    join(root, 'authorization.json'),
+  )
+  const leaseManager = new RecordingLeaseManager()
+  let resolverReads = 0
+  const collaborators = authorizationCollaborators({
+    leaseManager,
+    resolver: new FeishuSystemKeychainSecretResolver({
+      platform: 'darwin',
+      runner: {
+        async run() {
+          resolverReads += 1
+          throw missingError()
+        },
+      },
+    }),
+  })
+  const load = () =>
+    loadWorkbenchFeishuOAuthAuthorizationHost({
+      identityStore,
+      authorizationStore,
+      ...collaborators,
+    })
+
+  await assert.rejects(
+    load(),
+    (error) =>
+      error instanceof WorkbenchFeishuOAuthAuthorizationError &&
+      error.code === 'identity_configuration_missing' &&
+      error.recovery === 'configure_settings',
+  )
+  await identityStore.write(CONFIGURATION)
+  await assert.rejects(
+    load(),
+    (error) =>
+      error instanceof WorkbenchFeishuOAuthAuthorizationError &&
+      error.code === 'authorization_configuration_missing' &&
+      error.recovery === 'configure_settings',
+  )
+  await authorizationStore.write({
+    kind: 'feishu_oauth_authorization_configuration',
+    schemaVersion: 1,
+    connectorId: 'feishu',
+    appId: 'cli_synthetic_different_app',
+    redirectUri: 'http://127.0.0.1:43121/oauth/feishu/callback',
+    scopes: ['offline_access'],
+  })
+  await assert.rejects(
+    load(),
+    (error) =>
+      error instanceof WorkbenchFeishuOAuthAuthorizationError &&
+      error.code === 'configuration_mismatch' &&
+      error.recovery === 'correct_configuration',
+  )
+  await identityStore.write({
+    kind: 'feishu_identity_configuration',
+    schemaVersion: 1,
+    connectorId: 'feishu',
+    accountId: CONFIGURATION.accountId,
+    appId: CONFIGURATION.appId,
+    bot: {
+      identityType: 'bot',
+      principalId: 'app_synthetic_authorization_runtime',
+      displayName: 'Synthetic Bot',
+      credentialReference: {
+        kind: 'secret_reference',
+        schemaVersion: 1,
+        id: 'secret-ref:synthetic-authorization-runtime-bot',
+        store: 'system_keychain',
+        purpose: 'connector_app_credential',
+      },
+    },
+  })
+  await authorizationStore.write({
+    kind: 'feishu_oauth_authorization_configuration',
+    schemaVersion: 1,
+    connectorId: 'feishu',
+    appId: CONFIGURATION.appId,
+    redirectUri: 'http://127.0.0.1:43121/oauth/feishu/callback',
+    scopes: ['offline_access'],
+  })
+  await assert.rejects(
+    load(),
+    (error) =>
+      error instanceof WorkbenchFeishuOAuthAuthorizationError &&
+      error.code === 'configuration_mismatch' &&
+      error.recovery === 'correct_configuration',
+  )
+
+  const secret = 'synthetic-hostile-settings-secret'
+  let getterCalls = 0
+  const hostile = Object.defineProperty({}, 'identityStore', {
+    get() {
+      getterCalls += 1
+      throw new Error(secret)
+    },
+  })
+  await assert.rejects(
+    loadWorkbenchFeishuOAuthAuthorizationHost(/** @type {never} */ (hostile)),
+    (error) => error instanceof TypeError && !error.message.includes(secret),
+  )
+  assert.deepEqual(
+    { resolverReads, leaseEntries: leaseManager.entries, getterCalls },
+    { resolverReads: 0, leaseEntries: 0, getterCalls: 0 },
+  )
+})
 
 test('Workbench holds one lease from loopback capture through verified initial persistence', async () => {
   const leaseManager = new RecordingLeaseManager()

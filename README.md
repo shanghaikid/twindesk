@@ -152,6 +152,8 @@ Post-exchange principal verification now binds a fresh User token to the exact
 configured `open_id` through a fixed-endpoint, bounded production Fetch client.
 Authorization-code/PKCE exchange, verified initial Keychain persistence, and an
 explicit reauthorization replacement path now pass synthetic contracts. The
+Workbench can also rebuild the exact registered-loopback authorization Host
+from restart-safe identity and authorization Settings stores. The
 Workbench reauthorization host also holds the exclusive kernel-backed lease
 across an already-exchanged blocked-state replacement. Fixed operation-level
 scope authorization for reply and User discovery now passes synthetic
@@ -171,7 +173,7 @@ normalization, bounded context, an edited Draft revision, exact approval,
 idempotent execution, receipt persistence, restart verification, and a complete local
 Audit trace. The restart evidence is a deterministic acceptance completion,
 not an automatic repair service. Stage 2 is not declared complete: hosted
-ingestion or polling, authorization and credential-recovery UI/runtime wiring,
+ingestion or polling, authorization and credential-recovery UI/Cordis wiring,
 interactive Draft/approval UI, model-backed Draft linkage, and a live-account
 send remain unimplemented.
 Versioned domain records and the product-owned Connector contract are

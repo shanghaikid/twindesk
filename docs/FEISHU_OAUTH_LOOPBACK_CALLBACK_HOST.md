@@ -57,5 +57,5 @@ open:
 - UI-driven selection between initial authorization and the separate
   blocked-state replacement path;
 - browser launch and product recovery UI;
-- Settings UI/runtime loading for application and registered redirect configuration;
+- Settings UI editing and default path selection for application and redirect configuration;
 - live Feishu authorization and Keychain acceptance.

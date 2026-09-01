@@ -1,4 +1,8 @@
+import { URL } from 'node:url'
+
 import {
+  FeishuIdentityConfigurationStore,
+  FeishuOAuthAuthorizationConfigurationStore,
   FeishuOAuthAuthorizationFlow,
   FeishuOAuthInitialCredentialPersister,
   FeishuOAuthLoopbackCallbackHost,
@@ -22,6 +26,15 @@ export interface WorkbenchFeishuOAuthAuthorizationRuntimeOptions {
   readonly leaseManager?: FeishuRuntimeLeaseManager
 }
 
+export interface WorkbenchFeishuOAuthAuthorizationStoredRuntimeOptions {
+  readonly identityStore: FeishuIdentityConfigurationStore
+  readonly authorizationStore: FeishuOAuthAuthorizationConfigurationStore
+  readonly flow: FeishuOAuthAuthorizationFlow
+  readonly persister: FeishuOAuthInitialCredentialPersister
+  readonly resolver: FeishuSystemKeychainSecretResolver
+  readonly leaseManager?: FeishuRuntimeLeaseManager
+}
+
 export interface WorkbenchFeishuOAuthAuthorizationRequest {
   readonly authorizationUrl: string
   readonly redirectUri: string
@@ -31,9 +44,14 @@ export type WorkbenchFeishuOAuthAuthorizationPresenter = (
   request: WorkbenchFeishuOAuthAuthorizationRequest,
 ) => Promise<void> | void
 
-export type WorkbenchFeishuOAuthAuthorizationErrorCode = 'credential_exists' | 'redirect_mismatch'
+export type WorkbenchFeishuOAuthAuthorizationErrorCode =
+  | 'credential_exists'
+  | 'redirect_mismatch'
+  | 'identity_configuration_missing'
+  | 'authorization_configuration_missing'
+  | 'configuration_mismatch'
 export type WorkbenchFeishuOAuthAuthorizationRecovery =
-  'use_reauthorization' | 'correct_configuration'
+  'use_reauthorization' | 'correct_configuration' | 'configure_settings'
 
 export class WorkbenchFeishuOAuthAuthorizationError extends Error {
   readonly code: WorkbenchFeishuOAuthAuthorizationErrorCode
@@ -77,8 +95,25 @@ interface ParsedOptions {
   readonly leaseManager: FeishuRuntimeLeaseManager
 }
 
+interface ParsedStoredOptions {
+  readonly identityStore: FeishuIdentityConfigurationStore
+  readonly authorizationStore: FeishuOAuthAuthorizationConfigurationStore
+  readonly flow: FeishuOAuthAuthorizationFlow
+  readonly persister: FeishuOAuthInitialCredentialPersister
+  readonly resolver: FeishuSystemKeychainSecretResolver
+  readonly leaseManager: FeishuRuntimeLeaseManager
+}
+
 function invalid(): TypeError {
   return new TypeError('The Workbench Feishu OAuth authorization runtime is invalid.')
+}
+
+function configurationMismatch(): WorkbenchFeishuOAuthAuthorizationError {
+  return new WorkbenchFeishuOAuthAuthorizationError(
+    'configuration_mismatch',
+    'correct_configuration',
+    'The persisted Feishu identity and OAuth authorization configurations do not match.',
+  )
 }
 
 function dataRecord(value: unknown): UnknownRecord {
@@ -150,6 +185,55 @@ function readOptions(value: unknown): ParsedOptions {
     callbackHost: record.callbackHost,
     leaseManager,
   }) as ParsedOptions
+}
+
+function readStoredOptions(value: unknown): ParsedStoredOptions {
+  const record = dataRecord(value)
+  const expected = ['identityStore', 'authorizationStore', 'flow', 'persister', 'resolver']
+  if (Object.hasOwn(record, 'leaseManager')) expected.push('leaseManager')
+  if (
+    Object.keys(record).length !== expected.length ||
+    expected.some((key) => !Object.hasOwn(record, key)) ||
+    Object.keys(record).some((key) => !expected.includes(key))
+  ) {
+    throw invalid()
+  }
+  const leaseManager = Object.hasOwn(record, 'leaseManager')
+    ? record.leaseManager
+    : new FeishuRuntimeLeaseManager()
+  if (
+    !(record.identityStore instanceof FeishuIdentityConfigurationStore) ||
+    !(record.authorizationStore instanceof FeishuOAuthAuthorizationConfigurationStore) ||
+    !(record.flow instanceof FeishuOAuthAuthorizationFlow) ||
+    !(record.persister instanceof FeishuOAuthInitialCredentialPersister) ||
+    !(record.resolver instanceof FeishuSystemKeychainSecretResolver) ||
+    !(leaseManager instanceof FeishuRuntimeLeaseManager)
+  ) {
+    throw invalid()
+  }
+  return Object.freeze({
+    identityStore: record.identityStore,
+    authorizationStore: record.authorizationStore,
+    flow: record.flow,
+    persister: record.persister,
+    resolver: record.resolver,
+    leaseManager,
+  }) as ParsedStoredOptions
+}
+
+function callbackHostFromAuthorization(
+  authorization: FeishuOAuthAuthorizationConfiguration,
+): FeishuOAuthLoopbackCallbackHost {
+  const redirect = new URL(authorization.redirectUri)
+  let host: '127.0.0.1' | '::1'
+  if (redirect.hostname === '127.0.0.1') host = '127.0.0.1'
+  else if (redirect.hostname === '[::1]') host = '::1'
+  else throw configurationMismatch()
+  return new FeishuOAuthLoopbackCallbackHost({
+    host,
+    port: Number(redirect.port),
+    path: redirect.pathname,
+  })
 }
 
 function secretCopy(value: unknown): Uint8Array<ArrayBuffer> {
@@ -278,5 +362,42 @@ export function createWorkbenchFeishuOAuthAuthorizationHost(
         fillBytes.call(clientSecret, 0)
       }
     },
+  })
+}
+
+/** Load persisted Settings and construct the exact registered-loopback authorization Host. */
+export async function loadWorkbenchFeishuOAuthAuthorizationHost(
+  optionsValue: WorkbenchFeishuOAuthAuthorizationStoredRuntimeOptions,
+): Promise<WorkbenchFeishuOAuthAuthorizationHost> {
+  const options = readStoredOptions(optionsValue)
+  const [configuration, authorization] = await Promise.all([
+    options.identityStore.read(),
+    options.authorizationStore.read(),
+  ])
+  if (configuration === undefined) {
+    throw new WorkbenchFeishuOAuthAuthorizationError(
+      'identity_configuration_missing',
+      'configure_settings',
+      'The Feishu identity configuration is missing; configure Settings before authorization.',
+    )
+  }
+  if (authorization === undefined) {
+    throw new WorkbenchFeishuOAuthAuthorizationError(
+      'authorization_configuration_missing',
+      'configure_settings',
+      'The Feishu OAuth authorization configuration is missing; configure Settings before authorization.',
+    )
+  }
+  if (configuration.user === undefined || authorization.appId !== configuration.appId) {
+    throw configurationMismatch()
+  }
+  return createWorkbenchFeishuOAuthAuthorizationHost({
+    configuration,
+    authorization,
+    flow: options.flow,
+    persister: options.persister,
+    resolver: options.resolver,
+    callbackHost: callbackHostFromAuthorization(authorization),
+    leaseManager: options.leaseManager,
   })
 }

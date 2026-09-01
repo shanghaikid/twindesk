@@ -16,6 +16,18 @@ display a link or open a browser, but receives no secret, token, configured
 principal, Keychain target, lease, or persistence capability. TwinDesk does not
 open the browser automatically in this slice.
 
+`loadWorkbenchFeishuOAuthAuthorizationHost()` is the restart composition entry.
+It reads fresh `FeishuIdentityConfigurationStore` and
+`FeishuOAuthAuthorizationConfigurationStore` instances, requires both documents
+and an exact User/app binding, then derives the callback host, fixed port, and
+path from the validated registered redirect. Missing or mismatched Settings
+fail with fixed recovery codes before a loopback listener, Keychain lookup,
+presenter, or OAuth network operation can run. The loader accepts stores rather
+than choosing product paths, so path ownership remains with the future Settings
+and Cordis lifecycle composition. The returned Host owns the immutable validated
+snapshot from that load; a subsequent Settings edit requires constructing a new
+Host rather than mutating an authorization already in progress.
+
 ## Ordering and Ownership
 
 The only successful ordering is:
@@ -79,9 +91,17 @@ cleanup, refusal to overwrite an existing credential, presenter failure
 cleanup, and cancellation despite a stalled presenter. No live Feishu account,
 network endpoint, browser, or Keychain item is used.
 
+A restart test persists both non-secret configuration documents, constructs
+fresh stores, loads the runtime, binds the exact persisted redirect, and
+completes one synthetic verified persistence. Missing identity, missing
+authorization, and app mismatch fail before lease or secret access.
+The restart path uses IPv6 loopback so both supported literal-host derivations
+are covered across the loader and the existing IPv4 runtime tests. A Bot-only
+identity and hostile accessor input also fail without invoking runtime access.
+
 Still open:
 
 - recovery UI plus browser launching;
-- Settings editing and runtime loading for the persisted authorization configuration;
+- Settings editing and default product path selection;
 - Cordis lifecycle activation and hosted polling coexistence;
 - live-account authorization and Keychain acceptance.
