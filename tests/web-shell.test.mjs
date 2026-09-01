@@ -127,6 +127,11 @@ test('the local Web server serves product routes and restarts on the same port',
   assert.match(appSource, /feishuSettingsDraft/u)
   assert.match(appSource, /data-feishu-user-identity-form/u)
   assert.match(appSource, /\/api\/settings\/feishu\/user-identity/u)
+  assert.match(appSource, /\/api\/authorization\/feishu\/start/u)
+  assert.match(appSource, /\/api\/authorization\/feishu\/cancel/u)
+  assert.match(appSource, /data-feishu-authorization-form/u)
+  assert.match(appSource, /bytes\.fill\(0\)/u)
+  assert.match(appSource, /rel="noopener noreferrer"/u)
   assert.match(appSource, /x-twindesk-csrf-token/u)
   assert.match(appSource, /method: 'POST'/u)
   assert.match(appSource, /function escapeHtml/u)
@@ -142,6 +147,15 @@ test('the local Web server serves product routes and restarts on the same port',
   const settingsContractResponse = await request(`${running.url}/feishu-settings-contract.js`)
   assert.equal(settingsContractResponse.status, 200)
   assert.match(await settingsContractResponse.text(), /function parseFeishuSettingsSnapshot/u)
+
+  const authorizationContractResponse = await request(
+    `${running.url}/feishu-authorization-contract.js`,
+  )
+  assert.equal(authorizationContractResponse.status, 200)
+  assert.match(
+    await authorizationContractResponse.text(),
+    /function parseFeishuAuthorizationSnapshot/u,
+  )
 
   const stylesResponse = await request(`${running.url}/styles.css`)
   assert.equal(stylesResponse.status, 200)
@@ -617,6 +631,159 @@ test('the Web server fails closed when Feishu Settings are unavailable or invali
   }
 })
 
+test('the Web server starts and cancels one bounded CSRF-bound Feishu authorization', async () => {
+  let startCalls = 0
+  let cancelCalls = 0
+  /** @type {Uint8Array | undefined} */
+  let observedSecret
+  /** @type {unknown} */
+  let state = Object.freeze({ version: 1, connectorId: 'feishu', state: 'idle' })
+  const waiting = Object.freeze({
+    version: 1,
+    connectorId: 'feishu',
+    state: 'waiting',
+    authorizationUrl: `https://accounts.feishu.cn/open-apis/authen/v1/authorize?client_id=cli_synthetic&response_type=code&redirect_uri=${encodeURIComponent('http://127.0.0.1:43121/oauth/callback')}&scope=offline_access&state=${'s'.repeat(43)}&code_challenge=${'c'.repeat(43)}&code_challenge_method=S256&prompt=consent`,
+    redirectUri: 'http://127.0.0.1:43121/oauth/callback',
+  })
+  const running = await startTwinDeskWebServer({
+    port: 0,
+    feishuAuthorization: {
+      read() {
+        return state
+      },
+      async start(secret) {
+        startCalls += 1
+        observedSecret = secret
+        assert.equal(Buffer.from(secret).toString('utf8'), 'synthetic-app-secret')
+        state = waiting
+        return state
+      },
+      async cancel() {
+        cancelCalls += 1
+        state = Object.freeze({ version: 1, connectorId: 'feishu', state: 'cancelled' })
+        return state
+      },
+    },
+  })
+  try {
+    const status = await request(`${running.url}/api/authorization/feishu`)
+    assert.equal(status.status, 200)
+    assert.deepEqual(await status.json(), {
+      version: 1,
+      connectorId: 'feishu',
+      state: 'idle',
+    })
+    const csrfToken = status.headers.get('x-twindesk-csrf-token')
+    assert.ok(csrfToken !== null)
+    const validHeaders = {
+      'content-type': 'application/octet-stream',
+      origin: running.url,
+      'sec-fetch-site': 'same-origin',
+      'x-twindesk-csrf-token': csrfToken,
+    }
+    /** @type {Array<[Record<string, string>, string, number]>} */
+    const rejectedRequests = [
+      [{ ...validHeaders, origin: 'http://example.invalid' }, 'synthetic-app-secret', 403],
+      [{ ...validHeaders, 'x-twindesk-csrf-token': 'wrong' }, 'synthetic-app-secret', 403],
+      [{ ...validHeaders, 'content-type': 'text/plain' }, 'synthetic-app-secret', 415],
+      [validHeaders, 'x'.repeat(513), 413],
+    ]
+    for (const [headers, body, expectedStatus] of rejectedRequests) {
+      const response = await request(`${running.url}/api/authorization/feishu/start`, {
+        method: 'POST',
+        headers,
+        body,
+      })
+      assert.equal(response.status, expectedStatus)
+    }
+    assert.equal(startCalls, 0)
+
+    const started = await request(`${running.url}/api/authorization/feishu/start`, {
+      method: 'POST',
+      headers: validHeaders,
+      body: 'synthetic-app-secret',
+    })
+    assert.equal(started.status, 200)
+    assert.deepEqual(await started.json(), waiting)
+    assert.equal(startCalls, 1)
+    assert.ok(observedSecret !== undefined)
+    assert.equal(
+      observedSecret.every((value) => value === 0),
+      true,
+    )
+
+    const cancelled = await request(`${running.url}/api/authorization/feishu/cancel`, {
+      method: 'POST',
+      headers: {
+        ...validHeaders,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ version: 1 }),
+    })
+    assert.equal(cancelled.status, 200)
+    assert.deepEqual(await cancelled.json(), {
+      version: 1,
+      connectorId: 'feishu',
+      state: 'cancelled',
+    })
+    assert.equal(cancelCalls, 1)
+  } finally {
+    await running.close()
+  }
+  assert.equal(cancelCalls, 2)
+})
+
+test('the Web server minimizes authorization conflicts and invalid service results', async () => {
+  /** @type {Array<[(secret: Uint8Array) => Promise<unknown>, number]>} */
+  const invalidStarts = [
+    [async () => Promise.reject(new Error('synthetic-private-active')), 409],
+    [async () => ({ version: 1, connectorId: 'feishu', state: 'idle' }), 503],
+    [
+      async () => ({
+        version: 1,
+        connectorId: 'feishu',
+        state: 'waiting',
+        authorizationUrl: 'https://example.invalid/steal',
+        redirectUri: 'http://127.0.0.1:43121/oauth/callback',
+      }),
+      503,
+    ],
+  ]
+  for (const [start, expectedStatus] of invalidStarts) {
+    const running = await startTwinDeskWebServer({
+      port: 0,
+      feishuAuthorization: {
+        read() {
+          return { version: 1, connectorId: 'feishu', state: 'idle' }
+        },
+        start,
+        async cancel() {
+          return { version: 1, connectorId: 'feishu', state: 'cancelled' }
+        },
+      },
+    })
+    try {
+      const status = await request(`${running.url}/api/authorization/feishu`)
+      const csrfToken = status.headers.get('x-twindesk-csrf-token')
+      assert.ok(csrfToken !== null)
+      const response = await request(`${running.url}/api/authorization/feishu/start`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/octet-stream',
+          origin: running.url,
+          'sec-fetch-site': 'same-origin',
+          'x-twindesk-csrf-token': csrfToken,
+        },
+        body: 'synthetic-app-secret',
+      })
+      assert.equal(response.status, expectedStatus)
+      assert.doesNotMatch(await response.text(), /synthetic-private/u)
+    } finally {
+      await running.close()
+    }
+  }
+})
+
 test('the Web server rejects non-loopback hosts and invalid ports', async () => {
   await assert.rejects(
     startTwinDeskWebServer({
@@ -648,4 +815,52 @@ test('the Web server rejects hostile Feishu Settings services without invoking a
       !error.message.includes('synthetic-private'),
   )
   assert.equal(getterCalls, 0)
+})
+
+test('the Web server rejects hostile authorization services without invoking accessors', async () => {
+  let getterCalls = 0
+  const hostile = Object.defineProperty(
+    {
+      start() {},
+      cancel() {},
+    },
+    'read',
+    {
+      enumerable: true,
+      get() {
+        getterCalls += 1
+        throw new Error('synthetic-private-authorization-service')
+      },
+    },
+  )
+  await assert.rejects(
+    startTwinDeskWebServer({
+      port: 0,
+      feishuAuthorization: /** @type {never} */ (hostile),
+    }),
+    (error) =>
+      error instanceof TypeError &&
+      /service is invalid/u.test(error.message) &&
+      !error.message.includes('synthetic-private'),
+  )
+  assert.equal(getterCalls, 0)
+})
+
+test('the Web server still closes when authorization cancellation throws synchronously', async () => {
+  const running = await startTwinDeskWebServer({
+    port: 0,
+    feishuAuthorization: {
+      read() {
+        return { version: 1, connectorId: 'feishu', state: 'idle' }
+      },
+      async start() {
+        return { version: 1, connectorId: 'feishu', state: 'failed', recovery: 'do_not_retry' }
+      },
+      cancel() {
+        throw new Error('synthetic-private-cancel-failure')
+      },
+    },
+  })
+  await running.close()
+  await running.close()
 })

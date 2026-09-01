@@ -1,4 +1,9 @@
 export {
+  parseFeishuAuthorizationSnapshot,
+  type FeishuAuthorizationRecovery,
+  type FeishuAuthorizationSnapshot,
+} from './feishu-authorization-contract.ts'
+export {
   startTwinDeskWebServer,
   type RunningTwinDeskWebServer,
   type TwinDeskWebServerOptions,

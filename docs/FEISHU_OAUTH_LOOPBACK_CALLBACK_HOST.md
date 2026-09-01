@@ -54,8 +54,9 @@ The Workbench initial-authorization host now composes this listener, the
 authorization flow, and verified initial persistence under one Host lease. Still
 open:
 
-- UI-driven selection between initial authorization and the separate
-  blocked-state replacement path;
-- browser launch and product recovery UI;
-- Settings UI editing for application and redirect configuration;
+- blocked-state reauthorization and reconciliation recovery UI;
 - live Feishu authorization and Keychain acceptance.
+
+The initial product entry, explicit browser link, and Settings editor are
+documented in
+[Workbench Feishu OAuth Authorization UI](WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_UI.md).

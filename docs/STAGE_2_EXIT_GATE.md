@@ -61,7 +61,7 @@ local business records; credentials and raw connector responses do not.
 | Complete local business trace exists | Passed | Six attributable, reference-validated Audit records |
 | Real Bot callback/subscription reaches the runtime | Not proven | No hosted callback or long-connection composition |
 | Exclusive Feishu Host ownership | Contract passed | A kernel-backed loopback lease excludes real competing processes, releases after `SIGKILL`, and now owns durable User rotation plus one full synthetic Workbench reply operation; hosted polling is not bound yet |
-| Real User polling/context uses OAuth from Keychain | Not proven | Code/PKCE exchange, default-path restart-loaded app-bound registered-loopback configuration and capture through lease-held verified initial persistence, blocked-state replacement, durable reply-path rotation, and exact User scope probing pass synthetically; the default Web launcher now injects a minimized status, create-only User identity bootstrap, and CSRF-protected callback/scope editor, but no actual credential creation, existing-identity replacement, browser authorization, Cordis activation, polling HTTP adapter, scheduler, or recovery UI exists |
+| Real User polling/context uses OAuth from Keychain | Not proven | Code/PKCE exchange, default-path restart-loaded app-bound registered-loopback configuration and capture through lease-held verified initial persistence, blocked-state replacement, durable reply-path rotation, and exact User scope probing pass synthetically; the default Web launcher now injects minimized Settings, create-only User identity bootstrap, a CSRF-protected callback/scope editor, and an explicit memory-only initial authorization entry that can reach verified Keychain persistence, but no live authorization acceptance, existing-identity replacement, Cordis activation, polling HTTP adapter, scheduler, or reauthorization/reconciliation UI exists |
 | SecretReference resolves and parses from macOS Keychain | Contract passed | Fixed read-only lookup plus identity-bound Bot/User parsing and zeroed source/derived bytes are tested with injected adapters; no live item is read |
 | Real Feishu reply succeeds | Not proven | The Workbench composition root binds the held lease, Host approval/dispatch/receipt/Audit operation, durable User rotation, and production Bot/User adapter; its complete test injects Keychain and Fetch and uses no live account |
 | User edits and approves in the product UI | Not implemented | Current Web shell remains read-only fixture UI |
@@ -72,8 +72,8 @@ local business records; credentials and raw connector responses do not.
 The product source of truth requires a **real Feishu message** to produce an
 approved and sent reply with a complete trace. Passing injected-client tests is
 necessary but not equivalent to that requirement. Declaring Stage 2 complete
-would incorrectly imply live support for the synthetically composed
-authorization-code/PKCE, credential rotation, and initial-persistence paths,
+would incorrectly imply live support for the synthetically tested product
+authorization-code/PKCE and initial-persistence entry, credential rotation,
 composed live Feishu API semantics, callback or polling lifecycle, interactive
 approval, and a real external receipt.
 

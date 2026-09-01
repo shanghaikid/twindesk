@@ -91,10 +91,14 @@ literal-loopback callback and requested scopes behind same-origin,
 Fetch-Metadata, and CSRF checks. An empty installation can also create one
 non-secret User identity, or add one to a Bot-only connection, while Workbench
 generates the internal account and Keychain-reference locators without
-accepting a credential. Cordis activation, existing-identity replacement, Bot
-identity creation, actual credential and authorization flows,
-credential-recovery UI, interactive Draft and approval UI, model-backed
-linkage, and a real Feishu send remain missing. See the
+accepting a credential during identity creation. Once Settings are ready, the
+same page can start one explicit initial User OAuth attempt, present the
+lease-held authorization URL for a user click, cancel it, and report only a
+memory-local minimized result. Synthetic tests cover the loopback boundary and
+verified persistence composition without a live account. Cordis activation,
+existing-identity replacement, Bot identity creation, live authorization
+acceptance, reauthorization and credential-recovery UI, interactive Draft and
+approval UI, model-backed linkage, and a real Feishu send remain missing. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).
 
 ## Stage 3: Jira Context

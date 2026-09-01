@@ -80,7 +80,9 @@ Still open:
 
 - replace or edit existing Bot/User identity metadata and SecretReferences;
 - add or replace actual Keychain credentials;
-- launch initial OAuth and present reauthorization/reconciliation recovery;
+- present reauthorization and reconciliation recovery; the separate initial
+  authorization entry is documented in
+  [Workbench Feishu OAuth Authorization UI](WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_UI.md);
 - record a dedicated Settings-change audit without copying identifiers;
 - disconnect, delete, and revoke configuration or credentials;
 - activate the editor in the Cordis lifecycle; and

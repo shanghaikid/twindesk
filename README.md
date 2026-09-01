@@ -69,6 +69,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Feishu OAuth Authorization Configuration](docs/FEISHU_OAUTH_AUTHORIZATION_CONFIGURATION.md): versioned app-bound scopes and exact registered literal-loopback redirect settings.
 - [Feishu OAuth Loopback Callback Host](docs/FEISHU_OAUTH_LOOPBACK_CALLBACK_HOST.md): bounded one-shot literal-loopback redirect capture and lifecycle cleanup.
 - [Workbench Feishu OAuth Authorization Runtime](docs/WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_RUNTIME.md): lease-held initial authorization from loopback capture through verified Keychain persistence.
+- [Workbench Feishu OAuth Authorization UI](docs/WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_UI.md): explicit loopback-only initial authorization entry, minimized status, transient app-secret handling, and cancellation.
 - [Workbench Local Data Paths](docs/WORKBENCH_LOCAL_DATA_PATHS.md): private macOS product Settings root and restart-safe Feishu store construction.
 - [Workbench Feishu Settings Presentation](docs/WORKBENCH_FEISHU_SETTINGS_PRESENTATION.md): minimized read-only Connector status for the local Web boundary.
 - [Workbench Feishu OAuth Settings Editing](docs/WORKBENCH_FEISHU_OAUTH_SETTINGS_EDITING.md): app-bound non-secret OAuth configuration editing with a local request-forgery boundary.
@@ -168,8 +169,13 @@ literal-loopback OAuth callback and requested scopes through an exact
 same-origin, Fetch-Metadata- and CSRF-bound local POST. It can also bootstrap a
 first User identity from an empty installation or add one to a Bot-only
 connection. Workbench generates the internal account and Keychain-reference
-locators; the browser submits no credential, and creation does not imply
-authorization or connectivity. The
+locators; identity creation itself submits no credential and does not imply
+authorization or connectivity. Once those non-secret Settings are ready, a
+separate Connectors form can start one explicit initial User OAuth attempt. Its
+transient app secret stays within the loopback request and lease-held runtime,
+the Feishu authorization URL requires a user click, and success means only that
+this attempt principal-verified and persisted the initial Keychain credential.
+It does not claim current connectivity or scope health. The
 Workbench reauthorization host also holds the exclusive kernel-backed lease
 across an already-exchanged blocked-state replacement. Fixed operation-level
 scope authorization for reply and User discovery now passes synthetic
@@ -189,7 +195,7 @@ normalization, bounded context, an edited Draft revision, exact approval,
 idempotent execution, receipt persistence, restart verification, and a complete local
 Audit trace. The restart evidence is a deterministic acceptance completion,
 not an automatic repair service. Stage 2 is not declared complete: hosted
-ingestion or polling, authorization and credential-recovery UI/Cordis wiring,
+ingestion or polling, reauthorization and credential-recovery UI/Cordis wiring,
 interactive Draft/approval UI, model-backed Draft linkage, and a live-account
 send remain unimplemented.
 Versioned domain records and the product-owned Connector contract are

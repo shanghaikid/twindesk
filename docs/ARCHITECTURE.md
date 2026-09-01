@@ -290,10 +290,16 @@ bootstrapper either creates the first local Feishu connection or preserves an
 existing Bot connection while adding its User slot. It generates the internal
 account and Keychain-reference locators inside Workbench, accepts no credential,
 and uses the same Web request-forgery boundary without adding identifiers to the
-status body. Cordis activation remains open. See
+status body. A separate memory-only authorization controller composes the
+restart-loaded, lease-held initial OAuth Host and exposes only minimized states
+to Web. The loopback server accepts a bounded transient app-secret body behind
+the same Host/Origin/Fetch-Metadata/CSRF boundary, clears its copy, validates the
+exact Feishu/PKCE presentation, and requires an explicit browser click. It does
+not expose credentials or imply connectivity. Cordis activation remains open. See
 [Workbench Feishu OAuth Settings Editing](WORKBENCH_FEISHU_OAUTH_SETTINGS_EDITING.md),
 [Workbench Feishu User Identity Bootstrap](WORKBENCH_FEISHU_USER_IDENTITY_BOOTSTRAP.md),
-[Workbench Feishu Settings Presentation](WORKBENCH_FEISHU_SETTINGS_PRESENTATION.md)
+[Workbench Feishu Settings Presentation](WORKBENCH_FEISHU_SETTINGS_PRESENTATION.md),
+[Workbench Feishu OAuth Authorization UI](WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_UI.md)
 and [ADR 0003](decisions/0003-macos-local-data-root.md). The Stage 2
 exit remains open until the
 production runtime hosts ingestion, polling, and credential-recovery
@@ -330,6 +336,9 @@ The local product presentation boundary:
 - accepts a presentation-safe Feishu Settings service at the composition
   boundary, revalidates its minimized read response, and exposes only explicit
   CSRF-bound local OAuth and create-only User identity writers;
+- accepts a separate initial-authorization controller, independently validates
+  its minimized memory-only state and exact Feishu URL, and never gains direct
+  Keychain or Connector-store access;
 - presents drafts, approvals, execution receipts, and partial context without
   implying authority from Persona or page visibility.
 

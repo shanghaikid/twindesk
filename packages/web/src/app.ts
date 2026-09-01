@@ -19,6 +19,11 @@ import {
   type FeishuSettingsSnapshot,
   type FeishuUserIdentityCreate,
 } from './feishu-settings-contract.ts'
+import {
+  parseFeishuAuthorizationSnapshot,
+  type FeishuAuthorizationRecovery,
+  type FeishuAuthorizationSnapshot,
+} from './feishu-authorization-contract.ts'
 
 const INBOX_STATES: readonly { readonly id: InboxState; readonly label: string }[] = [
   { id: 'needs_reply', label: 'Needs reply' },
@@ -73,6 +78,13 @@ let feishuUserIdentityEditorOpen = false
 let feishuUserIdentitySaving = false
 let feishuUserIdentitySaveError: string | undefined
 let feishuUserIdentityDraft: FeishuUserIdentityDraft | undefined
+let feishuAuthorization: FeishuAuthorizationSnapshot | undefined
+let feishuAuthorizationLoading = false
+let feishuAuthorizationError: string | undefined
+let feishuAuthorizationRequest = 0
+let feishuAuthorizationCsrfToken: string | undefined
+let feishuAuthorizationMutating = false
+let feishuAuthorizationPoll: number | undefined
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/gu, (character) => {
@@ -213,6 +225,59 @@ function personasContent(): string {
     </section>`
 }
 
+function feishuAuthorizationRecovery(recovery: FeishuAuthorizationRecovery): string {
+  const messages: Readonly<Record<FeishuAuthorizationRecovery, string>> = {
+    configure_settings: 'Complete the local User identity and OAuth settings first.',
+    correct_configuration: 'Correct the local identity or OAuth settings before retrying.',
+    use_reauthorization: 'A credential already exists. Use the separate reauthorization flow.',
+    reauthorize: 'The authorization must be run again before Feishu can be used.',
+    reconcile_keychain: 'Keychain state is uncertain. Reconcile it before trying again.',
+    retry_later: 'Feishu or the local callback was temporarily unavailable. Retry later.',
+    do_not_retry: 'Authorization stopped safely. Review local diagnostics before retrying.',
+  }
+  return messages[recovery]
+}
+
+function feishuAuthorizationContent(): string {
+  if (feishuSettings?.state !== 'ready') {
+    return `<div class="settings-editor"><div class="settings-editor-heading"><div><h3>Authorize Feishu User</h3><p>Complete User identity and OAuth settings before starting authorization.</p></div></div></div>`
+  }
+  if (feishuAuthorizationLoading) {
+    return `<div class="settings-editor"><div class="settings-editor-heading"><div><h3>Authorize Feishu User</h3><p>Reading the current in-process authorization state…</p></div></div></div>`
+  }
+  if (feishuAuthorizationError !== undefined) {
+    return `<div class="settings-editor"><div class="settings-editor-heading"><div><h3>Authorize Feishu User</h3><p class="form-message error" role="alert">${escapeHtml(feishuAuthorizationError)}</p></div><button class="secondary-button" type="button" data-feishu-authorization-retry>Retry status</button></div></div>`
+  }
+  const snapshot = feishuAuthorization
+  if (snapshot?.state === 'starting') {
+    return `<div class="settings-editor"><div class="settings-editor-heading"><div><h3>Starting authorization…</h3><p>Preparing a loopback callback and Feishu authorization request.</p></div><button class="secondary-button" type="button" data-feishu-authorization-cancel${feishuAuthorizationMutating ? ' disabled' : ''}>Cancel</button></div></div>`
+  }
+  if (snapshot?.state === 'waiting') {
+    return `<div class="settings-editor"><div class="settings-editor-heading"><div><h3>Authorization waiting</h3><p>Open Feishu, approve the requested scopes, then return here. Callback: ${escapeHtml(snapshot.redirectUri)}</p></div></div><div class="settings-form-actions"><button class="secondary-button" type="button" data-feishu-authorization-cancel${feishuAuthorizationMutating ? ' disabled' : ''}>Cancel</button><a class="primary-button" href="${escapeHtml(snapshot.authorizationUrl)}" target="_blank" rel="noopener noreferrer">Open Feishu authorization</a></div></div>`
+  }
+  if (snapshot?.state === 'succeeded') {
+    return `<div class="settings-editor"><div class="settings-editor-heading"><div><h3>Authorization saved</h3><p>The initial User credential was principal-verified and persisted in the system Keychain. This does not claim current connectivity or token validity.</p></div><span class="badge success">Saved</span></div></div>`
+  }
+  const outcome =
+    snapshot?.state === 'failed'
+      ? `<p class="form-message error" role="alert">${escapeHtml(feishuAuthorizationRecovery(snapshot.recovery))}</p>`
+      : snapshot?.state === 'cancelled'
+        ? '<p class="muted">The in-process authorization was cancelled.</p>'
+        : '<p class="muted">No authorization attempt is active in this TwinDesk process. This is not a persisted credential check.</p>'
+  const retryBlocked =
+    snapshot?.state === 'failed' &&
+    (snapshot.recovery === 'use_reauthorization' ||
+      snapshot.recovery === 'reconcile_keychain' ||
+      snapshot.recovery === 'do_not_retry')
+  return `<form class="settings-editor" data-feishu-authorization-form>
+    <div class="settings-editor-heading"><div><h3>Authorize Feishu User</h3><p>Enter the Feishu app secret to begin one principal-bound OAuth authorization.</p></div></div>
+    ${outcome}
+    <div class="settings-fields"><label><span>Feishu App Secret</span><input name="clientSecret" type="password" maxlength="512" autocomplete="off" spellcheck="false" required${retryBlocked ? ' disabled' : ''}></label></div>
+    <p class="muted">The secret is sent only to this loopback server for this attempt. It is not written to TwinDesk Settings, logs, audit records, or model context.</p>
+    <div class="settings-form-actions"><button class="primary-button" type="submit"${feishuAuthorizationMutating || retryBlocked ? ' disabled' : ''}>${feishuAuthorizationMutating ? 'Starting…' : 'Start authorization'}</button></div>
+  </form>`
+}
+
 function connectorsContent(): string {
   let feishuStatus: string
   let feishuDetails: string
@@ -307,6 +372,7 @@ function connectorsContent(): string {
     settingsSnapshot !== undefined && !settingsSnapshot.identities.includes('user')
       ? '<p class="muted">Configure a User identity locally before OAuth settings can be edited.</p>'
       : ''
+  const authorization = feishuAuthorizationContent()
   return `
     <section class="panel">
       <div class="panel-header">
@@ -320,6 +386,7 @@ function connectorsContent(): string {
         </article>
         ${userIdentityEditor}
         ${editor}
+        ${authorization}
         <article class="resource-row">
           <span class="resource-icon">J</span>
           <div class="resource-main"><h3>Jira</h3><p>Read-only Issue and Comment context with explicit partial-result handling.</p></div>
@@ -537,6 +604,135 @@ async function loadFeishuSettings(): Promise<void> {
   }
 }
 
+function scheduleFeishuAuthorizationPoll(): void {
+  if (feishuAuthorizationPoll !== undefined) window.clearTimeout(feishuAuthorizationPoll)
+  feishuAuthorizationPoll = undefined
+  if (
+    currentRoute().id !== 'connectors' ||
+    (feishuAuthorization?.state !== 'starting' && feishuAuthorization?.state !== 'waiting')
+  ) {
+    return
+  }
+  feishuAuthorizationPoll = window.setTimeout(() => {
+    feishuAuthorizationPoll = undefined
+    void loadFeishuAuthorization(false)
+  }, 1_000)
+}
+
+async function loadFeishuAuthorization(showLoading = true): Promise<void> {
+  const request = ++feishuAuthorizationRequest
+  if (showLoading) feishuAuthorizationLoading = true
+  feishuAuthorizationError = undefined
+  render()
+  try {
+    const response = await fetch('/api/authorization/feishu', {
+      headers: { accept: 'application/json' },
+    })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseFeishuAuthorizationSnapshot(await response.json())
+    const csrfToken = response.headers.get('x-twindesk-csrf-token')
+    if (csrfToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(csrfToken)) {
+      throw new Error('Local API returned an invalid Feishu authorization capability.')
+    }
+    if (request !== feishuAuthorizationRequest) return
+    feishuAuthorization = snapshot
+    feishuAuthorizationCsrfToken = csrfToken
+  } catch (error) {
+    if (request !== feishuAuthorizationRequest) return
+    feishuAuthorization = undefined
+    feishuAuthorizationCsrfToken = undefined
+    feishuAuthorizationError =
+      error instanceof Error ? error.message : 'The local Feishu authorization request failed.'
+  } finally {
+    if (request === feishuAuthorizationRequest) {
+      feishuAuthorizationLoading = false
+      render()
+      scheduleFeishuAuthorizationPoll()
+    }
+  }
+}
+
+async function startFeishuAuthorization(input: HTMLInputElement): Promise<void> {
+  const csrfToken = feishuAuthorizationCsrfToken
+  if (csrfToken === undefined) {
+    feishuAuthorizationError = 'The local authorization capability is unavailable.'
+    render()
+    return
+  }
+  const bytes = new TextEncoder().encode(input.value)
+  input.value = ''
+  if (bytes.byteLength === 0 || bytes.byteLength > 512) {
+    bytes.fill(0)
+    feishuAuthorizationError = 'The Feishu App Secret must be 1–512 UTF-8 bytes.'
+    render()
+    return
+  }
+  feishuAuthorizationMutating = true
+  feishuAuthorizationError = undefined
+  feishuAuthorization = Object.freeze({ version: 1, connectorId: 'feishu', state: 'starting' })
+  render()
+  try {
+    const response = await fetch('/api/authorization/feishu/start', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/octet-stream',
+        'x-twindesk-csrf-token': csrfToken,
+      },
+      body: bytes,
+    })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseFeishuAuthorizationSnapshot(await response.json())
+    const nextToken = response.headers.get('x-twindesk-csrf-token')
+    if (nextToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(nextToken)) {
+      throw new Error('Local API returned an invalid Feishu authorization capability.')
+    }
+    feishuAuthorization = snapshot
+    feishuAuthorizationCsrfToken = nextToken
+  } catch (error) {
+    feishuAuthorizationError = `${error instanceof Error ? error.message : 'The local authorization request failed.'} The attempt state may be uncertain; refresh status before starting again.`
+  } finally {
+    bytes.fill(0)
+    feishuAuthorizationMutating = false
+    render()
+    scheduleFeishuAuthorizationPoll()
+  }
+}
+
+async function cancelFeishuAuthorization(): Promise<void> {
+  const csrfToken = feishuAuthorizationCsrfToken
+  if (csrfToken === undefined || feishuAuthorizationMutating) return
+  feishuAuthorizationMutating = true
+  feishuAuthorizationError = undefined
+  render()
+  try {
+    const response = await fetch('/api/authorization/feishu/cancel', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'x-twindesk-csrf-token': csrfToken,
+      },
+      body: JSON.stringify({ version: 1 }),
+    })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseFeishuAuthorizationSnapshot(await response.json())
+    const nextToken = response.headers.get('x-twindesk-csrf-token')
+    if (nextToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(nextToken)) {
+      throw new Error('Local API returned an invalid Feishu authorization capability.')
+    }
+    feishuAuthorization = snapshot
+    feishuAuthorizationCsrfToken = nextToken
+  } catch (error) {
+    feishuAuthorizationError =
+      error instanceof Error ? error.message : 'The local authorization cancellation failed.'
+  } finally {
+    feishuAuthorizationMutating = false
+    render()
+    scheduleFeishuAuthorizationPoll()
+  }
+}
+
 async function saveFeishuUserIdentity(create: FeishuUserIdentityCreate): Promise<void> {
   const csrfToken = feishuSettingsCsrfToken
   if (csrfToken === undefined) {
@@ -633,7 +829,13 @@ function renderRouteAndLoad(): void {
   const route = currentRoute()
   if (route.id === 'inbox') void loadInbox(activeInboxState)
   if (route.id === 'audit') void loadAudit()
-  if (route.id === 'connectors') void loadFeishuSettings()
+  if (route.id === 'connectors') {
+    void loadFeishuSettings()
+    void loadFeishuAuthorization()
+  } else if (feishuAuthorizationPoll !== undefined) {
+    window.clearTimeout(feishuAuthorizationPoll)
+    feishuAuthorizationPoll = undefined
+  }
 }
 
 document.addEventListener('click', (event) => {
@@ -661,6 +863,12 @@ document.addEventListener('click', (event) => {
   if (target.closest('[data-inbox-retry]') !== null) void loadInbox(activeInboxState)
   if (target.closest('[data-audit-retry]') !== null) void loadAudit()
   if (target.closest('[data-feishu-settings-retry]') !== null) void loadFeishuSettings()
+  if (target.closest('[data-feishu-authorization-retry]') !== null) {
+    void loadFeishuAuthorization()
+  }
+  if (target.closest('[data-feishu-authorization-cancel]') !== null) {
+    void cancelFeishuAuthorization()
+  }
   if (target.closest('[data-feishu-settings-edit]') !== null) {
     feishuSettingsDraft = {
       redirectHost: feishuSettings?.oauth?.redirectHost ?? '127.0.0.1',
@@ -697,6 +905,17 @@ document.addEventListener('click', (event) => {
 document.addEventListener('submit', (event) => {
   const form = event.target
   if (!(form instanceof HTMLFormElement)) return
+  if (form.matches('[data-feishu-authorization-form]')) {
+    event.preventDefault()
+    const input = form.elements.namedItem('clientSecret')
+    if (!(input instanceof HTMLInputElement)) {
+      feishuAuthorizationError = 'The Feishu authorization form is invalid.'
+      render()
+      return
+    }
+    void startFeishuAuthorization(input)
+    return
+  }
   if (form.matches('[data-feishu-user-identity-form]')) {
     event.preventDefault()
     const mode = feishuUserIdentityCreationMode

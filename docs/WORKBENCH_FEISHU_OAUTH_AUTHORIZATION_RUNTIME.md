@@ -101,7 +101,10 @@ identity and hostile accessor input also fail without invoking runtime access.
 
 Still open:
 
-- recovery UI plus browser launching;
-- Settings editing and browser presentation;
+- reauthorization and Keychain/rotation reconciliation UI;
 - Cordis lifecycle activation and hosted polling coexistence;
 - live-account authorization and Keychain acceptance.
+
+The separate product entry, memory-only status controller, explicit browser
+link, cancellation, and transient app-secret request are documented in
+[Workbench Feishu OAuth Authorization UI](WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_UI.md).

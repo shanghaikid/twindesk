@@ -69,6 +69,16 @@ test('Workbench hosts default-path Feishu Settings in the product Web shell', as
         appMatchesIdentity: true,
       },
     })
+    const authorization = await fetch(`${running.url}/api/authorization/feishu`, {
+      headers: { connection: 'close' },
+    })
+    assert.equal(authorization.status, 200)
+    assert.deepEqual(await authorization.json(), {
+      version: 1,
+      connectorId: 'feishu',
+      state: 'idle',
+    })
+    assert.ok(authorization.headers.get('x-twindesk-csrf-token') !== null)
     const csrfToken = response.headers.get('x-twindesk-csrf-token')
     assert.ok(csrfToken !== null)
     const updateResponse = await fetch(`${running.url}/api/settings/feishu`, {

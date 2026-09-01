@@ -9,6 +9,7 @@ import {
   type WorkbenchLocalDataPathOptions,
 } from './local-data-paths.ts'
 import { createWorkbenchFeishuOAuthSettingsEditor } from './feishu-oauth-settings-editor.ts'
+import { createDefaultWorkbenchFeishuOAuthAuthorizationController } from './feishu-oauth-authorization-controller.ts'
 import { createWorkbenchFeishuSettingsPresentation } from './feishu-settings-presentation.ts'
 import { createWorkbenchFeishuUserIdentityBootstrapper } from './feishu-user-identity-bootstrap.ts'
 
@@ -80,6 +81,10 @@ export async function startWorkbenchWebServer(
   const feishuUserIdentityBootstrapper = createWorkbenchFeishuUserIdentityBootstrapper({
     identityStore: stores.identityStore,
   })
+  const feishuAuthorization = createDefaultWorkbenchFeishuOAuthAuthorizationController({
+    identityStore: stores.identityStore,
+    authorizationStore: stores.authorizationStore,
+  })
   let pendingSettingsUpdate: Promise<void> = Promise.resolve()
   return startTwinDeskWebServer({
     ...(options.host === undefined ? {} : { host: options.host }),
@@ -109,6 +114,11 @@ export async function startWorkbenchWebServer(
         )
         return operation
       },
+    },
+    feishuAuthorization: {
+      read: feishuAuthorization.read,
+      start: feishuAuthorization.start,
+      cancel: feishuAuthorization.cancel,
     },
   })
 }

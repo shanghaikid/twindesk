@@ -65,9 +65,11 @@ as potentially uncertain and tells the user to refresh Settings before any
 retry; it never automatically repeats the create request.
 
 Creating metadata produces an `incomplete` Settings state and explicitly says
-that no credential was created. It only unlocks the separate OAuth Settings
-form. It does not claim that the principal is correct, that a Keychain item
-exists, that OAuth is authorized, or that Feishu is reachable.
+that no credential was created. It unlocks the separate OAuth Settings form;
+once Settings are ready, the separate initial authorization entry may verify
+the configured principal and persist a Keychain credential. Identity creation
+alone does not claim that the principal is correct, that a Keychain item exists,
+that OAuth is authorized, or that Feishu is reachable.
 
 ## Verification and limits
 
@@ -81,11 +83,13 @@ network access.
 
 Still open:
 
-- create or replace the actual Keychain credential;
-- verify the configured User principal through authorization;
+- reauthorization and Keychain reconciliation UI;
 - safely replace or edit an existing identity;
 - create and edit Bot identity metadata;
 - disconnect, delete, and revoke identity and credentials;
 - record a dedicated Settings-change Audit without copying identifiers;
 - activate the flow in the Cordis lifecycle; and
 - pass live Feishu registration and account acceptance.
+
+The initial credential entry is documented in
+[Workbench Feishu OAuth Authorization UI](WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_UI.md).

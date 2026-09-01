@@ -70,6 +70,8 @@ Still open:
   and
   [Workbench Feishu OAuth Settings Editing](WORKBENCH_FEISHU_OAUTH_SETTINGS_EDITING.md);
 - present authorization, credential, scope, and connectivity diagnostics
-  separately;
+  separately; the initial authorization entry is documented in
+  [Workbench Feishu OAuth Authorization UI](WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_UI.md),
+  while durable credential health remains open;
 - add deletion and recovery flows; and
 - pass the live-account Stage 2 acceptance gate.
