@@ -70,7 +70,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Feishu OAuth Loopback Callback Host](docs/FEISHU_OAUTH_LOOPBACK_CALLBACK_HOST.md): bounded one-shot literal-loopback redirect capture and lifecycle cleanup.
 - [Workbench Feishu OAuth Authorization Runtime](docs/WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_RUNTIME.md): lease-held initial authorization from loopback capture through verified Keychain persistence.
 - [Workbench Feishu OAuth Authorization UI](docs/WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_UI.md): explicit loopback-only initial authorization entry, minimized status, transient app-secret handling, and cancellation.
-- [Workbench Local Data Paths](docs/WORKBENCH_LOCAL_DATA_PATHS.md): private macOS product Settings root and restart-safe Feishu store construction.
+- [Workbench Local Data Paths](docs/WORKBENCH_LOCAL_DATA_PATHS.md): private macOS product Settings and OAuth recovery-state paths with restart-safe Feishu store construction.
 - [Workbench Feishu Settings Presentation](docs/WORKBENCH_FEISHU_SETTINGS_PRESENTATION.md): minimized read-only Connector status for the local Web boundary.
 - [Workbench Feishu OAuth Settings Editing](docs/WORKBENCH_FEISHU_OAUTH_SETTINGS_EDITING.md): app-bound non-secret OAuth configuration editing with a local request-forgery boundary.
 - [Workbench Feishu User Identity Bootstrap](docs/WORKBENCH_FEISHU_USER_IDENTITY_BOOTSTRAP.md): create-only User metadata and generated Keychain-reference setup without accepting a credential.
@@ -97,6 +97,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [ADR 0001](docs/decisions/0001-upstream-generic-inbox-extension-points.md): historical Harness Client investigation and upstream path.
 - [ADR 0002](docs/decisions/0002-twindesk-owned-product-web-shell.md): accepted standalone product UI boundary.
 - [ADR 0003](docs/decisions/0003-macos-local-data-root.md): accepted private macOS product-data root.
+- [ADR 0004](docs/decisions/0004-feishu-oauth-recovery-journal-path.md): accepted secret-free Feishu OAuth recovery journal path.
 
 ## Current Status
 

@@ -6,9 +6,10 @@ import { dirname, isAbsolute, join, resolve } from 'node:path'
 import {
   FeishuIdentityConfigurationStore,
   FeishuOAuthAuthorizationConfigurationStore,
+  FeishuOAuthRotationJournal,
 } from '@twindesk/plugin-feishu'
 
-export const WORKBENCH_LOCAL_DATA_PATHS_VERSION = 1 as const
+export const WORKBENCH_LOCAL_DATA_PATHS_VERSION = 2 as const
 
 export type WorkbenchLocalDataPathErrorCode =
   'invalid_options' | 'unsupported_platform' | 'unsafe_path' | 'io_error'
@@ -34,14 +35,17 @@ export interface WorkbenchLocalDataPaths {
   readonly platform: 'darwin'
   readonly rootDirectory: string
   readonly feishuSettingsDirectory: string
+  readonly feishuStateDirectory: string
   readonly feishuIdentityConfiguration: string
   readonly feishuOAuthAuthorizationConfiguration: string
+  readonly feishuOAuthRotationJournal: string
 }
 
 export interface WorkbenchFeishuSettingsStores {
   readonly paths: WorkbenchLocalDataPaths
   readonly identityStore: FeishuIdentityConfigurationStore
   readonly authorizationStore: FeishuOAuthAuthorizationConfigurationStore
+  readonly rotationJournal: FeishuOAuthRotationJournal
 }
 
 type UnknownRecord = Readonly<Record<string, unknown>>
@@ -115,17 +119,20 @@ export function resolveWorkbenchLocalDataPaths(
   const homeDirectory = homePath(options.homeDirectory ?? homedir())
   const rootDirectory = join(homeDirectory, 'Library', 'Application Support', 'TwinDesk')
   const feishuSettingsDirectory = join(rootDirectory, 'settings', 'connectors', 'feishu')
+  const feishuStateDirectory = join(rootDirectory, 'state', 'connectors', 'feishu')
   return Object.freeze({
     kind: 'workbench_local_data_paths',
     schemaVersion: WORKBENCH_LOCAL_DATA_PATHS_VERSION,
     platform: 'darwin',
     rootDirectory,
     feishuSettingsDirectory,
+    feishuStateDirectory,
     feishuIdentityConfiguration: join(feishuSettingsDirectory, 'identity.v1.json'),
     feishuOAuthAuthorizationConfiguration: join(
       feishuSettingsDirectory,
       'oauth-authorization.v1.json',
     ),
+    feishuOAuthRotationJournal: join(feishuStateDirectory, 'oauth-rotation.jsonl'),
   })
 }
 
@@ -180,27 +187,36 @@ async function assertDirectoryUnchanged(identity: DirectoryIdentity): Promise<vo
   }
 }
 
-/** Prepare private fixed directories and construct the two non-secret Feishu Settings stores. */
+/** Prepare private fixed directories and construct non-secret Feishu Settings and state stores. */
 export async function openWorkbenchFeishuSettingsStores(
   optionsValue: WorkbenchLocalDataPathOptions = {},
 ): Promise<WorkbenchFeishuSettingsStores> {
   const paths = resolveWorkbenchLocalDataPaths(optionsValue)
   const homeDirectory = dirname(dirname(dirname(paths.rootDirectory)))
-  const segments = [
-    'Library',
-    'Application Support',
-    'TwinDesk',
-    'settings',
-    'connectors',
-    'feishu',
-  ]
+  const rootSegments = ['Library', 'Application Support', 'TwinDesk']
   let current = homeDirectory
   const directories = [await ensureDirectory(current, false)]
-  for (const [index, segment] of segments.entries()) {
+  for (const [index, segment] of rootSegments.entries()) {
     current = join(current, segment)
     directories.push(await ensureDirectory(current, index >= 2))
   }
-  if (current !== paths.feishuSettingsDirectory) {
+  if (current !== paths.rootDirectory) {
+    throw fail('unsafe_path', 'The Workbench local data path is unsafe.')
+  }
+  let settingsDirectory = current
+  for (const segment of ['settings', 'connectors', 'feishu']) {
+    settingsDirectory = join(settingsDirectory, segment)
+    directories.push(await ensureDirectory(settingsDirectory, true))
+  }
+  let stateDirectory = current
+  for (const segment of ['state', 'connectors', 'feishu']) {
+    stateDirectory = join(stateDirectory, segment)
+    directories.push(await ensureDirectory(stateDirectory, true))
+  }
+  if (
+    settingsDirectory !== paths.feishuSettingsDirectory ||
+    stateDirectory !== paths.feishuStateDirectory
+  ) {
     throw fail('unsafe_path', 'The Workbench local data path is unsafe.')
   }
   for (const directory of directories) await assertDirectoryUnchanged(directory)
@@ -210,5 +226,6 @@ export async function openWorkbenchFeishuSettingsStores(
     authorizationStore: new FeishuOAuthAuthorizationConfigurationStore(
       paths.feishuOAuthAuthorizationConfiguration,
     ),
+    rotationJournal: new FeishuOAuthRotationJournal(paths.feishuOAuthRotationJournal),
   })
 }

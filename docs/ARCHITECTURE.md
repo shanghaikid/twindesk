@@ -272,10 +272,11 @@ production reply adapter, while injecting only synthetic Keychain and Fetch
 boundaries for its full-stack test. A separate Workbench reauthorization host
 now holds that same lease while the existing coordinator verifies and persists
 already-exchanged replacement evidence; it neither hosts the redirect nor
-retries a reply. The Workbench also owns the fixed private macOS product path
-for the Connector-owned identity and OAuth authorization Settings stores; it
-does not place credentials, Harness Sessions, or TwinDesk business tables in
-those files. A Workbench presentation service projects those stores into a
+retries a reply. The Workbench also owns fixed private macOS product paths for
+the Connector-owned identity and OAuth authorization Settings stores plus the
+separate secret-free OAuth rotation journal. It does not place credentials,
+Harness Sessions, or TwinDesk business tables in those files. A Workbench
+presentation service projects the Settings stores into a
 versioned identity-minimized status that the Web server revalidates before the
 Connectors page consumes it. The projection omits application, account,
 principal, SecretReference, and filesystem identifiers and does not claim
@@ -299,8 +300,9 @@ not expose credentials or imply connectivity. Cordis activation remains open. Se
 [Workbench Feishu OAuth Settings Editing](WORKBENCH_FEISHU_OAUTH_SETTINGS_EDITING.md),
 [Workbench Feishu User Identity Bootstrap](WORKBENCH_FEISHU_USER_IDENTITY_BOOTSTRAP.md),
 [Workbench Feishu Settings Presentation](WORKBENCH_FEISHU_SETTINGS_PRESENTATION.md),
-[Workbench Feishu OAuth Authorization UI](WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_UI.md)
-and [ADR 0003](decisions/0003-macos-local-data-root.md). The Stage 2
+[Workbench Feishu OAuth Authorization UI](WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_UI.md),
+[ADR 0003](decisions/0003-macos-local-data-root.md), and
+[ADR 0004](decisions/0004-feishu-oauth-recovery-journal-path.md). The Stage 2
 exit remains open until the
 production runtime hosts ingestion, polling, and credential-recovery
 lifecycles, and passes product editing/approval UI, model-run linkage, and

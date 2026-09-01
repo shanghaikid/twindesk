@@ -45,6 +45,8 @@ enter this tree.
 - Tests inject a temporary synthetic home and never write the real Application
   Support directory.
 - Other production data paths and non-macOS support require follow-up decisions.
+- [ADR 0004](0004-feishu-oauth-recovery-journal-path.md) extends this root with
+  a separate secret-free Feishu OAuth recovery-state branch.
 
 ## Verification
 

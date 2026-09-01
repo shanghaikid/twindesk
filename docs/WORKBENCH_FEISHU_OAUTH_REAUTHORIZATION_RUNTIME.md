@@ -67,7 +67,11 @@ Still open:
 
 - hosted authorization-start and literal-loopback redirect lifecycle;
 - UI state for reauthorization and the two reconciliation-required outcomes;
-- production construction of the exchange, verifier, persister, journal, and
-  recovery host from settings;
+- production construction of the exchange, verifier, persister, and recovery
+  host from Settings plus the now-default recovery journal;
 - live Keychain and Feishu acceptance; and
 - model-backed Draft editing and exact approval UI.
+
+The default secret-free journal path and construction are recorded in
+[ADR 0004](decisions/0004-feishu-oauth-recovery-journal-path.md) and
+[Workbench Local Data Paths](WORKBENCH_LOCAL_DATA_PATHS.md).

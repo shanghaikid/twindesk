@@ -86,7 +86,9 @@ and Keychain runners and make no live network or Keychain change.
 The authorization-code/PKCE exchange, verified initial persistence, explicit
 blocked-state replacement, and exclusive Host lease now pass synthetic
 contracts. The Workbench User reply path now composes rotation under that lease
-before scope checks and reply HTTP. Remaining work includes hosted
+before scope checks and reply HTTP. Default macOS Workbench store construction
+now supplies the fixed private secret-free journal described in
+[ADR 0004](decisions/0004-feishu-oauth-recovery-journal-path.md). Remaining work includes hosted
 reauthorization and recovery, ingestion or polling, UI, and live-account
 acceptance. See
 [Feishu OAuth Reauthorization Replacement](FEISHU_OAUTH_REAUTHORIZATION.md).

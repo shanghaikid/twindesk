@@ -95,8 +95,12 @@ accepting a credential during identity creation. Once Settings are ready, the
 same page can start one explicit initial User OAuth attempt, present the
 lease-held authorization URL for a user click, cancel it, and report only a
 memory-local minimized result. Synthetic tests cover the loopback boundary and
-verified persistence composition without a live account. Cordis activation,
-existing-identity replacement, Bot identity creation, live authorization
+verified persistence composition without a live account. The fixed private
+macOS data root now also constructs the separate secret-free OAuth rotation
+journal, so later reauthorization and reconciliation can recover the same
+evidence after restart without placing it in Settings. Cordis activation,
+existing-identity replacement, Bot identity creation, recovery-state
+presentation and actions, live authorization
 acceptance, reauthorization and credential-recovery UI, interactive Draft and
 approval UI, model-backed linkage, and a real Feishu send remain missing. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).
