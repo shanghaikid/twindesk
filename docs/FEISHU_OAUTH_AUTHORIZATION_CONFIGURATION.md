@@ -70,7 +70,7 @@ app identifier. See
 
 Still open:
 
-- identity and SecretReference editing through product Settings;
+- existing-identity and SecretReference replacement through product Settings;
 - browser launching and authorization recovery UI;
 - live verification that the configured URI is registered for the application;
 - Cordis lifecycle activation and live-account acceptance.

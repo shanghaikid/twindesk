@@ -49,6 +49,13 @@ duplicate or unsorted scopes, missing `offline_access`, oversized bodies, and
 unexpected query parameters fail closed. Writer and store failures return one
 fixed payload-free unavailable response.
 
+After a write, the server accepts success only when the revalidated snapshot
+exactly reflects the requested callback and scopes. A stale presentation
+becomes a fixed `503`. Since persistence may have completed before a transport
+or response failure, the UI treats every failed POST as potentially uncertain,
+asks the user to refresh Settings before retrying, and never retries
+automatically.
+
 The CSRF token is memory-only, applies to one running local server, is not a
 credential, and is never placed in Settings, logs, Audit, exports, or model
 context.
@@ -65,13 +72,13 @@ evidence that Feishu granted or still honors them.
 Synthetic tests cover exact successful writes, same-value replay, IPv4/IPv6,
 restart recovery, User/app binding, hostile objects, missing User identity,
 origin/Host/Fetch Metadata/CSRF/media-type/body/schema rejection, bounded body
-handling, fixed writer failures, and default Workbench-to-Web persistence. They
-use temporary homes and loopback ports with no real Keychain item, account,
-credential, or external network request.
+handling, stale-presentation rejection, fixed writer failures, and default
+Workbench-to-Web persistence. They use temporary homes and loopback ports with
+no real Keychain item, account, credential, or external network request.
 
 Still open:
 
-- create and edit Bot/User identity metadata and SecretReferences;
+- replace or edit existing Bot/User identity metadata and SecretReferences;
 - add or replace actual Keychain credentials;
 - launch initial OAuth and present reauthorization/reconciliation recovery;
 - record a dedicated Settings-change audit without copying identifiers;

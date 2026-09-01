@@ -285,8 +285,14 @@ Connector persistence. A separate Workbench OAuth Settings editor derives the
 app from the existing User identity and writes only the literal-loopback
 callback plus requested scopes. The Web composition exposes that writer behind
 exact Host/Origin/Fetch-Metadata/CSRF/media/body/schema checks; the read-only
-presenter never gains mutation authority. Cordis activation remains open. See
+presenter never gains mutation authority. A separate create-only User identity
+bootstrapper either creates the first local Feishu connection or preserves an
+existing Bot connection while adding its User slot. It generates the internal
+account and Keychain-reference locators inside Workbench, accepts no credential,
+and uses the same Web request-forgery boundary without adding identifiers to the
+status body. Cordis activation remains open. See
 [Workbench Feishu OAuth Settings Editing](WORKBENCH_FEISHU_OAUTH_SETTINGS_EDITING.md),
+[Workbench Feishu User Identity Bootstrap](WORKBENCH_FEISHU_USER_IDENTITY_BOOTSTRAP.md),
 [Workbench Feishu Settings Presentation](WORKBENCH_FEISHU_SETTINGS_PRESENTATION.md)
 and [ADR 0003](decisions/0003-macos-local-data-root.md). The Stage 2
 exit remains open until the
@@ -321,8 +327,9 @@ The local product presentation boundary:
 - serves only on loopback and applies restrictive browser security headers;
 - consumes the loopback Work Hub Inbox and Audit APIs rather than Harness or
   database internals;
-- accepts a presentation-safe Feishu Settings reader at the composition
-  boundary, revalidates its minimized response, and serves it read-only;
+- accepts a presentation-safe Feishu Settings service at the composition
+  boundary, revalidates its minimized read response, and exposes only explicit
+  CSRF-bound local OAuth and create-only User identity writers;
 - presents drafts, approvals, execution receipts, and partial context without
   implying authority from Persona or page visibility.
 

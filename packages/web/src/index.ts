@@ -12,10 +12,12 @@ export {
 } from './routes.ts'
 export {
   parseFeishuOAuthSettingsUpdate,
+  parseFeishuUserIdentityCreate,
   parseFeishuSettingsSnapshot,
   type FeishuConfiguredIdentity,
   type FeishuOAuthSettingsView,
   type FeishuOAuthSettingsUpdate,
+  type FeishuUserIdentityCreate,
   type FeishuSettingsSnapshot,
   type FeishuSettingsState,
 } from './feishu-settings-contract.ts'

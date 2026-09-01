@@ -23,6 +23,14 @@ export interface FeishuOAuthSettingsUpdate {
   readonly scopes: readonly string[]
 }
 
+export interface FeishuUserIdentityCreate {
+  readonly version: 1
+  readonly connection: 'new' | 'existing'
+  readonly appId: string | null
+  readonly displayName: string
+  readonly principalId: string
+}
+
 type UnknownRecord = Readonly<Record<string, unknown>>
 
 function invalid(): never {
@@ -170,6 +178,49 @@ export function parseFeishuOAuthSettingsUpdate(value: unknown): FeishuOAuthSetti
     redirectHost: update.redirectHost,
     redirectPort: update.redirectPort as number,
     scopes: Object.freeze(scopes),
+  })
+}
+
+/** Parse one create-only, credential-free User identity request. */
+export function parseFeishuUserIdentityCreate(value: unknown): FeishuUserIdentityCreate {
+  const create = recordAt(value, ['version', 'connection', 'appId', 'displayName', 'principalId'])
+  if (
+    create.version !== 1 ||
+    (create.connection !== 'new' && create.connection !== 'existing') ||
+    (create.connection === 'new' && typeof create.appId !== 'string') ||
+    (create.connection === 'existing' && create.appId !== null) ||
+    typeof create.displayName !== 'string' ||
+    create.displayName.length === 0 ||
+    create.displayName.length > 128 ||
+    create.displayName.trim() !== create.displayName ||
+    !/^[^\u0000-\u001f\u007f]+$/u.test(create.displayName) ||
+    typeof create.principalId !== 'string' ||
+    create.principalId.length === 0 ||
+    create.principalId.length > 128 ||
+    create.principalId.trim() !== create.principalId ||
+    !/^[A-Za-z0-9][A-Za-z0-9._:-]*$/u.test(create.principalId)
+  ) {
+    return invalid()
+  }
+  let appId: string | null = null
+  if (create.connection === 'new') {
+    if (
+      typeof create.appId !== 'string' ||
+      create.appId.length === 0 ||
+      create.appId.length > 128 ||
+      create.appId.trim() !== create.appId ||
+      !/^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(create.appId)
+    ) {
+      return invalid()
+    }
+    appId = create.appId
+  }
+  return Object.freeze({
+    version: 1,
+    connection: create.connection,
+    appId,
+    displayName: create.displayName,
+    principalId: create.principalId,
   })
 }
 

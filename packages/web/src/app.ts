@@ -14,8 +14,10 @@ import { parseAuditSnapshot, type AuditSnapshot } from './audit-contract.ts'
 import {
   parseFeishuOAuthSettingsUpdate,
   parseFeishuSettingsSnapshot,
+  parseFeishuUserIdentityCreate,
   type FeishuOAuthSettingsUpdate,
   type FeishuSettingsSnapshot,
+  type FeishuUserIdentityCreate,
 } from './feishu-settings-contract.ts'
 
 const INBOX_STATES: readonly { readonly id: InboxState; readonly label: string }[] = [
@@ -60,6 +62,17 @@ interface FeishuOAuthSettingsDraft {
   readonly scopes: string
 }
 let feishuSettingsDraft: FeishuOAuthSettingsDraft | undefined
+type FeishuUserIdentityCreationMode = 'new' | 'existing'
+interface FeishuUserIdentityDraft {
+  readonly appId: string
+  readonly displayName: string
+  readonly principalId: string
+}
+let feishuUserIdentityCreationMode: FeishuUserIdentityCreationMode | undefined
+let feishuUserIdentityEditorOpen = false
+let feishuUserIdentitySaving = false
+let feishuUserIdentitySaveError: string | undefined
+let feishuUserIdentityDraft: FeishuUserIdentityDraft | undefined
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/gu, (character) => {
@@ -231,8 +244,15 @@ function connectorsContent(): string {
   }
   const settingsSnapshot = feishuSettings
   const canEdit =
+    !feishuSettingsLoading &&
+    feishuSettingsError === undefined &&
     settingsSnapshot?.identities.includes('user') === true &&
     feishuSettingsWritable &&
+    feishuSettingsCsrfToken !== undefined
+  const canCreateUserIdentity =
+    !feishuSettingsLoading &&
+    feishuSettingsError === undefined &&
+    feishuUserIdentityCreationMode !== undefined &&
     feishuSettingsCsrfToken !== undefined
   let editor = ''
   if (feishuSettingsEditorOpen && canEdit && settingsSnapshot !== undefined) {
@@ -256,8 +276,32 @@ function connectorsContent(): string {
       </div>
     </form>`
   }
+  let userIdentityEditor = ''
+  if (feishuUserIdentityEditorOpen && canCreateUserIdentity) {
+    const mode = feishuUserIdentityCreationMode as FeishuUserIdentityCreationMode
+    const appId = feishuUserIdentityDraft?.appId ?? ''
+    const displayName = feishuUserIdentityDraft?.displayName ?? ''
+    const principalId = feishuUserIdentityDraft?.principalId ?? ''
+    userIdentityEditor = `<form class="settings-editor" data-feishu-user-identity-form>
+      <div class="settings-editor-heading"><div><h3>Configure User identity</h3><p>${mode === 'new' ? 'Create one local Feishu connection and a generated Keychain reference.' : 'Add a User identity to the configured Feishu application.'}</p></div></div>
+      <div class="settings-fields">
+        ${mode === 'new' ? `<label><span>Feishu App ID</span><input name="appId" type="text" maxlength="128" autocomplete="off" required value="${escapeHtml(appId)}"></label>` : ''}
+        <label><span>Display name</span><input name="displayName" type="text" maxlength="128" autocomplete="off" required value="${escapeHtml(displayName)}"></label>
+        <label><span>User open_id</span><input name="principalId" type="text" maxlength="128" autocomplete="off" required value="${escapeHtml(principalId)}"></label>
+      </div>
+      <p class="muted">This stores identity metadata and a generated Keychain locator only. It does not collect or create a credential.</p>
+      ${feishuUserIdentitySaveError === undefined ? '' : `<p class="form-message error" role="alert">${escapeHtml(feishuUserIdentitySaveError)}</p>`}
+      <div class="settings-form-actions">
+        <button class="secondary-button" type="button" data-feishu-user-identity-cancel${feishuUserIdentitySaving ? ' disabled' : ''}>Cancel</button>
+        <button class="primary-button" type="submit"${feishuUserIdentitySaving ? ' disabled' : ''}>${feishuUserIdentitySaving ? 'Saving…' : 'Create User identity'}</button>
+      </div>
+    </form>`
+  }
   const editAction = canEdit
     ? `<button class="secondary-button" type="button" data-feishu-settings-edit${feishuSettingsSaving ? ' disabled' : ''}>Edit OAuth</button>`
+    : ''
+  const createUserIdentityAction = canCreateUserIdentity
+    ? `<button class="secondary-button" type="button" data-feishu-user-identity-create${feishuUserIdentitySaving ? ' disabled' : ''}>Configure User</button>`
     : ''
   const editLimit =
     settingsSnapshot !== undefined && !settingsSnapshot.identities.includes('user')
@@ -272,8 +316,9 @@ function connectorsContent(): string {
         <article class="resource-row">
           <span class="resource-icon">飞</span>
           <div class="resource-main"><h3>Feishu</h3><p>${feishuDetails}</p><p class="muted">Settings status only — credentials, authorization validity, and live connectivity are not shown or implied.</p>${editLimit}${feishuSettingsSaveSuccess === undefined ? '' : `<p class="form-message success" role="status">${escapeHtml(feishuSettingsSaveSuccess)}</p>`}</div>
-          <div class="resource-actions">${feishuStatus}${editAction}</div>
+          <div class="resource-actions">${feishuStatus}${createUserIdentityAction}${editAction}</div>
         </article>
+        ${userIdentityEditor}
         ${editor}
         <article class="resource-row">
           <span class="resource-icon">J</span>
@@ -440,19 +485,47 @@ async function loadFeishuSettings(): Promise<void> {
     })
     if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
     const snapshot = parseFeishuSettingsSnapshot(await response.json())
-    const writable = response.headers.get('x-twindesk-settings-writable') === 'true'
-    const csrfToken = response.headers.get('x-twindesk-csrf-token')
-    if (writable && (csrfToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(csrfToken))) {
+    const writableHeader = response.headers.get('x-twindesk-settings-writable')
+    if (writableHeader !== 'true' && writableHeader !== 'false') {
       throw new Error('Local API returned an invalid Feishu Settings write capability.')
+    }
+    const writable = writableHeader === 'true'
+    const identityCreation = response.headers.get('x-twindesk-user-identity-creation')
+    if (
+      identityCreation !== null &&
+      identityCreation !== 'new' &&
+      identityCreation !== 'existing'
+    ) {
+      throw new Error('Local API returned an invalid Feishu identity write capability.')
+    }
+    if (
+      (identityCreation === 'new' && snapshot.identities.length !== 0) ||
+      (identityCreation === 'existing' &&
+        (!snapshot.identities.includes('bot') || snapshot.identities.includes('user')))
+    ) {
+      throw new Error('Local API returned an inconsistent Feishu identity write capability.')
+    }
+    const csrfToken = response.headers.get('x-twindesk-csrf-token')
+    if (
+      (writable || identityCreation !== null) &&
+      (csrfToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(csrfToken))
+    ) {
+      throw new Error('Local API returned an invalid Feishu Settings write capability.')
+    }
+    if (!writable && identityCreation === null && csrfToken !== null) {
+      throw new Error('Local API returned an unexpected Feishu Settings write capability.')
     }
     if (request !== feishuSettingsRequest) return
     feishuSettings = snapshot
     feishuSettingsWritable = writable
-    feishuSettingsCsrfToken = writable ? (csrfToken as string) : undefined
+    feishuUserIdentityCreationMode = identityCreation ?? undefined
+    feishuSettingsCsrfToken =
+      writable || identityCreation !== null ? (csrfToken as string) : undefined
   } catch (error) {
     if (request !== feishuSettingsRequest) return
     feishuSettings = undefined
     feishuSettingsWritable = false
+    feishuUserIdentityCreationMode = undefined
     feishuSettingsCsrfToken = undefined
     feishuSettingsError =
       error instanceof Error ? error.message : 'The local Feishu Settings request failed.'
@@ -461,6 +534,55 @@ async function loadFeishuSettings(): Promise<void> {
       feishuSettingsLoading = false
       render()
     }
+  }
+}
+
+async function saveFeishuUserIdentity(create: FeishuUserIdentityCreate): Promise<void> {
+  const csrfToken = feishuSettingsCsrfToken
+  if (csrfToken === undefined) {
+    feishuUserIdentitySaveError = 'The local identity write capability is unavailable.'
+    render()
+    return
+  }
+  feishuUserIdentitySaving = true
+  feishuUserIdentitySaveError = undefined
+  feishuSettingsSaveSuccess = undefined
+  render()
+  try {
+    const response = await fetch('/api/settings/feishu/user-identity', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'x-twindesk-csrf-token': csrfToken,
+      },
+      body: JSON.stringify(create),
+    })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseFeishuSettingsSnapshot(await response.json())
+    const oauthWritableHeader = response.headers.get('x-twindesk-settings-writable')
+    if (oauthWritableHeader !== 'true' && oauthWritableHeader !== 'false') {
+      throw new Error('Local API returned an invalid Feishu Settings write capability.')
+    }
+    const oauthWritable = oauthWritableHeader === 'true'
+    const nextToken = response.headers.get('x-twindesk-csrf-token')
+    if (oauthWritable && (nextToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(nextToken))) {
+      throw new Error('Local API returned an invalid Feishu Settings write capability.')
+    }
+    feishuSettings = snapshot
+    feishuSettingsWritable = oauthWritable
+    feishuSettingsCsrfToken = oauthWritable ? (nextToken as string) : undefined
+    feishuUserIdentityCreationMode = undefined
+    feishuUserIdentityEditorOpen = false
+    feishuUserIdentityDraft = undefined
+    feishuSettingsSaveSuccess = 'User identity metadata saved locally. No credential was created.'
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'The local User identity creation failed.'
+    feishuUserIdentitySaveError = `${message} The write result may be uncertain; refresh Settings before retrying.`
+  } finally {
+    feishuUserIdentitySaving = false
+    render()
   }
 }
 
@@ -497,8 +619,9 @@ async function saveFeishuOAuthSettings(update: FeishuOAuthSettingsUpdate): Promi
     feishuSettingsDraft = undefined
     feishuSettingsSaveSuccess = 'OAuth settings saved locally.'
   } catch (error) {
-    feishuSettingsSaveError =
+    const message =
       error instanceof Error ? error.message : 'The local Feishu Settings update failed.'
+    feishuSettingsSaveError = `${message} The write result may be uncertain; refresh Settings before retrying.`
   } finally {
     feishuSettingsSaving = false
     render()
@@ -545,8 +668,23 @@ document.addEventListener('click', (event) => {
       scopes: feishuSettings?.oauth?.scopes.join('\n') ?? 'offline_access',
     }
     feishuSettingsEditorOpen = true
+    feishuUserIdentityEditorOpen = false
     feishuSettingsSaveError = undefined
     feishuSettingsSaveSuccess = undefined
+    render()
+  }
+  if (target.closest('[data-feishu-user-identity-create]') !== null) {
+    feishuUserIdentityDraft = { appId: '', displayName: '', principalId: '' }
+    feishuUserIdentityEditorOpen = true
+    feishuSettingsEditorOpen = false
+    feishuUserIdentitySaveError = undefined
+    feishuSettingsSaveSuccess = undefined
+    render()
+  }
+  if (target.closest('[data-feishu-user-identity-cancel]') !== null) {
+    feishuUserIdentityEditorOpen = false
+    feishuUserIdentityDraft = undefined
+    feishuUserIdentitySaveError = undefined
     render()
   }
   if (target.closest('[data-feishu-settings-cancel]') !== null) {
@@ -558,7 +696,33 @@ document.addEventListener('click', (event) => {
 })
 document.addEventListener('submit', (event) => {
   const form = event.target
-  if (!(form instanceof HTMLFormElement) || !form.matches('[data-feishu-oauth-form]')) return
+  if (!(form instanceof HTMLFormElement)) return
+  if (form.matches('[data-feishu-user-identity-form]')) {
+    event.preventDefault()
+    const mode = feishuUserIdentityCreationMode
+    try {
+      if (mode === undefined) throw new TypeError()
+      const values = new FormData(form)
+      feishuUserIdentityDraft = {
+        appId: String(values.get('appId') ?? ''),
+        displayName: String(values.get('displayName') ?? ''),
+        principalId: String(values.get('principalId') ?? ''),
+      }
+      const create = parseFeishuUserIdentityCreate({
+        version: 1,
+        connection: mode,
+        appId: mode === 'new' ? feishuUserIdentityDraft.appId : null,
+        displayName: feishuUserIdentityDraft.displayName,
+        principalId: feishuUserIdentityDraft.principalId,
+      })
+      void saveFeishuUserIdentity(create)
+    } catch {
+      feishuUserIdentitySaveError = 'The Feishu User identity form is invalid.'
+      render()
+    }
+    return
+  }
+  if (!form.matches('[data-feishu-oauth-form]')) return
   event.preventDefault()
   try {
     const values = new FormData(form)

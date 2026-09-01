@@ -10,6 +10,7 @@ import {
 } from './local-data-paths.ts'
 import { createWorkbenchFeishuOAuthSettingsEditor } from './feishu-oauth-settings-editor.ts'
 import { createWorkbenchFeishuSettingsPresentation } from './feishu-settings-presentation.ts'
+import { createWorkbenchFeishuUserIdentityBootstrapper } from './feishu-user-identity-bootstrap.ts'
 
 export interface WorkbenchWebServerOptions extends WorkbenchLocalDataPathOptions {
   readonly host?: TwinDeskWebServerOptions['host']
@@ -76,6 +77,9 @@ export async function startWorkbenchWebServer(
     identityStore: stores.identityStore,
     authorizationStore: stores.authorizationStore,
   })
+  const feishuUserIdentityBootstrapper = createWorkbenchFeishuUserIdentityBootstrapper({
+    identityStore: stores.identityStore,
+  })
   let pendingSettingsUpdate: Promise<void> = Promise.resolve()
   return startTwinDeskWebServer({
     ...(options.host === undefined ? {} : { host: options.host }),
@@ -86,6 +90,17 @@ export async function startWorkbenchWebServer(
       async updateOAuth(value: unknown) {
         const operation = pendingSettingsUpdate.then(async () => {
           await feishuOAuthSettingsEditor.update(value)
+          return feishuSettings.read()
+        })
+        pendingSettingsUpdate = operation.then(
+          () => undefined,
+          () => undefined,
+        )
+        return operation
+      },
+      async createUserIdentity(value: unknown) {
+        const operation = pendingSettingsUpdate.then(async () => {
+          await feishuUserIdentityBootstrapper.create(value)
           return feishuSettings.read()
         })
         pendingSettingsUpdate = operation.then(

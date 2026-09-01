@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   parseFeishuOAuthSettingsUpdate,
   parseFeishuSettingsSnapshot,
+  parseFeishuUserIdentityCreate,
 } from '../packages/web/dist/feishu-settings-contract.js'
 
 const READY = Object.freeze({
@@ -17,6 +18,35 @@ const READY = Object.freeze({
     scopes: ['im:message:readonly', 'offline_access'],
     appMatchesIdentity: true,
   },
+})
+
+test('the browser and server share one credential-free User identity creation contract', () => {
+  const create = {
+    version: 1,
+    connection: 'new',
+    appId: 'cli_synthetic_identity_create',
+    displayName: 'Synthetic Local User',
+    principalId: 'ou_synthetic_identity_create',
+  }
+  assert.deepEqual(parseFeishuUserIdentityCreate(copy(create)), create)
+  assert.deepEqual(
+    parseFeishuUserIdentityCreate({ ...create, connection: 'existing', appId: null }),
+    { ...create, connection: 'existing', appId: null },
+  )
+  for (const malformed of [
+    { ...create, version: 2 },
+    { ...create, connection: 'existing' },
+    { ...create, appId: null },
+    { ...create, displayName: ' Synthetic User' },
+    { ...create, principalId: 'ou invalid' },
+    { ...create, credentialReference: 'secret-ref:must-not-enter-browser' },
+    { ...create, accessToken: 'synthetic-secret-that-must-not-echo' },
+  ]) {
+    assert.throws(
+      () => parseFeishuUserIdentityCreate(malformed),
+      (error) => error instanceof Error && !error.message.includes('synthetic-secret'),
+    )
+  }
 })
 
 /** @param {unknown} value @returns {any} */

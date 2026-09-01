@@ -61,12 +61,23 @@ default. A future Connectors editing flow must expose an explicit disconnect and
 configuration deletion path, separately from OAuth revocation and Keychain
 secret deletion.
 
+The product Connectors page now has a create-only User bootstrap. An empty
+connection accepts an app ID, display name, and User `open_id`; a Bot-only
+connection preserves its app and Bot metadata. Workbench generates the opaque
+TwinDesk account and User Keychain-reference locators without accepting or
+creating credential bytes. Existing User replacement remains separate because
+changing identity metadata without coordinating its credential and OAuth state
+would invalidate established bindings. See
+[Workbench Feishu User Identity Bootstrap](WORKBENCH_FEISHU_USER_IDENTITY_BOOTSTRAP.md).
+
 ## Current Limitations
 
 - The Workbench now selects the private macOS product configuration path and
   the default Web launcher projects identity types plus OAuth completeness into
-  a minimized read-only Connectors status. Editing, disconnect, revocation,
-  credential health, and other platform paths remain open. See
+  a minimized Connectors status. Create-only User metadata and OAuth
+  callback/scope configuration are available; existing identity replacement,
+  Bot creation, disconnect, revocation, credential health, and other platform
+  paths remain open. See
   [Workbench Feishu Settings Presentation](WORKBENCH_FEISHU_SETTINGS_PRESENTATION.md).
 - A macOS system-Keychain reader now resolves validated Bot/User references
   into callback-scoped byte buffers and zeroes them afterward. A versioned

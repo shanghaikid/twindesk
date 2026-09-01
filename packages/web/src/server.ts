@@ -15,6 +15,7 @@ import { resolveTwinDeskRoute } from './routes.ts'
 import {
   parseFeishuOAuthSettingsUpdate,
   parseFeishuSettingsSnapshot,
+  parseFeishuUserIdentityCreate,
 } from './feishu-settings-contract.ts'
 
 const outputRoot = dirname(fileURLToPath(import.meta.url))
@@ -43,6 +44,7 @@ const CONTENT_SECURITY_POLICY = [
 ].join('; ')
 const FEISHU_SETTINGS_BODY_MAX_BYTES = 16 * 1024
 const FEISHU_SETTINGS_CSRF_HEADER = 'x-twindesk-csrf-token'
+const FEISHU_USER_IDENTITY_CREATION_HEADER = 'x-twindesk-user-identity-creation'
 const UTF8_DECODER = new TextDecoder('utf-8', { fatal: true })
 
 /** Options for the local-only TwinDesk product Web server. */
@@ -55,10 +57,12 @@ export interface TwinDeskWebServerOptions {
   readonly feishuSettings?: {
     read(): Promise<unknown>
     updateOAuth?(value: unknown): Promise<unknown>
+    createUserIdentity?(value: unknown): Promise<unknown>
   }
 }
 
 type FeishuSettingsService = NonNullable<TwinDeskWebServerOptions['feishuSettings']>
+type FeishuSettingsSnapshot = ReturnType<typeof parseFeishuSettingsSnapshot>
 
 function normalizeFeishuSettingsService(value: unknown): FeishuSettingsService | undefined {
   if (value === undefined) return undefined
@@ -71,16 +75,18 @@ function normalizeFeishuSettingsService(value: unknown): FeishuSettingsService |
       (prototype !== Object.prototype && prototype !== null) ||
       Object.getOwnPropertySymbols(value).length !== 0 ||
       !keys.includes('read') ||
-      keys.some((key) => key !== 'read' && key !== 'updateOAuth') ||
+      keys.some((key) => key !== 'read' && key !== 'updateOAuth' && key !== 'createUserIdentity') ||
       Object.values(descriptors).some((descriptor) => !Object.hasOwn(descriptor, 'value'))
     ) {
       throw new TypeError()
     }
     const read = descriptors.read?.value
     const updateOAuth = descriptors.updateOAuth?.value
+    const createUserIdentity = descriptors.createUserIdentity?.value
     if (
       typeof read !== 'function' ||
-      (descriptors.updateOAuth !== undefined && typeof updateOAuth !== 'function')
+      (descriptors.updateOAuth !== undefined && typeof updateOAuth !== 'function') ||
+      (descriptors.createUserIdentity !== undefined && typeof createUserIdentity !== 'function')
     ) {
       throw new TypeError()
     }
@@ -92,9 +98,39 @@ function normalizeFeishuSettingsService(value: unknown): FeishuSettingsService |
               Reflect.apply(updateOAuth as (update: unknown) => Promise<unknown>, value, [update]),
           }
         : {}),
+      ...(typeof createUserIdentity === 'function'
+        ? {
+            createUserIdentity: (create: unknown) =>
+              Reflect.apply(createUserIdentity as (create: unknown) => Promise<unknown>, value, [
+                create,
+              ]),
+          }
+        : {}),
     })
   } catch {
     throw new TypeError('TwinDesk Web Feishu Settings service is invalid.')
+  }
+}
+
+function feishuSettingsCapabilityHeaders(
+  settings: FeishuSettingsService,
+  snapshot: FeishuSettingsSnapshot,
+  csrfToken: string,
+): Record<string, string> {
+  const oauthWritable = typeof settings.updateOAuth === 'function'
+  const userIdentityCreation =
+    typeof settings.createUserIdentity === 'function' && !snapshot.identities.includes('user')
+      ? snapshot.identities.includes('bot')
+        ? 'existing'
+        : 'new'
+      : undefined
+  const csrfAvailable = oauthWritable || userIdentityCreation !== undefined
+  return {
+    'x-twindesk-settings-writable': oauthWritable ? 'true' : 'false',
+    ...(userIdentityCreation === undefined
+      ? {}
+      : { [FEISHU_USER_IDENTITY_CREATION_HEADER]: userIdentityCreation }),
+    ...(csrfAvailable ? { [FEISHU_SETTINGS_CSRF_HEADER]: csrfToken } : {}),
   }
 }
 
@@ -123,7 +159,7 @@ async function serveFeishuSettingsApi(
     )
     return
   }
-  let snapshot: unknown
+  let snapshot: FeishuSettingsSnapshot
   try {
     snapshot = parseFeishuSettingsSnapshot(await settings.read())
   } catch {
@@ -136,12 +172,10 @@ async function serveFeishuSettingsApi(
     return
   }
   const body = JSON.stringify(snapshot)
-  const writable = typeof settings.updateOAuth === 'function'
   response.writeHead(200, {
     ...commonHeaders('application/json; charset=utf-8'),
     'content-length': String(Buffer.byteLength(body)),
-    'x-twindesk-settings-writable': writable ? 'true' : 'false',
-    ...(writable ? { [FEISHU_SETTINGS_CSRF_HEADER]: csrfToken } : {}),
+    ...feishuSettingsCapabilityHeaders(settings, snapshot, csrfToken),
   })
   response.end(headOnly ? undefined : body)
 }
@@ -233,6 +267,7 @@ async function serveFeishuSettingsUpdateApi(
   settings: TwinDeskWebServerOptions['feishuSettings'],
   expectedOrigin: string,
   csrfToken: string,
+  operation: 'oauth' | 'user_identity',
 ): Promise<void> {
   if (requestUrl.search.length > 0) {
     request.resume()
@@ -247,23 +282,49 @@ async function serveFeishuSettingsUpdateApi(
     send(response, status, requestFailureMessage(status), 'text/plain; charset=utf-8')
     return
   }
-  if (settings?.updateOAuth === undefined) {
+  if (settings === undefined) {
+    request.resume()
+    send(response, 503, 'Feishu Settings unavailable.\n', 'text/plain; charset=utf-8')
+    return
+  }
+  const writer = operation === 'oauth' ? settings.updateOAuth : settings.createUserIdentity
+  if (writer === undefined) {
     request.resume()
     send(response, 503, 'Feishu Settings unavailable.\n', 'text/plain; charset=utf-8')
     return
   }
   let update: unknown
   try {
-    update = parseFeishuOAuthSettingsUpdate(await readFeishuSettingsUpdate(request))
+    const value = await readFeishuSettingsUpdate(request)
+    update =
+      operation === 'oauth'
+        ? parseFeishuOAuthSettingsUpdate(value)
+        : parseFeishuUserIdentityCreate(value)
   } catch (error) {
     if (!request.complete) request.resume()
     const status = error instanceof FeishuSettingsRequestError ? error.status : 400
     send(response, status, requestFailureMessage(status), 'text/plain; charset=utf-8')
     return
   }
-  let snapshot: unknown
+  let snapshot: FeishuSettingsSnapshot
   try {
-    snapshot = parseFeishuSettingsSnapshot(await settings.updateOAuth(update))
+    snapshot = parseFeishuSettingsSnapshot(await writer(update))
+    if (operation === 'user_identity') {
+      if (!snapshot.identities.includes('user')) throw new TypeError()
+    } else {
+      const oauthUpdate = update as ReturnType<typeof parseFeishuOAuthSettingsUpdate>
+      if (
+        !snapshot.identities.includes('user') ||
+        snapshot.oauth === null ||
+        !snapshot.oauth.appMatchesIdentity ||
+        snapshot.oauth.redirectHost !== oauthUpdate.redirectHost ||
+        snapshot.oauth.redirectPort !== oauthUpdate.redirectPort ||
+        snapshot.oauth.scopes.length !== oauthUpdate.scopes.length ||
+        snapshot.oauth.scopes.some((scope, index) => scope !== oauthUpdate.scopes[index])
+      ) {
+        throw new TypeError()
+      }
+    }
   } catch {
     send(response, 503, 'Feishu Settings unavailable.\n', 'text/plain; charset=utf-8')
     return
@@ -272,8 +333,7 @@ async function serveFeishuSettingsUpdateApi(
   response.writeHead(200, {
     ...commonHeaders('application/json; charset=utf-8'),
     'content-length': String(Buffer.byteLength(body)),
-    [FEISHU_SETTINGS_CSRF_HEADER]: csrfToken,
-    'x-twindesk-settings-writable': 'true',
+    ...feishuSettingsCapabilityHeaders(settings, snapshot, csrfToken),
   })
   response.end(body)
 }
@@ -417,11 +477,19 @@ export async function startTwinDeskWebServer(
     void (async () => {
       const method = request.method ?? 'GET'
       const requestUrl = new URL(request.url ?? '/', `http://${host}`)
-      const settingsUpdate = method === 'POST' && requestUrl.pathname === '/api/settings/feishu'
+      const oauthSettingsUpdate =
+        method === 'POST' && requestUrl.pathname === '/api/settings/feishu'
+      const userIdentityCreate =
+        method === 'POST' && requestUrl.pathname === '/api/settings/feishu/user-identity'
+      const settingsUpdate = oauthSettingsUpdate || userIdentityCreate
       if (method !== 'GET' && method !== 'HEAD' && !settingsUpdate) {
         response.setHeader(
           'allow',
-          requestUrl.pathname === '/api/settings/feishu' ? 'GET, HEAD, POST' : 'GET, HEAD',
+          requestUrl.pathname === '/api/settings/feishu'
+            ? 'GET, HEAD, POST'
+            : requestUrl.pathname === '/api/settings/feishu/user-identity'
+              ? 'POST'
+              : 'GET, HEAD',
         )
         send(response, 405, 'Method not allowed.\n', 'text/plain; charset=utf-8')
         return
@@ -436,6 +504,7 @@ export async function startTwinDeskWebServer(
           feishuSettings,
           boundOrigin,
           csrfToken,
+          oauthSettingsUpdate ? 'oauth' : 'user_identity',
         )
         return
       }

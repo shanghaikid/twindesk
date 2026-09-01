@@ -63,8 +63,11 @@ account, or network request is used.
 Still open:
 
 - activate the same composition in the Cordis lifecycle;
-- create/edit identities, secrets, disconnect, and revocation. The narrow OAuth
-  callback/scope editor is documented in
+- replace/edit existing identities, create Bot identities, manage actual
+  credentials, disconnect, and revoke. The create-only User bootstrap and
+  narrow OAuth callback/scope editor are documented in
+  [Workbench Feishu User Identity Bootstrap](WORKBENCH_FEISHU_USER_IDENTITY_BOOTSTRAP.md)
+  and
   [Workbench Feishu OAuth Settings Editing](WORKBENCH_FEISHU_OAUTH_SETTINGS_EDITING.md);
 - present authorization, credential, scope, and connectivity diagnostics
   separately;

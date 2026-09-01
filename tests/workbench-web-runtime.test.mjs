@@ -122,3 +122,66 @@ test('Workbench Web composition rejects unknown and hostile options before local
   )
   assert.equal(getterCalls, 0)
 })
+
+test('Workbench Web bootstraps a User identity from empty Settings and recovers it', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'twindesk-workbench-user-bootstrap-'))
+  context.after(() => rm(root, { force: true, recursive: true }))
+  const homeDirectory = join(root, 'synthetic-home')
+  await mkdir(homeDirectory, { mode: 0o700 })
+  const localPaths = {
+    platform: /** @type {const} */ ('darwin'),
+    homeDirectory,
+  }
+  const running = await startWorkbenchWebServer({ ...localPaths, port: 0 })
+  try {
+    const status = await fetch(`${running.url}/api/settings/feishu`)
+    assert.equal(status.headers.get('x-twindesk-user-identity-creation'), 'new')
+    const csrfToken = status.headers.get('x-twindesk-csrf-token')
+    assert.ok(csrfToken !== null)
+    const response = await fetch(`${running.url}/api/settings/feishu/user-identity`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: running.url,
+        'sec-fetch-site': 'same-origin',
+        'x-twindesk-csrf-token': csrfToken,
+      },
+      body: JSON.stringify({
+        version: 1,
+        connection: 'new',
+        appId: 'cli_synthetic_web_bootstrap',
+        displayName: 'Synthetic Bootstrap User',
+        principalId: 'ou_synthetic_web_bootstrap',
+      }),
+    })
+    assert.equal(response.status, 200)
+    assert.deepEqual(await response.json(), {
+      version: 1,
+      connectorId: 'feishu',
+      state: 'incomplete',
+      identities: ['user'],
+      oauth: null,
+    })
+  } finally {
+    await running.close()
+  }
+
+  const stores = await openWorkbenchFeishuSettingsStores(localPaths)
+  const identity = await stores.identityStore.read()
+  assert.equal(identity?.appId, 'cli_synthetic_web_bootstrap')
+  assert.equal(identity?.user?.principalId, 'ou_synthetic_web_bootstrap')
+  assert.match(identity?.accountId ?? '', /^feishu-account:[a-f0-9-]{36}$/u)
+  assert.match(
+    identity?.user?.credentialReference.id ?? '',
+    /^secret-ref:feishu-user-oauth-[a-f0-9-]{36}$/u,
+  )
+
+  const restarted = await startWorkbenchWebServer({ ...localPaths, port: 0 })
+  try {
+    const status = await fetch(`${restarted.url}/api/settings/feishu`)
+    assert.equal(status.headers.get('x-twindesk-user-identity-creation'), null)
+    assert.deepEqual((await status.json()).identities, ['user'])
+  } finally {
+    await restarted.close()
+  }
+})
