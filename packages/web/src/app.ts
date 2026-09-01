@@ -12,7 +12,9 @@ import {
 } from './inbox-contract.ts'
 import { parseAuditSnapshot, type AuditSnapshot } from './audit-contract.ts'
 import {
+  parseFeishuOAuthSettingsUpdate,
   parseFeishuSettingsSnapshot,
+  type FeishuOAuthSettingsUpdate,
   type FeishuSettingsSnapshot,
 } from './feishu-settings-contract.ts'
 
@@ -46,6 +48,18 @@ let feishuSettings: FeishuSettingsSnapshot | undefined
 let feishuSettingsLoading = false
 let feishuSettingsError: string | undefined
 let feishuSettingsRequest = 0
+let feishuSettingsCsrfToken: string | undefined
+let feishuSettingsWritable = false
+let feishuSettingsEditorOpen = false
+let feishuSettingsSaving = false
+let feishuSettingsSaveError: string | undefined
+let feishuSettingsSaveSuccess: string | undefined
+interface FeishuOAuthSettingsDraft {
+  readonly redirectHost: string
+  readonly redirectPort: string
+  readonly scopes: string
+}
+let feishuSettingsDraft: FeishuOAuthSettingsDraft | undefined
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/gu, (character) => {
@@ -215,6 +229,40 @@ function connectorsContent(): string {
     feishuStatus = '<span class="badge neutral">Not configured</span>'
     feishuDetails = 'No local Feishu identity or OAuth authorization Settings are configured.'
   }
+  const settingsSnapshot = feishuSettings
+  const canEdit =
+    settingsSnapshot?.identities.includes('user') === true &&
+    feishuSettingsWritable &&
+    feishuSettingsCsrfToken !== undefined
+  let editor = ''
+  if (feishuSettingsEditorOpen && canEdit && settingsSnapshot !== undefined) {
+    const host = feishuSettingsDraft?.redirectHost ?? '127.0.0.1'
+    const port = feishuSettingsDraft?.redirectPort ?? '43121'
+    const scopes = feishuSettingsDraft?.scopes ?? 'offline_access'
+    editor = `<form class="settings-editor" data-feishu-oauth-form>
+      <div class="settings-editor-heading"><div><h3>Edit User OAuth settings</h3><p>The Feishu app is bound from local identity Settings and is never sent to this form.</p></div></div>
+      <div class="settings-fields">
+        <label><span>Callback host</span><select name="redirectHost">
+          <option value="127.0.0.1"${host === '127.0.0.1' ? ' selected' : ''}>127.0.0.1</option>
+          <option value="::1"${host === '::1' ? ' selected' : ''}>::1</option>
+        </select></label>
+        <label><span>Callback port</span><input name="redirectPort" type="number" min="1" max="65535" required value="${escapeHtml(port)}"></label>
+        <label class="settings-scopes"><span>Requested scopes, one per line</span><textarea name="scopes" rows="5" required>${escapeHtml(scopes)}</textarea></label>
+      </div>
+      ${feishuSettingsSaveError === undefined ? '' : `<p class="form-message error" role="alert">${escapeHtml(feishuSettingsSaveError)}</p>`}
+      <div class="settings-form-actions">
+        <button class="secondary-button" type="button" data-feishu-settings-cancel${feishuSettingsSaving ? ' disabled' : ''}>Cancel</button>
+        <button class="primary-button" type="submit"${feishuSettingsSaving ? ' disabled' : ''}>${feishuSettingsSaving ? 'Saving…' : 'Save OAuth settings'}</button>
+      </div>
+    </form>`
+  }
+  const editAction = canEdit
+    ? `<button class="secondary-button" type="button" data-feishu-settings-edit${feishuSettingsSaving ? ' disabled' : ''}>Edit OAuth</button>`
+    : ''
+  const editLimit =
+    settingsSnapshot !== undefined && !settingsSnapshot.identities.includes('user')
+      ? '<p class="muted">Configure a User identity locally before OAuth settings can be edited.</p>'
+      : ''
   return `
     <section class="panel">
       <div class="panel-header">
@@ -223,9 +271,10 @@ function connectorsContent(): string {
       <div class="resource-list">
         <article class="resource-row">
           <span class="resource-icon">飞</span>
-          <div class="resource-main"><h3>Feishu</h3><p>${feishuDetails}</p><p class="muted">Settings status only — credentials, authorization validity, and live connectivity are not shown or implied.</p></div>
-          ${feishuStatus}
+          <div class="resource-main"><h3>Feishu</h3><p>${feishuDetails}</p><p class="muted">Settings status only — credentials, authorization validity, and live connectivity are not shown or implied.</p>${editLimit}${feishuSettingsSaveSuccess === undefined ? '' : `<p class="form-message success" role="status">${escapeHtml(feishuSettingsSaveSuccess)}</p>`}</div>
+          <div class="resource-actions">${feishuStatus}${editAction}</div>
         </article>
+        ${editor}
         <article class="resource-row">
           <span class="resource-icon">J</span>
           <div class="resource-main"><h3>Jira</h3><p>Read-only Issue and Comment context with explicit partial-result handling.</p></div>
@@ -391,11 +440,20 @@ async function loadFeishuSettings(): Promise<void> {
     })
     if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
     const snapshot = parseFeishuSettingsSnapshot(await response.json())
+    const writable = response.headers.get('x-twindesk-settings-writable') === 'true'
+    const csrfToken = response.headers.get('x-twindesk-csrf-token')
+    if (writable && (csrfToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(csrfToken))) {
+      throw new Error('Local API returned an invalid Feishu Settings write capability.')
+    }
     if (request !== feishuSettingsRequest) return
     feishuSettings = snapshot
+    feishuSettingsWritable = writable
+    feishuSettingsCsrfToken = writable ? (csrfToken as string) : undefined
   } catch (error) {
     if (request !== feishuSettingsRequest) return
     feishuSettings = undefined
+    feishuSettingsWritable = false
+    feishuSettingsCsrfToken = undefined
     feishuSettingsError =
       error instanceof Error ? error.message : 'The local Feishu Settings request failed.'
   } finally {
@@ -403,6 +461,47 @@ async function loadFeishuSettings(): Promise<void> {
       feishuSettingsLoading = false
       render()
     }
+  }
+}
+
+async function saveFeishuOAuthSettings(update: FeishuOAuthSettingsUpdate): Promise<void> {
+  const csrfToken = feishuSettingsCsrfToken
+  if (csrfToken === undefined) {
+    feishuSettingsSaveError = 'The local Settings write capability is unavailable.'
+    render()
+    return
+  }
+  feishuSettingsSaving = true
+  feishuSettingsSaveError = undefined
+  feishuSettingsSaveSuccess = undefined
+  render()
+  try {
+    const response = await fetch('/api/settings/feishu', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'x-twindesk-csrf-token': csrfToken,
+      },
+      body: JSON.stringify(update),
+    })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseFeishuSettingsSnapshot(await response.json())
+    const nextToken = response.headers.get('x-twindesk-csrf-token')
+    if (nextToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(nextToken)) {
+      throw new Error('Local API returned an invalid Feishu Settings write capability.')
+    }
+    feishuSettings = snapshot
+    feishuSettingsCsrfToken = nextToken
+    feishuSettingsEditorOpen = false
+    feishuSettingsDraft = undefined
+    feishuSettingsSaveSuccess = 'OAuth settings saved locally.'
+  } catch (error) {
+    feishuSettingsSaveError =
+      error instanceof Error ? error.message : 'The local Feishu Settings update failed.'
+  } finally {
+    feishuSettingsSaving = false
+    render()
   }
 }
 
@@ -439,6 +538,51 @@ document.addEventListener('click', (event) => {
   if (target.closest('[data-inbox-retry]') !== null) void loadInbox(activeInboxState)
   if (target.closest('[data-audit-retry]') !== null) void loadAudit()
   if (target.closest('[data-feishu-settings-retry]') !== null) void loadFeishuSettings()
+  if (target.closest('[data-feishu-settings-edit]') !== null) {
+    feishuSettingsDraft = {
+      redirectHost: feishuSettings?.oauth?.redirectHost ?? '127.0.0.1',
+      redirectPort: String(feishuSettings?.oauth?.redirectPort ?? 43121),
+      scopes: feishuSettings?.oauth?.scopes.join('\n') ?? 'offline_access',
+    }
+    feishuSettingsEditorOpen = true
+    feishuSettingsSaveError = undefined
+    feishuSettingsSaveSuccess = undefined
+    render()
+  }
+  if (target.closest('[data-feishu-settings-cancel]') !== null) {
+    feishuSettingsEditorOpen = false
+    feishuSettingsDraft = undefined
+    feishuSettingsSaveError = undefined
+    render()
+  }
+})
+document.addEventListener('submit', (event) => {
+  const form = event.target
+  if (!(form instanceof HTMLFormElement) || !form.matches('[data-feishu-oauth-form]')) return
+  event.preventDefault()
+  try {
+    const values = new FormData(form)
+    feishuSettingsDraft = {
+      redirectHost: String(values.get('redirectHost') ?? ''),
+      redirectPort: String(values.get('redirectPort') ?? ''),
+      scopes: String(values.get('scopes') ?? ''),
+    }
+    const scopes = feishuSettingsDraft.scopes
+      .split(/[\n,]/u)
+      .map((scope) => scope.trim())
+      .filter((scope) => scope.length > 0)
+      .sort()
+    const update = parseFeishuOAuthSettingsUpdate({
+      version: 1,
+      redirectHost: feishuSettingsDraft.redirectHost,
+      redirectPort: Number(feishuSettingsDraft.redirectPort),
+      scopes,
+    })
+    void saveFeishuOAuthSettings(update)
+  } catch {
+    feishuSettingsSaveError = 'The Feishu OAuth Settings form is invalid.'
+    render()
+  }
 })
 window.addEventListener('popstate', renderRouteAndLoad)
 renderRouteAndLoad()

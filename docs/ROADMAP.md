@@ -86,7 +86,10 @@ evidence, without starting OAuth or retrying a reply. The required live-account
 path is still missing hosted ingestion or polling and Cordis lifecycle
 composition. The product Web boundary can render a minimized read-only Feishu
 Settings status, and the default launcher injects the fixed-path Workbench
-reader. Cordis activation and Settings editing for authorization configuration,
+reader. The product can now edit an existing User identity's non-secret
+literal-loopback callback and requested scopes behind same-origin,
+Fetch-Metadata, and CSRF checks. Cordis activation, identity/SecretReference
+editing, actual credential and authorization flows,
 credential-recovery UI, interactive Draft and approval UI, model-backed
 linkage, and a real Feishu send. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).

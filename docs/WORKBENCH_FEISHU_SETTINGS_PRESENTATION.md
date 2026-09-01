@@ -63,9 +63,10 @@ account, or network request is used.
 Still open:
 
 - activate the same composition in the Cordis lifecycle;
-- add validated Settings editing with an explicit local request-forgery
-  boundary;
+- create/edit identities, secrets, disconnect, and revocation. The narrow OAuth
+  callback/scope editor is documented in
+  [Workbench Feishu OAuth Settings Editing](WORKBENCH_FEISHU_OAUTH_SETTINGS_EDITING.md);
 - present authorization, credential, scope, and connectivity diagnostics
   separately;
-- add disconnect, deletion, revocation, and recovery flows; and
+- add deletion and recovery flows; and
 - pass the live-account Stage 2 acceptance gate.

@@ -8,6 +8,7 @@ import {
   openWorkbenchFeishuSettingsStores,
   type WorkbenchLocalDataPathOptions,
 } from './local-data-paths.ts'
+import { createWorkbenchFeishuOAuthSettingsEditor } from './feishu-oauth-settings-editor.ts'
 import { createWorkbenchFeishuSettingsPresentation } from './feishu-settings-presentation.ts'
 
 export interface WorkbenchWebServerOptions extends WorkbenchLocalDataPathOptions {
@@ -71,10 +72,28 @@ export async function startWorkbenchWebServer(
     identityStore: stores.identityStore,
     authorizationStore: stores.authorizationStore,
   })
+  const feishuOAuthSettingsEditor = createWorkbenchFeishuOAuthSettingsEditor({
+    identityStore: stores.identityStore,
+    authorizationStore: stores.authorizationStore,
+  })
+  let pendingSettingsUpdate: Promise<void> = Promise.resolve()
   return startTwinDeskWebServer({
     ...(options.host === undefined ? {} : { host: options.host }),
     ...(options.port === undefined ? {} : { port: options.port }),
     ...(options.databasePath === undefined ? {} : { databasePath: options.databasePath }),
-    feishuSettings,
+    feishuSettings: {
+      read: feishuSettings.read,
+      async updateOAuth(value: unknown) {
+        const operation = pendingSettingsUpdate.then(async () => {
+          await feishuOAuthSettingsEditor.update(value)
+          return feishuSettings.read()
+        })
+        pendingSettingsUpdate = operation.then(
+          () => undefined,
+          () => undefined,
+        )
+        return operation
+      },
+    },
   })
 }

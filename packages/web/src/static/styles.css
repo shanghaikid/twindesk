@@ -438,6 +438,22 @@ p {
   font-size: 12px;
 }
 
+.primary-button {
+  border: 1px solid var(--primary);
+  border-radius: 5px;
+  background: var(--primary);
+  padding: 6px 11px;
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.primary-button:disabled,
+.secondary-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 .empty-state,
 .detail-empty {
   max-width: 360px;
@@ -598,6 +614,83 @@ tbody tr:last-child td {
   line-height: 1.45;
 }
 
+.resource-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-editor {
+  border-bottom: 1px solid var(--border);
+  background: #fafbfa;
+  padding: 16px;
+}
+
+.settings-editor-heading h3 {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-editor-heading p,
+.form-message {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.settings-fields {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(120px, 1fr);
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.settings-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #36413b;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.settings-fields input,
+.settings-fields select,
+.settings-fields textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  padding: 7px 9px;
+  color: #18201c;
+  font: inherit;
+}
+
+.settings-fields textarea {
+  resize: vertical;
+}
+
+.settings-scopes {
+  grid-column: 1 / -1;
+}
+
+.settings-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.form-message.error {
+  color: #a23b32;
+}
+
+.form-message.success {
+  color: #08794f;
+}
+
 .inline-button {
   appearance: none;
   border: 0;
@@ -688,5 +781,22 @@ tbody tr:last-child td {
 
   .toolbar {
     overflow-x: auto;
+  }
+
+  .resource-row {
+    align-items: flex-start;
+  }
+
+  .resource-actions {
+    align-items: flex-end;
+    flex-direction: column;
+  }
+
+  .settings-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-scopes {
+    grid-column: auto;
   }
 }

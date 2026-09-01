@@ -69,9 +69,39 @@ test('Workbench hosts default-path Feishu Settings in the product Web shell', as
         appMatchesIdentity: true,
       },
     })
+    const csrfToken = response.headers.get('x-twindesk-csrf-token')
+    assert.ok(csrfToken !== null)
+    const updateResponse = await fetch(`${running.url}/api/settings/feishu`, {
+      method: 'POST',
+      headers: {
+        connection: 'close',
+        'content-type': 'application/json',
+        origin: running.url,
+        'sec-fetch-site': 'same-origin',
+        'x-twindesk-csrf-token': csrfToken,
+      },
+      body: JSON.stringify({
+        version: 1,
+        redirectHost: '::1',
+        redirectPort: 43125,
+        scopes: ['im:message:send_as_user', 'offline_access'],
+      }),
+    })
+    assert.equal(updateResponse.status, 200)
+    assert.equal((await updateResponse.json()).oauth.redirectPort, 43125)
   } finally {
     await running.close()
   }
+
+  const restartedStores = await openWorkbenchFeishuSettingsStores(localPaths)
+  assert.deepEqual(await restartedStores.authorizationStore.read(), {
+    kind: 'feishu_oauth_authorization_configuration',
+    schemaVersion: 1,
+    connectorId: 'feishu',
+    appId: IDENTITY.appId,
+    redirectUri: 'http://[::1]:43125/oauth/feishu/callback',
+    scopes: ['im:message:send_as_user', 'offline_access'],
+  })
 })
 
 test('Workbench Web composition rejects unknown and hostile options before local access', async () => {

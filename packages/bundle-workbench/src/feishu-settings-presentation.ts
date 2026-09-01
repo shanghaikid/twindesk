@@ -81,41 +81,41 @@ export function createWorkbenchFeishuSettingsPresentation(
   optionsValue: WorkbenchFeishuSettingsPresentationOptions,
 ): WorkbenchFeishuSettingsPresentation {
   const options = readOptions(optionsValue)
-  return Object.freeze({
-    async read(): Promise<WorkbenchFeishuSettingsSnapshot> {
-      const [identity, authorization] = await Promise.all([
-        options.identityStore.read(),
-        options.authorizationStore.read(),
-      ])
-      const identities = Object.freeze(
-        identity === undefined
-          ? []
-          : [
-              ...(identity.bot === undefined ? [] : (['bot'] as const)),
-              ...(identity.user === undefined ? [] : (['user'] as const)),
-            ],
-      )
-      let oauth: WorkbenchFeishuOAuthSettingsView | null = null
-      if (authorization !== undefined) {
-        const redirect = new URL(authorization.redirectUri)
-        let redirectHost: '127.0.0.1' | '::1'
-        if (redirect.hostname === '127.0.0.1') redirectHost = '127.0.0.1'
-        else if (redirect.hostname === '[::1]') redirectHost = '::1'
-        else throw invalid()
-        oauth = Object.freeze({
-          redirectHost,
-          redirectPort: Number(redirect.port),
-          scopes: Object.freeze([...authorization.scopes]),
-          appMatchesIdentity: identity !== undefined && identity.appId === authorization.appId,
-        })
-      }
-      const state: WorkbenchFeishuSettingsState =
-        identity === undefined && authorization === undefined
-          ? 'not_configured'
-          : identity?.user !== undefined && oauth?.appMatchesIdentity === true
-            ? 'ready'
-            : 'incomplete'
-      return Object.freeze({ version: 1, connectorId: 'feishu', state, identities, oauth })
-    },
-  })
+  async function read(): Promise<WorkbenchFeishuSettingsSnapshot> {
+    const [identity, authorization] = await Promise.all([
+      options.identityStore.read(),
+      options.authorizationStore.read(),
+    ])
+    const identities = Object.freeze(
+      identity === undefined
+        ? []
+        : [
+            ...(identity.bot === undefined ? [] : (['bot'] as const)),
+            ...(identity.user === undefined ? [] : (['user'] as const)),
+          ],
+    )
+    let oauth: WorkbenchFeishuOAuthSettingsView | null = null
+    if (authorization !== undefined) {
+      const redirect = new URL(authorization.redirectUri)
+      let redirectHost: '127.0.0.1' | '::1'
+      if (redirect.hostname === '127.0.0.1') redirectHost = '127.0.0.1'
+      else if (redirect.hostname === '[::1]') redirectHost = '::1'
+      else throw invalid()
+      oauth = Object.freeze({
+        redirectHost,
+        redirectPort: Number(redirect.port),
+        scopes: Object.freeze([...authorization.scopes]),
+        appMatchesIdentity: identity !== undefined && identity.appId === authorization.appId,
+      })
+    }
+    const state: WorkbenchFeishuSettingsState =
+      identity === undefined && authorization === undefined
+        ? 'not_configured'
+        : identity?.user !== undefined && oauth?.appMatchesIdentity === true
+          ? 'ready'
+          : 'incomplete'
+    return Object.freeze({ version: 1, connectorId: 'feishu', state, identities, oauth })
+  }
+
+  return Object.freeze({ read })
 }

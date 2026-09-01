@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { parseFeishuSettingsSnapshot } from '../packages/web/dist/feishu-settings-contract.js'
+import {
+  parseFeishuOAuthSettingsUpdate,
+  parseFeishuSettingsSnapshot,
+} from '../packages/web/dist/feishu-settings-contract.js'
 
 const READY = Object.freeze({
   version: 1,
@@ -99,4 +102,32 @@ test('the shared Feishu Settings parser rejects accessors without invoking them'
     assert.throws(() => parseFeishuSettingsSnapshot(hostile), /invalid Feishu Settings/u)
   }
   assert.equal(getterCalls, 0)
+})
+
+test('the browser and server share one canonical OAuth Settings update contract', () => {
+  const update = {
+    version: 1,
+    redirectHost: '::1',
+    redirectPort: 43123,
+    scopes: ['im:message:readonly', 'offline_access'],
+  }
+  const parsed = parseFeishuOAuthSettingsUpdate(copy(update))
+  assert.deepEqual(parsed, update)
+  assert.equal(Object.isFrozen(parsed), true)
+  assert.equal(Object.isFrozen(parsed.scopes), true)
+
+  const sparseScopes = Array(2)
+  sparseScopes[1] = 'offline_access'
+  for (const malformed of [
+    { ...update, version: 2 },
+    { ...update, redirectHost: 'localhost' },
+    { ...update, redirectPort: 0 },
+    { ...update, redirectPort: 80 },
+    { ...update, scopes: ['offline_access', 'im:message:readonly'] },
+    { ...update, scopes: ['im:message:readonly'] },
+    { ...update, scopes: sparseScopes },
+    { ...update, appId: 'synthetic-private-app-id' },
+  ]) {
+    assert.throws(() => parseFeishuOAuthSettingsUpdate(malformed), /invalid Feishu Settings/u)
+  }
 })

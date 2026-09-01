@@ -71,6 +71,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Workbench Feishu OAuth Authorization Runtime](docs/WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_RUNTIME.md): lease-held initial authorization from loopback capture through verified Keychain persistence.
 - [Workbench Local Data Paths](docs/WORKBENCH_LOCAL_DATA_PATHS.md): private macOS product Settings root and restart-safe Feishu store construction.
 - [Workbench Feishu Settings Presentation](docs/WORKBENCH_FEISHU_SETTINGS_PRESENTATION.md): minimized read-only Connector status for the local Web boundary.
+- [Workbench Feishu OAuth Settings Editing](docs/WORKBENCH_FEISHU_OAUTH_SETTINGS_EDITING.md): app-bound non-secret OAuth configuration editing with a local request-forgery boundary.
 - [Feishu OAuth Verified Initial Persistence](docs/FEISHU_OAUTH_INITIAL_PERSISTENCE.md): verified User token snapshot, exact initial Keychain replacement, and uncertain-write recovery.
 - [Feishu OAuth Reauthorization Replacement](docs/FEISHU_OAUTH_REAUTHORIZATION.md): explicit blocked-state replacement, journal migration, and restart reconciliation.
 - [Workbench Feishu OAuth Reauthorization Runtime](docs/WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_RUNTIME.md): lease-held composition for already-exchanged blocked-state replacement evidence.
@@ -160,7 +161,10 @@ from restart-safe identity and authorization Settings stores. Those stores now
 have a private macOS product path outside the checkout. A minimized read-only
 projection can now show identity types and OAuth configuration completeness on
 the product Connectors page. The default `web:start` launcher opens the fixed
-macOS stores through the Workbench composition and injects that reader. The
+macOS stores through the Workbench composition and injects that reader. When a
+User identity already exists, the same page can update only its non-secret
+literal-loopback OAuth callback and requested scopes through an exact
+same-origin, Fetch-Metadata- and CSRF-bound local POST. The
 Workbench reauthorization host also holds the exclusive kernel-backed lease
 across an already-exchanged blocked-state replacement. Fixed operation-level
 scope authorization for reply and User discovery now passes synthetic

@@ -16,6 +16,13 @@ export interface FeishuSettingsSnapshot {
   readonly oauth: FeishuOAuthSettingsView | null
 }
 
+export interface FeishuOAuthSettingsUpdate {
+  readonly version: 1
+  readonly redirectHost: '127.0.0.1' | '::1'
+  readonly redirectPort: number
+  readonly scopes: readonly string[]
+}
+
 type UnknownRecord = Readonly<Record<string, unknown>>
 
 function invalid(): never {
@@ -122,6 +129,48 @@ function oauthAt(value: unknown): FeishuOAuthSettingsView | null {
     scopes: Object.freeze(scopes),
     appMatchesIdentity: oauth.appMatchesIdentity,
   }) as FeishuOAuthSettingsView
+}
+
+/** Parse the exact non-secret OAuth Settings update sent through the local API. */
+export function parseFeishuOAuthSettingsUpdate(value: unknown): FeishuOAuthSettingsUpdate {
+  const update = recordAt(value, ['version', 'redirectHost', 'redirectPort', 'scopes'])
+  if (
+    update.version !== 1 ||
+    (update.redirectHost !== '127.0.0.1' && update.redirectHost !== '::1') ||
+    !Number.isSafeInteger(update.redirectPort) ||
+    (update.redirectPort as number) <= 0 ||
+    (update.redirectPort as number) > 65_535 ||
+    update.redirectPort === 80 ||
+    !Array.isArray(update.scopes)
+  ) {
+    return invalid()
+  }
+  const scopeValues = arrayAt(update.scopes, 128)
+  if (scopeValues.length === 0) return invalid()
+  const scopes = scopeValues.map((scope) => {
+    if (
+      typeof scope !== 'string' ||
+      scope.length === 0 ||
+      scope.length > 256 ||
+      !/^[A-Za-z0-9][A-Za-z0-9._:-]*$/u.test(scope)
+    ) {
+      return invalid()
+    }
+    return scope
+  })
+  if (
+    new Set(scopes).size !== scopes.length ||
+    !scopes.includes('offline_access') ||
+    scopes.join(' ') !== [...scopes].sort().join(' ')
+  ) {
+    return invalid()
+  }
+  return Object.freeze({
+    version: 1,
+    redirectHost: update.redirectHost,
+    redirectPort: update.redirectPort as number,
+    scopes: Object.freeze(scopes),
+  })
 }
 
 /** Parse the versioned, identity-minimized Feishu Settings response before rendering. */

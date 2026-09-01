@@ -281,7 +281,12 @@ Connectors page consumes it. The projection omits application, account,
 principal, SecretReference, and filesystem identifiers and does not claim
 credential or connectivity health. The Workbench Web launcher owns default-path
 store construction and injection while `@twindesk/web` remains independent of
-Connector persistence. Cordis activation remains open. See
+Connector persistence. A separate Workbench OAuth Settings editor derives the
+app from the existing User identity and writes only the literal-loopback
+callback plus requested scopes. The Web composition exposes that writer behind
+exact Host/Origin/Fetch-Metadata/CSRF/media/body/schema checks; the read-only
+presenter never gains mutation authority. Cordis activation remains open. See
+[Workbench Feishu OAuth Settings Editing](WORKBENCH_FEISHU_OAUTH_SETTINGS_EDITING.md),
 [Workbench Feishu Settings Presentation](WORKBENCH_FEISHU_SETTINGS_PRESENTATION.md)
 and [ADR 0003](decisions/0003-macos-local-data-root.md). The Stage 2
 exit remains open until the

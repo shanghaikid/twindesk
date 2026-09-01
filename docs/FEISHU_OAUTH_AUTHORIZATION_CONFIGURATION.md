@@ -63,9 +63,14 @@ mode, rejected-write rollback, and fail-closed symlink, oversized, corrupt, and
 invalid-path handling. No live port registration or Feishu account is used as
 acceptance evidence.
 
+The product Connectors page can now edit the registered literal-loopback host,
+port, and requested scopes for an existing User identity without exposing its
+app identifier. See
+[Workbench Feishu OAuth Settings Editing](WORKBENCH_FEISHU_OAUTH_SETTINGS_EDITING.md).
+
 Still open:
 
-- editing through product Settings;
+- identity and SecretReference editing through product Settings;
 - browser launching and authorization recovery UI;
 - live verification that the configured URI is registered for the application;
 - Cordis lifecycle activation and live-account acceptance.

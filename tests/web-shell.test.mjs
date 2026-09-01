@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { mkdtemp, rm } from 'node:fs/promises'
+import { request as httpRequest } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -38,6 +39,29 @@ function request(url, init = {}) {
   return fetch(url, {
     ...init,
     headers: { ...init.headers, connection: 'close' },
+  })
+}
+
+/** @param {string} url @param {Record<string, string>} headers @param {string} body */
+function rawPostStatus(url, headers, body) {
+  return new Promise((resolve, reject) => {
+    const outgoing = httpRequest(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          ...headers,
+          connection: 'close',
+          'content-length': String(Buffer.byteLength(body)),
+        },
+      },
+      (response) => {
+        response.resume()
+        response.once('end', () => resolve(response.statusCode ?? 0))
+      },
+    )
+    outgoing.once('error', reject)
+    outgoing.end(body)
   })
 }
 
@@ -92,6 +116,10 @@ test('the local Web server serves product routes and restarts on the same port',
   assert.match(appSource, /\/api\/inbox\?state=/u)
   assert.match(appSource, /\/api\/audit/u)
   assert.match(appSource, /\/api\/settings\/feishu/u)
+  assert.match(appSource, /data-feishu-oauth-form/u)
+  assert.match(appSource, /feishuSettingsDraft/u)
+  assert.match(appSource, /x-twindesk-csrf-token/u)
+  assert.match(appSource, /method: 'POST'/u)
   assert.match(appSource, /function escapeHtml/u)
 
   const contractResponse = await request(`${running.url}/inbox-contract.js`)
@@ -172,6 +200,8 @@ test('the local Web server serves product routes and restarts on the same port',
   const settingsResponse = await request(`${running.url}/api/settings/feishu`)
   assert.equal(settingsResponse.status, 200)
   assert.match(settingsResponse.headers.get('content-type') ?? '', /^application\/json/u)
+  assert.equal(settingsResponse.headers.get('x-twindesk-settings-writable'), 'false')
+  assert.equal(settingsResponse.headers.get('x-twindesk-csrf-token'), null)
   assert.deepEqual(await settingsResponse.json(), FEISHU_SETTINGS)
   const settingsBody = JSON.stringify(FEISHU_SETTINGS)
   assert.doesNotMatch(
@@ -190,8 +220,11 @@ test('the local Web server serves product routes and restarts on the same port',
   assert.equal((await request(`${running.url}/api/audit`, { method: 'POST' })).status, 405)
   assert.equal(
     (await request(`${running.url}/api/settings/feishu`, { method: 'POST' })).status,
-    405,
+    403,
   )
+  const putSettings = await request(`${running.url}/api/settings/feishu`, { method: 'PUT' })
+  assert.equal(putSettings.status, 405)
+  assert.equal(putSettings.headers.get('allow'), 'GET, HEAD, POST')
   assert.equal((await request(`${running.url}/unknown`)).status, 404)
 
   const port = running.port
@@ -208,6 +241,193 @@ test('the local Web server serves product routes and restarts on the same port',
     assert.deepEqual((await restartedInbox.json()).counts, inbox.counts)
   } finally {
     await restarted.close()
+  }
+})
+
+test('the Web server accepts one bounded same-origin CSRF-bound OAuth Settings update', async () => {
+  let updateCalls = 0
+  /** @type {unknown} */
+  let observedUpdate
+  const updated = {
+    ...FEISHU_SETTINGS,
+    oauth: {
+      redirectHost: '::1',
+      redirectPort: 43123,
+      scopes: ['im:message:readonly', 'offline_access'],
+      appMatchesIdentity: true,
+    },
+  }
+  const running = await startTwinDeskWebServer({
+    port: 0,
+    feishuSettings: {
+      async read() {
+        return FEISHU_SETTINGS
+      },
+      async updateOAuth(value) {
+        updateCalls += 1
+        observedUpdate = value
+        return updated
+      },
+    },
+  })
+  try {
+    const status = await request(`${running.url}/api/settings/feishu`)
+    const csrfToken = status.headers.get('x-twindesk-csrf-token')
+    assert.equal(status.headers.get('x-twindesk-settings-writable'), 'true')
+    assert.ok(csrfToken !== null)
+    const update = {
+      version: 1,
+      redirectHost: '::1',
+      redirectPort: 43123,
+      scopes: ['im:message:readonly', 'offline_access'],
+    }
+    const response = await request(`${running.url}/api/settings/feishu`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: running.url,
+        'sec-fetch-site': 'same-origin',
+        'x-twindesk-csrf-token': csrfToken,
+      },
+      body: JSON.stringify(update),
+    })
+    assert.equal(response.status, 200)
+    assert.deepEqual(await response.json(), updated)
+    assert.deepEqual(observedUpdate, update)
+    assert.equal(Object.isFrozen(observedUpdate), true)
+    assert.equal(updateCalls, 1)
+
+    const validHeaders = {
+      'content-type': 'application/json',
+      origin: running.url,
+      'sec-fetch-site': 'same-origin',
+      'x-twindesk-csrf-token': csrfToken,
+    }
+    for (const [url, init, expectedStatus] of [
+      [
+        `${running.url}/api/settings/feishu`,
+        {
+          method: 'POST',
+          headers: { ...validHeaders, origin: 'http://example.invalid' },
+          body: JSON.stringify(update),
+        },
+        403,
+      ],
+      [
+        `${running.url}/api/settings/feishu`,
+        {
+          method: 'POST',
+          headers: { ...validHeaders, 'x-twindesk-csrf-token': 'wrong' },
+          body: JSON.stringify(update),
+        },
+        403,
+      ],
+      [
+        `${running.url}/api/settings/feishu`,
+        {
+          method: 'POST',
+          headers: { ...validHeaders, 'sec-fetch-site': 'cross-site' },
+          body: JSON.stringify(update),
+        },
+        403,
+      ],
+      [
+        `${running.url}/api/settings/feishu`,
+        {
+          method: 'POST',
+          headers: { ...validHeaders, 'content-type': 'text/plain' },
+          body: JSON.stringify(update),
+        },
+        415,
+      ],
+      [
+        `${running.url}/api/settings/feishu`,
+        {
+          method: 'POST',
+          headers: validHeaders,
+          body: JSON.stringify({ ...update, scopes: ['offline_access', 'im:message:readonly'] }),
+        },
+        400,
+      ],
+      [
+        `${running.url}/api/settings/feishu?extra=true`,
+        { method: 'POST', headers: validHeaders, body: JSON.stringify(update) },
+        400,
+      ],
+      [
+        `${running.url}/api/settings/feishu`,
+        { method: 'POST', headers: validHeaders, body: '{' },
+        400,
+      ],
+      [
+        `${running.url}/api/settings/feishu`,
+        { method: 'POST', headers: validHeaders, body: new Uint8Array([0xff]) },
+        400,
+      ],
+      [
+        `${running.url}/api/settings/feishu`,
+        {
+          method: 'POST',
+          headers: validHeaders,
+          body: JSON.stringify({ ...update, padding: 'x'.repeat(17_000) }),
+        },
+        413,
+      ],
+    ]) {
+      assert.equal(
+        (await request(/** @type {string} */ (url), /** @type {RequestInit} */ (init))).status,
+        expectedStatus,
+      )
+    }
+    assert.equal(
+      await rawPostStatus(
+        `${running.url}/api/settings/feishu`,
+        { ...validHeaders, host: 'example.invalid' },
+        JSON.stringify(update),
+      ),
+      403,
+    )
+    assert.equal(updateCalls, 1)
+  } finally {
+    await running.close()
+  }
+})
+
+test('the Web server does not expose OAuth Settings writer failures', async () => {
+  const running = await startTwinDeskWebServer({
+    port: 0,
+    feishuSettings: {
+      async read() {
+        return FEISHU_SETTINGS
+      },
+      async updateOAuth() {
+        throw new Error('synthetic-private-writer-failure')
+      },
+    },
+  })
+  try {
+    const status = await request(`${running.url}/api/settings/feishu`)
+    const csrfToken = status.headers.get('x-twindesk-csrf-token')
+    assert.ok(csrfToken !== null)
+    const response = await request(`${running.url}/api/settings/feishu`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: running.url,
+        'sec-fetch-site': 'same-origin',
+        'x-twindesk-csrf-token': csrfToken,
+      },
+      body: JSON.stringify({
+        version: 1,
+        redirectHost: '127.0.0.1',
+        redirectPort: 43123,
+        scopes: ['offline_access'],
+      }),
+    })
+    assert.equal(response.status, 503)
+    assert.equal(await response.text(), 'Feishu Settings unavailable.\n')
+  } finally {
+    await running.close()
   }
 })
 
@@ -250,4 +470,26 @@ test('the Web server rejects non-loopback hosts and invalid ports', async () => 
     /must bind to loopback/u,
   )
   await assert.rejects(startTwinDeskWebServer({ port: 65_536 }), /port must be an integer/u)
+})
+
+test('the Web server rejects hostile Feishu Settings services without invoking accessors', async () => {
+  let getterCalls = 0
+  const hostile = Object.defineProperty({}, 'read', {
+    enumerable: true,
+    get() {
+      getterCalls += 1
+      throw new Error('synthetic-private-service-value')
+    },
+  })
+  await assert.rejects(
+    startTwinDeskWebServer({
+      port: 0,
+      feishuSettings: /** @type {never} */ (hostile),
+    }),
+    (error) =>
+      error instanceof TypeError &&
+      /service is invalid/u.test(error.message) &&
+      !error.message.includes('synthetic-private'),
+  )
+  assert.equal(getterCalls, 0)
 })

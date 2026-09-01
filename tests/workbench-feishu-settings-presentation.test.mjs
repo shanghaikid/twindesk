@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import {
+  createWorkbenchFeishuOAuthSettingsEditor,
   createWorkbenchFeishuSettingsPresentation,
   openWorkbenchFeishuSettingsStores,
 } from '../packages/bundle-workbench/dist/index.js'
@@ -58,6 +59,14 @@ async function settingsStores(context, suffix) {
 /** @param {Awaited<ReturnType<typeof openWorkbenchFeishuSettingsStores>>} stores */
 function presentation(stores) {
   return createWorkbenchFeishuSettingsPresentation({
+    identityStore: stores.identityStore,
+    authorizationStore: stores.authorizationStore,
+  })
+}
+
+/** @param {Awaited<ReturnType<typeof openWorkbenchFeishuSettingsStores>>} stores */
+function editor(stores) {
+  return createWorkbenchFeishuOAuthSettingsEditor({
     identityStore: stores.identityStore,
     authorizationStore: stores.authorizationStore,
   })
@@ -188,4 +197,66 @@ test('Workbench Settings presentation rejects hostile collaborators and keeps re
     presentation(fixture.stores).read(),
     (error) => error instanceof Error && !error.message.includes(privatePayload),
   )
+})
+
+test('Workbench updates only OAuth Settings for the existing User app and recovers after restart', async (context) => {
+  const fixture = await settingsStores(context, 'oauth-update')
+  await fixture.stores.identityStore.write(IDENTITY)
+  const service = presentation(fixture.stores)
+  const settingsEditor = editor(fixture.stores)
+  const update = {
+    version: 1,
+    redirectHost: /** @type {const} */ ('::1'),
+    redirectPort: 43123,
+    scopes: ['im:message:readonly', 'offline_access'],
+  }
+  await settingsEditor.update(update)
+  const first = await service.read()
+  await settingsEditor.update(update)
+  const repeated = await service.read()
+  assert.deepEqual(repeated, first)
+  assert.equal(first.state, 'ready')
+  assert.deepEqual(first.oauth, {
+    redirectHost: '::1',
+    redirectPort: 43123,
+    scopes: update.scopes,
+    appMatchesIdentity: true,
+  })
+  assert.deepEqual(await fixture.stores.authorizationStore.read(), {
+    kind: 'feishu_oauth_authorization_configuration',
+    schemaVersion: 1,
+    connectorId: 'feishu',
+    appId: APP_ID,
+    redirectUri: 'http://[::1]:43123/oauth/feishu/callback',
+    scopes: update.scopes,
+  })
+  const restarted = presentation(await openWorkbenchFeishuSettingsStores(fixture.options))
+  assert.deepEqual(await restarted.read(), first)
+})
+
+test('Workbench OAuth editing fails closed without a User and rejects hostile updates', async (context) => {
+  const fixture = await settingsStores(context, 'oauth-update-invalid')
+  const botOnly = { ...IDENTITY, user: undefined }
+  Reflect.deleteProperty(botOnly, 'user')
+  await fixture.stores.identityStore.write(botOnly)
+  const settingsEditor = editor(fixture.stores)
+  const valid = {
+    version: 1,
+    redirectHost: '127.0.0.1',
+    redirectPort: 43124,
+    scopes: ['offline_access'],
+  }
+  await assert.rejects(settingsEditor.update(valid), /OAuth Settings update is invalid/u)
+  assert.equal(await fixture.stores.authorizationStore.read(), undefined)
+
+  let getterCalls = 0
+  const hostile = Object.defineProperty({ ...valid }, 'scopes', {
+    get() {
+      getterCalls += 1
+      return ['offline_access']
+    },
+    enumerable: true,
+  })
+  await assert.rejects(settingsEditor.update(hostile), /OAuth Settings update is invalid/u)
+  assert.equal(getterCalls, 0)
 })
