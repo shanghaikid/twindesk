@@ -18,6 +18,7 @@ import {
   parseFeishuUserIdentityCreate,
 } from './feishu-settings-contract.ts'
 import { parseFeishuAuthorizationSnapshot } from './feishu-authorization-contract.ts'
+import { parseFeishuOAuthRecoverySnapshot } from './feishu-oauth-recovery-contract.ts'
 
 const outputRoot = dirname(fileURLToPath(import.meta.url))
 const ASSETS = new Map([
@@ -26,6 +27,10 @@ const ASSETS = new Map([
   [
     '/feishu-authorization-contract.js',
     { file: 'feishu-authorization-contract.js', type: 'text/javascript; charset=utf-8' },
+  ],
+  [
+    '/feishu-oauth-recovery-contract.js',
+    { file: 'feishu-oauth-recovery-contract.js', type: 'text/javascript; charset=utf-8' },
   ],
   [
     '/feishu-settings-contract.js',
@@ -71,11 +76,16 @@ export interface TwinDeskWebServerOptions {
     start(clientSecret: Uint8Array): Promise<unknown>
     cancel(): Promise<unknown>
   }
+  /** Identifier-free durable OAuth recovery state supplied by Workbench. */
+  readonly feishuOAuthRecovery?: {
+    read(): Promise<unknown> | unknown
+  }
 }
 
 type FeishuSettingsService = NonNullable<TwinDeskWebServerOptions['feishuSettings']>
 type FeishuSettingsSnapshot = ReturnType<typeof parseFeishuSettingsSnapshot>
 type FeishuAuthorizationService = NonNullable<TwinDeskWebServerOptions['feishuAuthorization']>
+type FeishuOAuthRecoveryService = NonNullable<TwinDeskWebServerOptions['feishuOAuthRecovery']>
 
 function normalizeFeishuSettingsService(value: unknown): FeishuSettingsService | undefined {
   if (value === undefined) return undefined
@@ -156,6 +166,32 @@ function normalizeFeishuAuthorizationService(
     })
   } catch {
     throw new TypeError('TwinDesk Web Feishu authorization service is invalid.')
+  }
+}
+
+function normalizeFeishuOAuthRecoveryService(
+  value: unknown,
+): FeishuOAuthRecoveryService | undefined {
+  if (value === undefined) return undefined
+  try {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError()
+    const prototype = Object.getPrototypeOf(value) as unknown
+    const descriptors = Object.getOwnPropertyDescriptors(value)
+    const readDescriptor = descriptors.read
+    if (
+      (prototype !== Object.prototype && prototype !== null) ||
+      Object.getOwnPropertySymbols(value).length !== 0 ||
+      Object.keys(descriptors).length !== 1 ||
+      readDescriptor === undefined ||
+      !Object.hasOwn(readDescriptor, 'value') ||
+      typeof readDescriptor.value !== 'function'
+    ) {
+      throw new TypeError()
+    }
+    const read = readDescriptor.value as () => unknown
+    return Object.freeze({ read: () => Promise.resolve(Reflect.apply(read, value, [])) })
+  } catch {
+    throw new TypeError('TwinDesk Web Feishu OAuth recovery service is invalid.')
   }
 }
 
@@ -460,6 +496,50 @@ async function serveFeishuAuthorizationApi(
   response.end(headOnly ? undefined : body)
 }
 
+async function serveFeishuOAuthRecoveryApi(
+  response: ServerResponse,
+  requestUrl: URL,
+  headOnly: boolean,
+  recovery: FeishuOAuthRecoveryService | undefined,
+): Promise<void> {
+  if (requestUrl.search.length > 0) {
+    send(
+      response,
+      400,
+      headOnly ? '' : 'Invalid Feishu OAuth recovery query.\n',
+      'text/plain; charset=utf-8',
+    )
+    return
+  }
+  if (recovery === undefined) {
+    send(
+      response,
+      503,
+      headOnly ? '' : 'Feishu OAuth recovery unavailable.\n',
+      'text/plain; charset=utf-8',
+    )
+    return
+  }
+  let snapshot: ReturnType<typeof parseFeishuOAuthRecoverySnapshot>
+  try {
+    snapshot = parseFeishuOAuthRecoverySnapshot(await recovery.read())
+  } catch {
+    send(
+      response,
+      503,
+      headOnly ? '' : 'Feishu OAuth recovery unavailable.\n',
+      'text/plain; charset=utf-8',
+    )
+    return
+  }
+  const body = JSON.stringify(snapshot)
+  response.writeHead(200, {
+    ...commonHeaders('application/json; charset=utf-8'),
+    'content-length': String(Buffer.byteLength(body)),
+  })
+  response.end(headOnly ? undefined : body)
+}
+
 function parseAuthorizationCancel(value: unknown): void {
   try {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError()
@@ -484,6 +564,7 @@ async function serveFeishuAuthorizationMutationApi(
   response: ServerResponse,
   requestUrl: URL,
   authorization: FeishuAuthorizationService | undefined,
+  recovery: FeishuOAuthRecoveryService | undefined,
   expectedOrigin: string,
   csrfToken: string,
   operation: 'start' | 'cancel',
@@ -511,6 +592,27 @@ async function serveFeishuAuthorizationMutationApi(
     request.resume()
     send(response, 503, 'Feishu authorization unavailable.\n', 'text/plain; charset=utf-8')
     return
+  }
+  if (operation === 'start') {
+    let recoverySnapshot: ReturnType<typeof parseFeishuOAuthRecoverySnapshot>
+    try {
+      if (recovery === undefined) throw new TypeError()
+      recoverySnapshot = parseFeishuOAuthRecoverySnapshot(await recovery.read())
+    } catch {
+      request.resume()
+      send(response, 503, 'Feishu OAuth recovery unavailable.\n', 'text/plain; charset=utf-8')
+      return
+    }
+    if (recoverySnapshot.state !== 'not_started' && recoverySnapshot.state !== 'ready') {
+      request.resume()
+      send(
+        response,
+        409,
+        'Feishu OAuth recovery requires attention.\n',
+        'text/plain; charset=utf-8',
+      )
+      return
+    }
   }
   let snapshot: ReturnType<typeof parseFeishuAuthorizationSnapshot>
   if (operation === 'start') {
@@ -697,6 +799,7 @@ export async function startTwinDeskWebServer(
   }
   const feishuSettings = normalizeFeishuSettingsService(options.feishuSettings)
   const feishuAuthorization = normalizeFeishuAuthorizationService(options.feishuAuthorization)
+  const feishuOAuthRecovery = normalizeFeishuOAuthRecoveryService(options.feishuOAuthRecovery)
 
   const inbox = createFixtureInboxService(options.databasePath, {
     includeAudit: true,
@@ -755,6 +858,7 @@ export async function startTwinDeskWebServer(
           response,
           requestUrl,
           feishuAuthorization,
+          feishuOAuthRecovery,
           boundOrigin,
           csrfToken,
           authorizationStart ? 'start' : 'cancel',
@@ -791,6 +895,15 @@ export async function startTwinDeskWebServer(
           method === 'HEAD',
           feishuAuthorization,
           csrfToken,
+        )
+        return
+      }
+      if (requestUrl.pathname === '/api/recovery/feishu/oauth') {
+        await serveFeishuOAuthRecoveryApi(
+          response,
+          requestUrl,
+          method === 'HEAD',
+          feishuOAuthRecovery,
         )
         return
       }

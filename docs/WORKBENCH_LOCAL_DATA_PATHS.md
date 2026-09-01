@@ -67,7 +67,8 @@ actual Application Support directory.
 
 Still open:
 
-- presentation-safe recovery state and hosted reauthorization APIs;
+- hosted reauthorization and Keychain/rotation reconciliation actions; the
+  presentation-safe read boundary is now implemented separately;
 - explicit disconnect, configuration deletion, OAuth revocation, and Keychain
   deletion as separate user actions;
 - product paths for SQLite business data and Harness Sessions;

@@ -79,8 +79,8 @@ endpoint.
 
 Still open:
 
-- product UI for blocked-state reauthorization and Keychain/rotation
-  reconciliation;
+- product actions for the now-presented blocked-state reauthorization and
+  Keychain/rotation reconciliation states;
 - credential health, scope, disconnect, revocation, and deletion flows;
 - Cordis activation plus hosted ingestion and polling under the same lease; and
 - a live-account authorization and Stage 2 end-to-end acceptance run.

@@ -101,7 +101,8 @@ identity and hostile accessor input also fail without invoking runtime access.
 
 Still open:
 
-- reauthorization and Keychain/rotation reconciliation UI;
+- hosted reauthorization and Keychain/rotation reconciliation actions; their
+  identifier-free recovery status is now presented separately;
 - Cordis lifecycle activation and hosted polling coexistence;
 - live-account authorization and Keychain acceptance.
 

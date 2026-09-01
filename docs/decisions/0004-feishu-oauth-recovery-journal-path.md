@@ -48,8 +48,9 @@ or presentation APIs.
 - Recovery state remains separate from editable Settings and business Audit.
 - Creating the default Workbench stores now prepares a private `state` branch
   even before the first journal event is written.
-- This decision does not expose recovery state to Web, construct the hosted
-  reauthorization flow, or claim that a Keychain write was reconciled.
+- A separate presentation boundary now exposes only a five-state minimized Web
+  projection. This decision still does not construct a hosted reauthorization
+  or reconciliation action or claim that a Keychain write was reconciled.
 - Other production state, SQLite, Harness Session, and non-macOS paths remain
   separate decisions.
 
@@ -59,3 +60,5 @@ Path tests cover the exact version 2 layout, private Settings and state
 directories, state-branch symlink rejection, append and restart inspection,
 and absence of secret-like fields. Existing journal tests continue to cover
 torn tails, unsafe files, transition ordering, migration, and recovery.
+Presentation tests additionally prove that sequence, timestamps, identifiers,
+and filesystem paths do not cross the Web boundary.

@@ -79,6 +79,15 @@ test('Workbench hosts default-path Feishu Settings in the product Web shell', as
       state: 'idle',
     })
     assert.ok(authorization.headers.get('x-twindesk-csrf-token') !== null)
+    const recovery = await fetch(`${running.url}/api/recovery/feishu/oauth`, {
+      headers: { connection: 'close' },
+    })
+    assert.equal(recovery.status, 200)
+    assert.deepEqual(await recovery.json(), {
+      version: 1,
+      connectorId: 'feishu',
+      state: 'not_started',
+    })
     const csrfToken = response.headers.get('x-twindesk-csrf-token')
     assert.ok(csrfToken !== null)
     const updateResponse = await fetch(`${running.url}/api/settings/feishu`, {
@@ -112,6 +121,28 @@ test('Workbench hosts default-path Feishu Settings in the product Web shell', as
     redirectUri: 'http://[::1]:43125/oauth/feishu/callback',
     scopes: ['im:message:send_as_user', 'offline_access'],
   })
+  const reservation = await restartedStores.rotationJournal.reserve(
+    '2026-08-31T08:00:00.000Z',
+    '2026-08-31T08:01:00.000Z',
+  )
+  await restartedStores.rotationJournal.settle(
+    reservation.sequence,
+    'reauthorization_required',
+    '2026-08-31T08:02:00.000Z',
+  )
+  const restarted = await startWorkbenchWebServer({ ...localPaths, databasePath, port: 0 })
+  try {
+    const recovery = await fetch(`${restarted.url}/api/recovery/feishu/oauth`, {
+      headers: { connection: 'close' },
+    })
+    assert.deepEqual(await recovery.json(), {
+      version: 1,
+      connectorId: 'feishu',
+      state: 'reauthorization_required',
+    })
+  } finally {
+    await restarted.close()
+  }
 })
 
 test('Workbench Web composition rejects unknown and hostile options before local access', async () => {

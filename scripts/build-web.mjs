@@ -18,6 +18,7 @@ for (const compiledEntry of [
   'audit-contract.js',
   'cli.js',
   'feishu-authorization-contract.js',
+  'feishu-oauth-recovery-contract.js',
   'feishu-settings-contract.js',
   'inbox-contract.js',
   'index.js',

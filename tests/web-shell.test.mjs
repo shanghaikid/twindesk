@@ -37,6 +37,11 @@ const feishuSettingsReader = Object.freeze({
     return FEISHU_SETTINGS
   },
 })
+const feishuOAuthRecoveryReady = Object.freeze({
+  read() {
+    return { version: 1, connectorId: 'feishu', state: 'not_started' }
+  },
+})
 
 /**
  * @param {string | URL} url
@@ -129,7 +134,9 @@ test('the local Web server serves product routes and restarts on the same port',
   assert.match(appSource, /\/api\/settings\/feishu\/user-identity/u)
   assert.match(appSource, /\/api\/authorization\/feishu\/start/u)
   assert.match(appSource, /\/api\/authorization\/feishu\/cancel/u)
+  assert.match(appSource, /\/api\/recovery\/feishu\/oauth/u)
   assert.match(appSource, /data-feishu-authorization-form/u)
+  assert.match(appSource, /data-feishu-oauth-recovery/u)
   assert.match(appSource, /bytes\.fill\(0\)/u)
   assert.match(appSource, /rel="noopener noreferrer"/u)
   assert.match(appSource, /x-twindesk-csrf-token/u)
@@ -156,6 +163,10 @@ test('the local Web server serves product routes and restarts on the same port',
     await authorizationContractResponse.text(),
     /function parseFeishuAuthorizationSnapshot/u,
   )
+
+  const recoveryContractResponse = await request(`${running.url}/feishu-oauth-recovery-contract.js`)
+  assert.equal(recoveryContractResponse.status, 200)
+  assert.match(await recoveryContractResponse.text(), /function parseFeishuOAuthRecoverySnapshot/u)
 
   const stylesResponse = await request(`${running.url}/styles.css`)
   assert.equal(stylesResponse.status, 200)
@@ -647,6 +658,7 @@ test('the Web server starts and cancels one bounded CSRF-bound Feishu authorizat
   })
   const running = await startTwinDeskWebServer({
     port: 0,
+    feishuOAuthRecovery: feishuOAuthRecoveryReady,
     feishuAuthorization: {
       read() {
         return state
@@ -752,6 +764,7 @@ test('the Web server minimizes authorization conflicts and invalid service resul
   for (const [start, expectedStatus] of invalidStarts) {
     const running = await startTwinDeskWebServer({
       port: 0,
+      feishuOAuthRecovery: feishuOAuthRecoveryReady,
       feishuAuthorization: {
         read() {
           return { version: 1, connectorId: 'feishu', state: 'idle' }
@@ -782,6 +795,74 @@ test('the Web server minimizes authorization conflicts and invalid service resul
       await running.close()
     }
   }
+})
+
+test('the authorization start endpoint enforces recovery state before invoking the Host', async () => {
+  let startCalls = 0
+  const cases = [
+    {
+      recovery: undefined,
+      status: 503,
+    },
+    {
+      recovery: {
+        read() {
+          return {
+            version: 1,
+            connectorId: 'feishu',
+            state: 'reconciliation_required',
+          }
+        },
+      },
+      status: 409,
+    },
+    {
+      recovery: {
+        read() {
+          throw new Error('synthetic-private-recovery-gate')
+        },
+      },
+      status: 503,
+    },
+  ]
+  for (const entry of cases) {
+    const running = await startTwinDeskWebServer({
+      port: 0,
+      ...(entry.recovery === undefined ? {} : { feishuOAuthRecovery: entry.recovery }),
+      feishuAuthorization: {
+        read() {
+          return { version: 1, connectorId: 'feishu', state: 'idle' }
+        },
+        async start() {
+          startCalls += 1
+          return { version: 1, connectorId: 'feishu', state: 'succeeded' }
+        },
+        async cancel() {
+          return { version: 1, connectorId: 'feishu', state: 'cancelled' }
+        },
+      },
+    })
+    try {
+      const status = await request(`${running.url}/api/authorization/feishu`)
+      const csrfToken = status.headers.get('x-twindesk-csrf-token')
+      assert.ok(csrfToken !== null)
+      const response = await request(`${running.url}/api/authorization/feishu/start`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/octet-stream',
+          origin: running.url,
+          'sec-fetch-site': 'same-origin',
+          'x-twindesk-csrf-token': csrfToken,
+        },
+        body: 'synthetic-app-secret',
+      })
+      assert.equal(response.status, entry.status)
+      assert.doesNotMatch(await response.text(), /synthetic-private/u)
+    } finally {
+      await running.close()
+    }
+  }
+  assert.equal(startCalls, 0)
 })
 
 test('the Web server rejects non-loopback hosts and invalid ports', async () => {
@@ -863,4 +944,86 @@ test('the Web server still closes when authorization cancellation throws synchro
   })
   await running.close()
   await running.close()
+})
+
+test('the Web server exposes only minimized read-only Feishu OAuth recovery state', async (context) => {
+  const databasePath = await temporaryDatabase(context)
+  const running = await startTwinDeskWebServer({
+    databasePath,
+    port: 0,
+    feishuOAuthRecovery: {
+      read() {
+        return {
+          version: 1,
+          connectorId: 'feishu',
+          state: 'reconciliation_required',
+        }
+      },
+    },
+  })
+  context.after(() => running.close())
+
+  const response = await request(`${running.url}/api/recovery/feishu/oauth`)
+  assert.equal(response.status, 200)
+  assert.deepEqual(await response.json(), {
+    version: 1,
+    connectorId: 'feishu',
+    state: 'reconciliation_required',
+  })
+  const head = await request(`${running.url}/api/recovery/feishu/oauth`, { method: 'HEAD' })
+  assert.equal(head.status, 200)
+  assert.equal(await head.text(), '')
+  assert.equal((await request(`${running.url}/api/recovery/feishu/oauth?full=true`)).status, 400)
+  const mutation = await request(`${running.url}/api/recovery/feishu/oauth`, { method: 'POST' })
+  assert.equal(mutation.status, 405)
+})
+
+test('the Web server fails closed for unavailable, invalid, or hostile recovery services', async () => {
+  for (const service of [
+    undefined,
+    {
+      read() {
+        return {
+          version: 1,
+          connectorId: 'feishu',
+          state: 'ready',
+          sequence: 1,
+        }
+      },
+    },
+    {
+      read() {
+        throw new Error('synthetic-private-recovery-read')
+      },
+    },
+  ]) {
+    const running = await startTwinDeskWebServer({
+      port: 0,
+      ...(service === undefined ? {} : { feishuOAuthRecovery: service }),
+    })
+    try {
+      const response = await request(`${running.url}/api/recovery/feishu/oauth`)
+      assert.equal(response.status, 503)
+      assert.doesNotMatch(await response.text(), /synthetic|sequence/iu)
+    } finally {
+      await running.close()
+    }
+  }
+
+  let getterCalls = 0
+  const hostile = Object.defineProperty({}, 'read', {
+    enumerable: true,
+    get() {
+      getterCalls += 1
+      throw new Error('synthetic-private-recovery-service')
+    },
+  })
+  await assert.rejects(
+    startTwinDeskWebServer({
+      port: 0,
+      feishuOAuthRecovery: /** @type {never} */ (hostile),
+    }),
+    (error) => error instanceof TypeError && !error.message.includes('synthetic-private'),
+  )
+  assert.equal(getterCalls, 0)
 })

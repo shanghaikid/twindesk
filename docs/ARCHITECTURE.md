@@ -296,11 +296,19 @@ restart-loaded, lease-held initial OAuth Host and exposes only minimized states
 to Web. The loopback server accepts a bounded transient app-secret body behind
 the same Host/Origin/Fetch-Metadata/CSRF boundary, clears its copy, validates the
 exact Feishu/PKCE presentation, and requires an explicit browser click. It does
-not expose credentials or imply connectivity. Cordis activation remains open. See
+not expose credentials or imply connectivity. A second read-only Workbench
+presenter maps the secret-free rotation journal to five fixed recovery states.
+Web revalidates only `version`, `connectorId`, and `state`; the Connectors page
+and authorization-start endpoint block a new initial authorization while
+recovery evidence is unavailable, active, or unresolved. The server check
+precedes app-secret body consumption and Host invocation. This status does not
+inspect Keychain and grants no reauthorization or reconciliation action. Cordis
+activation remains open. See
 [Workbench Feishu OAuth Settings Editing](WORKBENCH_FEISHU_OAUTH_SETTINGS_EDITING.md),
 [Workbench Feishu User Identity Bootstrap](WORKBENCH_FEISHU_USER_IDENTITY_BOOTSTRAP.md),
 [Workbench Feishu Settings Presentation](WORKBENCH_FEISHU_SETTINGS_PRESENTATION.md),
 [Workbench Feishu OAuth Authorization UI](WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_UI.md),
+[Workbench Feishu OAuth Recovery Presentation](WORKBENCH_FEISHU_OAUTH_RECOVERY_PRESENTATION.md),
 [ADR 0003](decisions/0003-macos-local-data-root.md), and
 [ADR 0004](decisions/0004-feishu-oauth-recovery-journal-path.md). The Stage 2
 exit remains open until the

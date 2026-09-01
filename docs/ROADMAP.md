@@ -98,9 +98,12 @@ memory-local minimized result. Synthetic tests cover the loopback boundary and
 verified persistence composition without a live account. The fixed private
 macOS data root now also constructs the separate secret-free OAuth rotation
 journal, so later reauthorization and reconciliation can recover the same
-evidence after restart without placing it in Settings. Cordis activation,
-existing-identity replacement, Bot identity creation, recovery-state
-presentation and actions, live authorization
+evidence after restart without placing it in Settings. An identifier-free
+read-only projection now surfaces whether that journal is settled, active, or
+requires reauthorization/reconciliation and blocks unsafe initial-authorization
+retries; it does not inspect credential health or expose recovery actions.
+Cordis activation, existing-identity replacement, Bot identity creation,
+recovery actions, live authorization
 acceptance, reauthorization and credential-recovery UI, interactive Draft and
 approval UI, model-backed linkage, and a real Feishu send remain missing. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).

@@ -24,6 +24,11 @@ import {
   type FeishuAuthorizationRecovery,
   type FeishuAuthorizationSnapshot,
 } from './feishu-authorization-contract.ts'
+import {
+  parseFeishuOAuthRecoverySnapshot,
+  type FeishuOAuthRecoverySnapshot,
+  type FeishuOAuthRecoveryState,
+} from './feishu-oauth-recovery-contract.ts'
 
 const INBOX_STATES: readonly { readonly id: InboxState; readonly label: string }[] = [
   { id: 'needs_reply', label: 'Needs reply' },
@@ -85,6 +90,10 @@ let feishuAuthorizationRequest = 0
 let feishuAuthorizationCsrfToken: string | undefined
 let feishuAuthorizationMutating = false
 let feishuAuthorizationPoll: number | undefined
+let feishuOAuthRecovery: FeishuOAuthRecoverySnapshot | undefined
+let feishuOAuthRecoveryLoading = false
+let feishuOAuthRecoveryError: string | undefined
+let feishuOAuthRecoveryRequest = 0
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/gu, (character) => {
@@ -238,6 +247,49 @@ function feishuAuthorizationRecovery(recovery: FeishuAuthorizationRecovery): str
   return messages[recovery]
 }
 
+function feishuOAuthRecoveryMessage(state: FeishuOAuthRecoveryState): string {
+  const messages: Readonly<Record<FeishuOAuthRecoveryState, string>> = {
+    not_started:
+      'No durable OAuth rotation history exists. This does not mean a credential is absent.',
+    ready:
+      'No unresolved OAuth rotation is recorded. This does not prove credential health or connectivity.',
+    rotation_active: 'An OAuth rotation is active in this TwinDesk process.',
+    reauthorization_required:
+      'Durable OAuth state requires reauthorization before User access can resume.',
+    reconciliation_required:
+      'OAuth rotation state is uncertain. Reconcile the Keychain and journal before authorizing again.',
+  }
+  return messages[state]
+}
+
+function feishuOAuthRecoveryContent(): string {
+  if (feishuOAuthRecoveryLoading) {
+    return '<div class="settings-editor" data-feishu-oauth-recovery><div class="settings-editor-heading"><div><h3>OAuth recovery</h3><p>Reading minimized durable recovery state…</p></div><span class="badge neutral">Loading…</span></div></div>'
+  }
+  if (feishuOAuthRecoveryError !== undefined) {
+    return `<div class="settings-editor" data-feishu-oauth-recovery><div class="settings-editor-heading"><div><h3>OAuth recovery</h3><p class="form-message error" role="alert">${escapeHtml(feishuOAuthRecoveryError)}</p></div><button class="secondary-button" type="button" data-feishu-oauth-recovery-retry>Retry status</button></div></div>`
+  }
+  const state = feishuOAuthRecovery?.state
+  if (state === undefined) {
+    return '<div class="settings-editor" data-feishu-oauth-recovery><div class="settings-editor-heading"><div><h3>OAuth recovery</h3><p>Recovery state is unavailable. Authorization remains blocked.</p></div><span class="badge neutral">Unavailable</span></div></div>'
+  }
+  const unresolved =
+    state === 'rotation_active' ||
+    state === 'reauthorization_required' ||
+    state === 'reconciliation_required'
+  const label =
+    state === 'ready'
+      ? 'Settled'
+      : state === 'not_started'
+        ? 'No history'
+        : state === 'rotation_active'
+          ? 'Active'
+          : state === 'reauthorization_required'
+            ? 'Reauthorize'
+            : 'Reconcile'
+  return `<div class="settings-editor" data-feishu-oauth-recovery><div class="settings-editor-heading"><div><h3>OAuth recovery</h3><p${unresolved ? ' class="form-message error" role="alert"' : ''}>${escapeHtml(feishuOAuthRecoveryMessage(state))}</p></div><span class="badge${state === 'ready' ? ' success' : ' neutral'}">${label}</span></div></div>`
+}
+
 function feishuAuthorizationContent(): string {
   if (feishuSettings?.state !== 'ready') {
     return `<div class="settings-editor"><div class="settings-editor-heading"><div><h3>Authorize Feishu User</h3><p>Complete User identity and OAuth settings before starting authorization.</p></div></div></div>`
@@ -265,10 +317,16 @@ function feishuAuthorizationContent(): string {
         ? '<p class="muted">The in-process authorization was cancelled.</p>'
         : '<p class="muted">No authorization attempt is active in this TwinDesk process. This is not a persisted credential check.</p>'
   const retryBlocked =
-    snapshot?.state === 'failed' &&
-    (snapshot.recovery === 'use_reauthorization' ||
-      snapshot.recovery === 'reconcile_keychain' ||
-      snapshot.recovery === 'do_not_retry')
+    feishuOAuthRecoveryLoading ||
+    feishuOAuthRecoveryError !== undefined ||
+    feishuOAuthRecovery === undefined ||
+    feishuOAuthRecovery.state === 'rotation_active' ||
+    feishuOAuthRecovery.state === 'reauthorization_required' ||
+    feishuOAuthRecovery.state === 'reconciliation_required' ||
+    (snapshot?.state === 'failed' &&
+      (snapshot.recovery === 'use_reauthorization' ||
+        snapshot.recovery === 'reconcile_keychain' ||
+        snapshot.recovery === 'do_not_retry'))
   return `<form class="settings-editor" data-feishu-authorization-form>
     <div class="settings-editor-heading"><div><h3>Authorize Feishu User</h3><p>Enter the Feishu app secret to begin one principal-bound OAuth authorization.</p></div></div>
     ${outcome}
@@ -373,6 +431,7 @@ function connectorsContent(): string {
       ? '<p class="muted">Configure a User identity locally before OAuth settings can be edited.</p>'
       : ''
   const authorization = feishuAuthorizationContent()
+  const recovery = feishuOAuthRecoveryContent()
   return `
     <section class="panel">
       <div class="panel-header">
@@ -386,6 +445,7 @@ function connectorsContent(): string {
         </article>
         ${userIdentityEditor}
         ${editor}
+        ${recovery}
         ${authorization}
         <article class="resource-row">
           <span class="resource-icon">J</span>
@@ -599,6 +659,32 @@ async function loadFeishuSettings(): Promise<void> {
   } finally {
     if (request === feishuSettingsRequest) {
       feishuSettingsLoading = false
+      render()
+    }
+  }
+}
+
+async function loadFeishuOAuthRecovery(): Promise<void> {
+  const request = ++feishuOAuthRecoveryRequest
+  feishuOAuthRecoveryLoading = true
+  feishuOAuthRecoveryError = undefined
+  render()
+  try {
+    const response = await fetch('/api/recovery/feishu/oauth', {
+      headers: { accept: 'application/json' },
+    })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseFeishuOAuthRecoverySnapshot(await response.json())
+    if (request !== feishuOAuthRecoveryRequest) return
+    feishuOAuthRecovery = snapshot
+  } catch (error) {
+    if (request !== feishuOAuthRecoveryRequest) return
+    feishuOAuthRecovery = undefined
+    feishuOAuthRecoveryError =
+      error instanceof Error ? error.message : 'The local Feishu OAuth recovery request failed.'
+  } finally {
+    if (request === feishuOAuthRecoveryRequest) {
+      feishuOAuthRecoveryLoading = false
       render()
     }
   }
@@ -832,6 +918,7 @@ function renderRouteAndLoad(): void {
   if (route.id === 'connectors') {
     void loadFeishuSettings()
     void loadFeishuAuthorization()
+    void loadFeishuOAuthRecovery()
   } else if (feishuAuthorizationPoll !== undefined) {
     window.clearTimeout(feishuAuthorizationPoll)
     feishuAuthorizationPoll = undefined
@@ -865,6 +952,9 @@ document.addEventListener('click', (event) => {
   if (target.closest('[data-feishu-settings-retry]') !== null) void loadFeishuSettings()
   if (target.closest('[data-feishu-authorization-retry]') !== null) {
     void loadFeishuAuthorization()
+  }
+  if (target.closest('[data-feishu-oauth-recovery-retry]') !== null) {
+    void loadFeishuOAuthRecovery()
   }
   if (target.closest('[data-feishu-authorization-cancel]') !== null) {
     void cancelFeishuAuthorization()
