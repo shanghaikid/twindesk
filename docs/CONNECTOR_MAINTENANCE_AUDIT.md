@@ -3,10 +3,11 @@
 ## Scope
 
 SQLite Migration 8 introduces a Connector-neutral durability protocol for a
-user-requested credential reconciliation and its business Audit. This is the
-storage prerequisite for Feishu OAuth reconciliation Audit; it does not yet
-invoke the Feishu reconciler, read Keychain, repair a credential, contact a
-remote service, or expose a new browser action.
+user-requested credential reconciliation and its business Audit. The Workbench
+Feishu reconciliation runtime now uses this protocol around its existing local
+Keychain comparison. The storage layer itself does not invoke a Connector,
+read Keychain, repair a credential, contact a remote service, or expose a
+browser action.
 
 ## Durable ordering
 
@@ -29,7 +30,10 @@ If the process stops after step 1, or after the Connector effect but before step
 3, the operation remains explicitly pending. A fresh process can retrieve it
 with `getPendingConnectorMaintenance()` and settle it from current durable
 Connector evidence without repeating the effect. The protocol does not itself
-decide that evidence; Feishu journal composition remains the next task.
+decide that evidence. Workbench maps terminal Feishu journal evidence recorded
+at or after the request to `reconciled`, unresolved crash-visible evidence to
+`still_required`, and missing, older, or incompatible evidence to `failed`
+while holding the Host lease.
 
 ## Audit shape and authority
 
@@ -57,5 +61,8 @@ Synthetic tests cover request/result atomicity, exact replay, competing pending
 operations, identity and settlement conflicts, restart discovery, interrupted
 result Audit repair, terminal immutability, malformed and hostile input,
 payload-free errors, closed handles, schema migration, Thread export/deletion,
-and absence of credential-identifying fields. They perform no Keychain, network,
-or live-account operation.
+and absence of credential-identifying fields. Workbench tests additionally
+cover request-before-Keychain ordering, successful settlement, restart repair,
+zero Keychain reads during repair, historical-terminal rejection, authoritative
+success over late cancellation, shared database lifecycle, default composition,
+and Audit presentation. They perform no network or live-account operation.

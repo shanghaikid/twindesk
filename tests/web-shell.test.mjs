@@ -11,6 +11,7 @@ import {
   TWIN_DESK_ROUTES,
 } from '../packages/web/dist/routes.js'
 import { startTwinDeskWebServer } from '../packages/web/dist/server.js'
+import { openTwinDeskDatabase } from '../packages/storage-sqlite/dist/index.js'
 
 const FEISHU_SETTINGS = Object.freeze({
   version: 1,
@@ -1141,6 +1142,12 @@ test('the Web server rejects non-loopback hosts and invalid ports', async () => 
     /must bind to loopback/u,
   )
   await assert.rejects(startTwinDeskWebServer({ port: 65_536 }), /port must be an integer/u)
+  const database = openTwinDeskDatabase(':memory:')
+  await assert.rejects(
+    startTwinDeskWebServer({ database, databasePath: ':memory:', port: 0 }),
+    /only one business database source/u,
+  )
+  database.close()
 })
 
 test('the Web server rejects hostile Feishu Settings services without invoking accessors', async () => {

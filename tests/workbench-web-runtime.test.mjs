@@ -8,6 +8,7 @@ import {
   openWorkbenchFeishuSettingsStores,
   startWorkbenchWebServer,
 } from '../packages/bundle-workbench/dist/index.js'
+import { openTwinDeskDatabase } from '../packages/storage-sqlite/dist/index.js'
 
 const IDENTITY = Object.freeze({
   kind: 'feishu_identity_configuration',
@@ -175,6 +176,20 @@ test('Workbench hosts default-path Feishu Settings in the product Web shell', as
     ),
     /synthetic-interrupted/u,
   )
+  const pendingOperationId =
+    'connector-maintenance:feishu:credential-reconciliation:web-restart-repair'
+  const beforeReconciliationRestart = openTwinDeskDatabase(databasePath)
+  beforeReconciliationRestart.beginConnectorMaintenance(
+    /** @type {any} */ ({
+      kind: 'connector_maintenance_request',
+      schemaVersion: 1,
+      id: pendingOperationId,
+      connectorId: 'feishu',
+      operation: 'credential_reconciliation',
+      requestedAt: '2026-08-31T08:04:00.000Z',
+    }),
+  )
+  beforeReconciliationRestart.close()
   const reconciliationRestart = await startWorkbenchWebServer({
     ...localPaths,
     databasePath,
@@ -189,9 +204,27 @@ test('Workbench hosts default-path Feishu Settings in the product Web shell', as
       connectorId: 'feishu',
       state: 'reconciliation_required',
     })
+    const audit = await fetch(`${reconciliationRestart.url}/api/audit`, {
+      headers: { connection: 'close' },
+    })
+    assert.equal(audit.status, 200)
+    assert.equal(
+      (await audit.json()).items.some(
+        /** @param {{ summary?: unknown }} item */
+        (item) =>
+          item.summary === 'Local Connector credential reconciliation still requires attention.',
+      ),
+      true,
+    )
   } finally {
     await reconciliationRestart.close()
   }
+  const afterReconciliationRestart = openTwinDeskDatabase(databasePath)
+  assert.equal(
+    afterReconciliationRestart.getConnectorMaintenance(pendingOperationId)?.settlement?.result,
+    'still_required',
+  )
+  afterReconciliationRestart.close()
 })
 
 test('Workbench Web composition rejects unknown and hostile options before local access', async () => {

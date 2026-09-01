@@ -8,6 +8,7 @@ import test from 'node:test'
 import { parseWorkItemUserAction } from '../packages/domain/dist/index.js'
 import {
   createFixtureInboxService,
+  createFixtureInboxServiceFromDatabase,
   FIXTURE_INBOX_STATES,
 } from '../packages/plugin-work-hub/dist/fixture-inbox.js'
 import { openTwinDeskDatabase } from '../packages/storage-sqlite/dist/index.js'
@@ -121,4 +122,14 @@ test('the fixture Inbox closes explicitly and rejects invalid runtime state', ()
   assert.throws(() => service.read(), /service is closed/u)
   assert.throws(() => service.readAudit(), /service is closed/u)
   assert.throws(() => service.readDraftFlow(), /service is closed/u)
+})
+
+test('the fixture Inbox can share a caller-owned database without closing it', () => {
+  const database = openTwinDeskDatabase(':memory:')
+  const service = createFixtureInboxServiceFromDatabase(database, { includeAudit: true })
+  assert.equal(service.read().items.length, 4)
+  service.close()
+  assert.equal(database.isOpen, true)
+  assert.equal(database.queryAuditTimeline({ limit: 10 }).records.length, 4)
+  database.close()
 })

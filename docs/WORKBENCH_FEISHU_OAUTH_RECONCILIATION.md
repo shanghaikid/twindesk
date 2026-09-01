@@ -18,11 +18,13 @@ user clicks Check local credential
   -> require minimized recovery state reconciliation_required
   -> load the exact configured User identity
   -> acquire the exclusive Feishu Host lease
+  -> atomically persist one pending maintenance operation and request Audit
   -> require reserved, uncertain, or reauthorization_reserved journal evidence
   -> resolve and identity-validate the exact connector_oauth Keychain bundle
   -> compare only its obtainedAt with the journal source timestamp
   -> require a strictly newer bundle with unexpired refresh authorization
   -> append completed or reauthorized
+  -> atomically settle the maintenance operation and append its result Audit
   -> reread the minimized durable recovery projection
 ```
 
@@ -40,6 +42,24 @@ validates the complete versioned bundle, configured app and User principal,
 timestamp structure, scopes, and secret bounds, but returns only `obtainedAt`
 plus a non-secret usable-or-expired refresh status.
 All Keychain and parsed token buffers are cleared on every exit.
+
+On startup, Workbench checks for one pending maintenance operation before the
+Web server accepts requests. Under the same Host lease it repairs that operation
+from SQLite plus the secret-free rotation journal only: terminal journal
+evidence recorded at or after the request becomes `reconciled`, while
+crash-visible unresolved evidence becomes `still_required`. Older terminal
+evidence cannot be attributed to a newer request. Repair never reads Keychain
+or repeats reconciliation. Missing, incompatible, or still-active evidence
+fails closed. A known in-process failure or cancellation is settled as `failed`
+or `cancelled`; durable terminal success remains authoritative if cancellation
+arrives during post-effect cleanup. A process interruption leaves the pending
+row for the next startup.
+
+Workbench supplies the same caller-owned `TwinDeskDatabase` handle to the
+reconciliation service and Web Inbox/Audit projection. This keeps the Audit
+visible even when the caller intentionally selects an in-memory database. Web
+closes only its projection; the Workbench server wrapper closes the shared
+database after HTTP shutdown.
 
 ## Product API
 
@@ -66,13 +86,13 @@ token, Keychain path, journal path, or error payload.
 ## Verification and limitations
 
 Synthetic tests cover normal rotation, uncertain rotation, interrupted
-reauthorization, expired-but-newer blocking, same/older evidence,
-identity mismatch, secret cleanup, settled-state rejection, lease ownership,
-missing Settings, hostile options, request forgery, replay gating, minimized
-contracts, and shutdown cancellation. They use no live account, network request,
-or real Keychain item.
+reauthorization, expired-but-newer blocking, same/older evidence, request and
+result Audit ordering, restart repair without Keychain access, identity mismatch,
+historical terminal rejection, late cancellation after durable success, secret
+cleanup, settled-state rejection, lease ownership, missing Settings, hostile
+options, request forgery, replay gating, minimized contracts, shared in-memory
+and file-backed database lifecycle, default Web composition, and shutdown
+cancellation. They use no live account, network request, or real Keychain item.
 
-The action currently appends only the secret-free Connector recovery journal.
-A durable business Audit record for this user maintenance action remains open,
-as do credential repair/removal, revocation, hosted polling, and live-account
-acceptance.
+Credential repair/removal, revocation, hosted polling, and live-account
+acceptance remain open.

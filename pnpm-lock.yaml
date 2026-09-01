@@ -182,6 +182,9 @@ importers:
       '@twindesk/plugin-work-hub':
         specifier: workspace:*
         version: link:../plugin-work-hub
+      '@twindesk/storage-sqlite':
+        specifier: workspace:*
+        version: link:../storage-sqlite
 
 packages:
 

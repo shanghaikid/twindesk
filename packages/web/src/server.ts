@@ -7,9 +7,11 @@ import { fileURLToPath } from 'node:url'
 
 import {
   createFixtureInboxService,
+  createFixtureInboxServiceFromDatabase,
   FIXTURE_INBOX_STATES,
   type FixtureInboxService,
 } from '@twindesk/plugin-work-hub/fixture-inbox'
+import type { TwinDeskDatabase } from '@twindesk/storage-sqlite'
 
 import { resolveTwinDeskRoute } from './routes.ts'
 import {
@@ -75,6 +77,8 @@ export interface TwinDeskWebServerOptions {
   readonly port?: number
   /** Stage 1 business database. Omit to keep fixture data in memory. */
   readonly databasePath?: string
+  /** Caller-owned Stage 1 database. Mutually exclusive with `databasePath`. */
+  readonly database?: TwinDeskDatabase
   /** Presentation-safe Feishu Settings service supplied by the Workbench composition root. */
   readonly feishuSettings?: {
     read(): Promise<unknown>
@@ -1159,6 +1163,9 @@ export async function startTwinDeskWebServer(
   if (!Number.isInteger(port) || port < 0 || port > 65_535) {
     throw new Error('TwinDesk Web port must be an integer from 0 through 65535')
   }
+  if (options.database !== undefined && options.databasePath !== undefined) {
+    throw new Error('TwinDesk Web accepts only one business database source')
+  }
   const feishuSettings = normalizeFeishuSettingsService(options.feishuSettings)
   const feishuAuthorization = normalizeFeishuAuthorizationService(options.feishuAuthorization)
   const feishuOAuthRecovery = normalizeFeishuOAuthRecoveryService(options.feishuOAuthRecovery)
@@ -1167,10 +1174,11 @@ export async function startTwinDeskWebServer(
   )
   const feishuReauthorization = normalizeFeishuReauthorizationService(options.feishuReauthorization)
 
-  const inbox = createFixtureInboxService(options.databasePath, {
-    includeAudit: true,
-    includeDraftFlow: true,
-  })
+  const inboxOptions = { includeAudit: true, includeDraftFlow: true }
+  const inbox =
+    options.database === undefined
+      ? createFixtureInboxService(options.databasePath, inboxOptions)
+      : createFixtureInboxServiceFromDatabase(options.database, inboxOptions)
   const csrfToken = randomBytes(32).toString('base64url')
   const reauthorizationCsrfToken = randomBytes(32).toString('base64url')
   const reconciliationCsrfToken = randomBytes(32).toString('base64url')

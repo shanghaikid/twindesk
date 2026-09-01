@@ -88,6 +88,57 @@ export interface FixtureInboxServiceOptions {
   readonly includeDraftFlow?: boolean
 }
 
+function fixtureInboxService(
+  database: TwinDeskDatabase,
+  options: FixtureInboxServiceOptions,
+  closeDatabase: boolean,
+): FixtureInboxService {
+  try {
+    seed(database, options.includeAudit === true, options.includeDraftFlow === true)
+  } catch (error) {
+    if (closeDatabase) database.close()
+    throw error
+  }
+
+  let closed = false
+  return {
+    read(state) {
+      if (closed) throw new Error('The fixture Inbox service is closed.')
+      if (state !== undefined && !FIXTURE_INBOX_STATES.includes(state)) {
+        throw new TypeError('The Inbox state is not supported.')
+      }
+      const allItems = readFixtureItems(database)
+      const visibleItems =
+        state === undefined ? allItems : allItems.filter((item) => item.inboxState === state)
+      return Object.freeze({
+        version: 1,
+        fixture: true,
+        counts: counts(allItems),
+        items: Object.freeze(visibleItems.map(projectItem)),
+      })
+    },
+    readAudit() {
+      if (closed) throw new Error('The fixture Inbox service is closed.')
+      return Object.freeze({
+        version: 1,
+        fixture: true,
+        items: Object.freeze(
+          database.queryAuditTimeline({ limit: 100 }).records.map(projectAuditRecord),
+        ),
+      })
+    },
+    readDraftFlow() {
+      if (closed) throw new Error('The fixture Inbox service is closed.')
+      return readFixtureStage1Flow(database)
+    },
+    close() {
+      if (closed) return
+      closed = true
+      if (closeDatabase) database.close()
+    },
+  }
+}
+
 interface FixtureDefinition {
   readonly suffix: string
   readonly timestamp: string
@@ -324,48 +375,16 @@ export function createFixtureInboxService(
   options: FixtureInboxServiceOptions = {},
 ): FixtureInboxService {
   const database = openTwinDeskDatabase(databasePath)
-  try {
-    seed(database, options.includeAudit === true, options.includeDraftFlow === true)
-  } catch (error) {
-    database.close()
-    throw error
-  }
+  return fixtureInboxService(database, options, true)
+}
 
-  let closed = false
-  return {
-    read(state) {
-      if (closed) throw new Error('The fixture Inbox service is closed.')
-      if (state !== undefined && !FIXTURE_INBOX_STATES.includes(state)) {
-        throw new TypeError('The Inbox state is not supported.')
-      }
-      const allItems = readFixtureItems(database)
-      const visibleItems =
-        state === undefined ? allItems : allItems.filter((item) => item.inboxState === state)
-      return Object.freeze({
-        version: 1,
-        fixture: true,
-        counts: counts(allItems),
-        items: Object.freeze(visibleItems.map(projectItem)),
-      })
-    },
-    readAudit() {
-      if (closed) throw new Error('The fixture Inbox service is closed.')
-      return Object.freeze({
-        version: 1,
-        fixture: true,
-        items: Object.freeze(
-          database.queryAuditTimeline({ limit: 100 }).records.map(projectAuditRecord),
-        ),
-      })
-    },
-    readDraftFlow() {
-      if (closed) throw new Error('The fixture Inbox service is closed.')
-      return readFixtureStage1Flow(database)
-    },
-    close() {
-      if (closed) return
-      closed = true
-      database.close()
-    },
-  }
+/**
+ * Seed and project fixture data through a caller-owned database. Closing the
+ * returned service never closes that shared database.
+ */
+export function createFixtureInboxServiceFromDatabase(
+  database: TwinDeskDatabase,
+  options: FixtureInboxServiceOptions = {},
+): FixtureInboxService {
+  return fixtureInboxService(database, options, false)
 }

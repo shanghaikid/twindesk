@@ -3,6 +3,7 @@ import {
   type RunningTwinDeskWebServer,
   type TwinDeskWebServerOptions,
 } from '@twindesk/web'
+import { openTwinDeskDatabase } from '@twindesk/storage-sqlite'
 
 import {
   openWorkbenchFeishuSettingsStores,
@@ -91,58 +92,76 @@ export async function startWorkbenchWebServer(
   const feishuOAuthRecovery = createWorkbenchFeishuOAuthRecoveryPresentation({
     rotationJournal: stores.rotationJournal,
   })
-  const feishuOAuthReconciliation = createWorkbenchFeishuOAuthReconciliationService({
-    identityStore: stores.identityStore,
-    journal: stores.rotationJournal,
-  })
-  const feishuReauthorization = createDefaultWorkbenchFeishuOAuthReauthorizationController({
-    identityStore: stores.identityStore,
-    authorizationStore: stores.authorizationStore,
-    journal: stores.rotationJournal,
-  })
-  let pendingSettingsUpdate: Promise<void> = Promise.resolve()
-  return startTwinDeskWebServer({
-    ...(options.host === undefined ? {} : { host: options.host }),
-    ...(options.port === undefined ? {} : { port: options.port }),
-    ...(options.databasePath === undefined ? {} : { databasePath: options.databasePath }),
-    feishuSettings: {
-      read: feishuSettings.read,
-      async updateOAuth(value: unknown) {
-        const operation = pendingSettingsUpdate.then(async () => {
-          await feishuOAuthSettingsEditor.update(value)
-          return feishuSettings.read()
-        })
-        pendingSettingsUpdate = operation.then(
-          () => undefined,
-          () => undefined,
-        )
-        return operation
+  const maintenanceDatabase = openTwinDeskDatabase(options.databasePath ?? ':memory:')
+  try {
+    const feishuOAuthReconciliation = createWorkbenchFeishuOAuthReconciliationService({
+      identityStore: stores.identityStore,
+      journal: stores.rotationJournal,
+      database: maintenanceDatabase,
+    })
+    const feishuReauthorization = createDefaultWorkbenchFeishuOAuthReauthorizationController({
+      identityStore: stores.identityStore,
+      authorizationStore: stores.authorizationStore,
+      journal: stores.rotationJournal,
+    })
+    await feishuOAuthReconciliation.recoverPending(new AbortController().signal)
+    let pendingSettingsUpdate: Promise<void> = Promise.resolve()
+    const running = await startTwinDeskWebServer({
+      ...(options.host === undefined ? {} : { host: options.host }),
+      ...(options.port === undefined ? {} : { port: options.port }),
+      database: maintenanceDatabase,
+      feishuSettings: {
+        read: feishuSettings.read,
+        async updateOAuth(value: unknown) {
+          const operation = pendingSettingsUpdate.then(async () => {
+            await feishuOAuthSettingsEditor.update(value)
+            return feishuSettings.read()
+          })
+          pendingSettingsUpdate = operation.then(
+            () => undefined,
+            () => undefined,
+          )
+          return operation
+        },
+        async createUserIdentity(value: unknown) {
+          const operation = pendingSettingsUpdate.then(async () => {
+            await feishuUserIdentityBootstrapper.create(value)
+            return feishuSettings.read()
+          })
+          pendingSettingsUpdate = operation.then(
+            () => undefined,
+            () => undefined,
+          )
+          return operation
+        },
       },
-      async createUserIdentity(value: unknown) {
-        const operation = pendingSettingsUpdate.then(async () => {
-          await feishuUserIdentityBootstrapper.create(value)
-          return feishuSettings.read()
-        })
-        pendingSettingsUpdate = operation.then(
-          () => undefined,
-          () => undefined,
-        )
-        return operation
+      feishuAuthorization: {
+        read: feishuAuthorization.read,
+        start: feishuAuthorization.start,
+        cancel: feishuAuthorization.cancel,
       },
-    },
-    feishuAuthorization: {
-      read: feishuAuthorization.read,
-      start: feishuAuthorization.start,
-      cancel: feishuAuthorization.cancel,
-    },
-    feishuOAuthRecovery: { read: feishuOAuthRecovery.read },
-    feishuOAuthReconciliation: {
-      reconcile: feishuOAuthReconciliation.reconcile,
-    },
-    feishuReauthorization: {
-      read: feishuReauthorization.read,
-      start: feishuReauthorization.start,
-      cancel: feishuReauthorization.cancel,
-    },
-  })
+      feishuOAuthRecovery: { read: feishuOAuthRecovery.read },
+      feishuOAuthReconciliation: {
+        reconcile: feishuOAuthReconciliation.reconcile,
+      },
+      feishuReauthorization: {
+        read: feishuReauthorization.read,
+        start: feishuReauthorization.start,
+        cancel: feishuReauthorization.cancel,
+      },
+    })
+    let closing: Promise<void> | undefined
+    return Object.freeze({
+      host: running.host,
+      port: running.port,
+      url: running.url,
+      close() {
+        closing ??= running.close().finally(() => maintenanceDatabase.close())
+        return closing
+      },
+    })
+  } catch (error) {
+    maintenanceDatabase.close()
+    throw error
+  }
 }

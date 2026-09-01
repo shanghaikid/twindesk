@@ -75,7 +75,6 @@ The Connectors page now uses the separate action documented in
 
 Still open:
 
-- durable business Audit evidence for explicit reconciliation;
 - credential health, scope, disconnect, revocation, and deletion flows;
 - Cordis lifecycle activation and live-account acceptance.
 

@@ -17,6 +17,7 @@
     "dist"
   ],
   "dependencies": {
-    "@twindesk/plugin-work-hub": "workspace:*"
+    "@twindesk/plugin-work-hub": "workspace:*",
+    "@twindesk/storage-sqlite": "workspace:*"
   }
 }
