@@ -37,6 +37,8 @@ UI responsibility—calling the redactor alone does not authorize disclosure.
 An Audit record spanning another Thread makes export fail closed instead of
 leaking the other Thread. New Audit writes are also rejected when their Work
 Item references span multiple Threads.
+Connector-only maintenance Audit records have no implicit Thread ownership, so
+they are neither exported with nor deleted alongside an unrelated Thread.
 
 ## Revision-Bound Deletion
 
@@ -73,6 +75,7 @@ Harness identifier.
 | ExternalEvent used only by the selected Thread | Deleted |
 | ExternalEvent still referenced by another Thread or Work Item | Retained |
 | Account/stream Connector cursor | Retained as a synchronization checkpoint |
+| Connector-only maintenance Audit | Retained unless an explicit future Connector retention action removes it |
 | TwinDesk Audit records owned by the Thread | Deleted |
 | Opaque Session, Run, and Tool-call links in TwinDesk | Deleted with their owning records |
 | Harness Session data | Separate store; not modified or claimed deleted |

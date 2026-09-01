@@ -645,6 +645,32 @@ BEGIN
 END;
 `
 
+const CONNECTOR_AUDIT_REFERENCES_SQL = `
+CREATE TABLE audit_reference_kind_migration_guard (
+  reference_kind TEXT NOT NULL CHECK (reference_kind IN (
+    'connector', 'external_event', 'external_thread', 'work_item', 'session', 'run',
+    'tool_call', 'draft', 'action_proposal', 'approval_record', 'action_receipt',
+    'connector_cursor'
+  ))
+) STRICT;
+
+INSERT INTO audit_reference_kind_migration_guard (reference_kind)
+SELECT DISTINCT reference_kind FROM audit_references;
+
+DROP TABLE audit_reference_kind_migration_guard;
+
+CREATE TRIGGER audit_references_valid_kind
+BEFORE INSERT ON audit_references
+WHEN NEW.reference_kind NOT IN (
+  'connector', 'external_event', 'external_thread', 'work_item', 'session', 'run',
+  'tool_call', 'draft', 'action_proposal', 'approval_record', 'action_receipt',
+  'connector_cursor'
+)
+BEGIN
+  SELECT RAISE(ABORT, 'Audit reference kind is unsupported');
+END;
+`
+
 export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
   Object.freeze({
     version: 1,
@@ -675,6 +701,11 @@ export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
     version: 6,
     name: 'action_dispatch_journal',
     sql: ACTION_DISPATCH_JOURNAL_SQL,
+  }),
+  Object.freeze({
+    version: 7,
+    name: 'connector_audit_references',
+    sql: CONNECTOR_AUDIT_REFERENCES_SQL,
   }),
 ])
 

@@ -3,6 +3,7 @@ export type AuditCategory =
 export type AuditOutcome = 'pending' | 'success' | 'failure' | 'cancelled' | 'uncertain'
 export type AuditActorType = 'user' | 'system' | 'persona' | 'connector'
 export type AuditReferenceKind =
+  | 'connector'
   | 'external_event'
   | 'external_thread'
   | 'work_item'
@@ -45,6 +46,7 @@ const CATEGORIES = Object.freeze([
 const OUTCOMES = Object.freeze(['pending', 'success', 'failure', 'cancelled', 'uncertain'] as const)
 const ACTOR_TYPES = Object.freeze(['user', 'system', 'persona', 'connector'] as const)
 const REFERENCE_KINDS = Object.freeze([
+  'connector',
   'external_event',
   'external_thread',
   'work_item',

@@ -203,6 +203,29 @@ test('audit records append idempotently and query by Work Item across restart', 
   restarted.close()
 })
 
+test('connector-scoped audit records persist without a local entity row', async (context) => {
+  const path = await temporaryDatabase(context)
+  const record = audit('audit-connector-recovery-1', '2026-08-26T09:16:00Z', {
+    category: 'system',
+    actor: { type: 'connector', id: 'feishu' },
+    summary: 'Synthetic connector recovery check completed.',
+    references: [{ kind: 'connector', id: 'feishu' }],
+    details: { operation: 'oauth_reconciliation', result: 'still_blocked' },
+  })
+  const database = openTwinDeskDatabase(path)
+  assert.equal(database.appendAuditRecords([record]).insertedCount, 1)
+  assert.equal(
+    database.queryAuditTimeline({ reference: { kind: 'connector', id: 'feishu' } }).records[0]?.id,
+    record.id,
+  )
+  database.close()
+
+  const restarted = openTwinDeskDatabase(path)
+  assert.deepEqual(restarted.getAuditRecord(record.id), record)
+  assert.equal(restarted.appendAuditRecords([record]).duplicateCount, 1)
+  restarted.close()
+})
+
 test('audit references fail closed on conflicts, missing links, mismatches, and chronology', async (context) => {
   const path = await temporaryDatabase(context)
   const database = openTwinDeskDatabase(path)
@@ -222,6 +245,17 @@ test('audit references fail closed on conflicts, missing links, mismatches, and 
         .prepare('UPDATE audit_references SET reference_id = ? WHERE audit_record_id = ?')
         .run('mutated-reference', routing.id),
     /Audit references are immutable/u,
+  )
+  assert.throws(
+    () =>
+      raw
+        .prepare(
+          `INSERT INTO audit_references (
+             audit_record_id, ordinal, reference_kind, reference_id
+           ) VALUES (?, 2, 'unsupported', 'synthetic-reference')`,
+        )
+        .run(routing.id),
+    /Audit reference kind is unsupported/u,
   )
   raw.close()
   assert.throws(

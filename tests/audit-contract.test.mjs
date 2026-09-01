@@ -19,6 +19,19 @@ test('the browser accepts the versioned presentation-safe Audit response', () =>
   }
 })
 
+test('the browser accepts connector-scoped Audit references', () => {
+  const service = createFixtureInboxService(':memory:', { includeAudit: true })
+  try {
+    const snapshot = copy(service.readAudit())
+    const item = snapshot.items[0]
+    assert.ok(item)
+    item.referenceKinds = ['connector']
+    assert.deepEqual(parseAuditSnapshot(snapshot).items[0]?.referenceKinds, ['connector'])
+  } finally {
+    service.close()
+  }
+})
+
 test('the browser rejects malformed Audit responses without echoing data', () => {
   const service = createFixtureInboxService(':memory:', { includeAudit: true })
   const valid = copy(service.readAudit())

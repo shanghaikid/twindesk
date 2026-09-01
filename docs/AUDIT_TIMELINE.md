@@ -15,6 +15,7 @@ Thread deletion may remove them transactionally.
 
 References can link a record to:
 
+- a stable Connector identity for global maintenance and recovery history;
 - ExternalEvent, ExternalThread, WorkItem, and ConnectorCursor;
 - Draft, ActionProposal, ApprovalRecord, and ActionReceipt;
 - Harness Session, Run, and Tool-call identities.
@@ -24,6 +25,10 @@ needed to associate a business decision with runtime evidence. It does not
 copy Harness messages, prompts, model output, Tool arguments, Tool results, or
 Session events into the business database. A runtime reference must include a
 WorkItem; a Run must also include a Session, and a Tool call must include a Run.
+A Connector reference is an intrinsic typed identity rather than a foreign key
+to a local entity table. It does not by itself associate the record with a
+Thread; Thread export and deletion include only Audit records connected through
+Thread-owned references.
 
 ## Append and reference rules
 
@@ -39,6 +44,9 @@ before writing and uses one `BEGIN IMMEDIATE` transaction for the batch.
   unprojected Events or Threads cannot be presented as linked to one.
 - An interrupted reference insert rolls back its Audit record and the rest of
   the batch.
+- SQLite schema Migration 7 admits only the documented reference kinds and
+  prevents older builds from opening a database that may contain Connector
+  references they cannot parse.
 
 Approval and receipt references are supported when those records exist, but
 TD-109 does not itself implement approval decisions or Connector execution.
@@ -102,6 +110,8 @@ The domain, storage, fixture, browser-contract, and Web server tests cover:
 - idempotent replay, conflicts, restart recovery, filtering, and pagination;
 - missing, cross-WorkItem, incomplete runtime, and impossible-time references;
 - Draft, ActionProposal, ApprovalRecord, and ActionReceipt resolution;
+- Connector-only persistence, restart replay, exact-reference queries, and
+  exclusion from unrelated Thread export and deletion;
 - transaction rollback under an interrupted reference write;
 - immutable records and references, closed handles, and payload-free errors;
 - presentation omission, malformed API responses, HEAD behavior, method

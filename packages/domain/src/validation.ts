@@ -709,6 +709,7 @@ export function parseAuditRecord(value: unknown): AuditRecord {
     const kind = enumAt(
       reference.kind,
       [
+        'connector',
         'external_event',
         'external_thread',
         'work_item',

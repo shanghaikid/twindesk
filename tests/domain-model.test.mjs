@@ -364,6 +364,14 @@ test('approval records fail closed around decisions and one-time consumption', (
 
 test('audit validation requires attributable actors and does not echo rejected values', () => {
   const fixture = records[7]
+  const connectorAudit = parseAuditRecord({
+    ...copy(fixture),
+    id: 'audit-connector-maintenance-1',
+    category: 'system',
+    actor: { type: 'connector', id: 'feishu' },
+    references: [{ kind: 'connector', id: 'feishu' }],
+  })
+  assert.deepEqual(connectorAudit.references, [{ kind: 'connector', id: 'feishu' }])
   assert.throws(
     () => parseAuditRecord({ ...copy(fixture), actor: { type: 'connector' } }),
     /actor\.id is required when actor type is connector/u,

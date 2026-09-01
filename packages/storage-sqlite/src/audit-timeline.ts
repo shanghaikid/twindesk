@@ -113,6 +113,7 @@ const AUDIT_OUTCOMES = Object.freeze([
   'uncertain',
 ] as const)
 const AUDIT_REFERENCE_KINDS = Object.freeze([
+  'connector',
   'external_event',
   'external_thread',
   'work_item',
@@ -293,6 +294,8 @@ function resolveLocalReference(
   reference: AuditReference,
 ): ResolvedReference | undefined {
   switch (reference.kind) {
+    case 'connector':
+      return undefined
     case 'external_event':
       return resolutionFromRows(
         relatedRows(

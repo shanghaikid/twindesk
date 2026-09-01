@@ -119,6 +119,7 @@ test('a new database receives the isolated TwinDesk schema and durable settings'
       { version: 4, name: 'local_audit_timeline' },
       { version: 5, name: 'thread_deletion_receipts' },
       { version: 6, name: 'action_dispatch_journal' },
+      { version: 7, name: 'connector_audit_references' },
     ],
   )
   for (const { checksum, applied_at: appliedAt } of migrations) {
@@ -385,6 +386,69 @@ test('migration history tampering is detected before the database is used', asyn
       assert.equal(error.code, 'migration_history_mismatch')
       return true
     },
+  )
+})
+
+test('the Connector Audit migration rejects unknown pre-existing reference kinds', async (context) => {
+  const path = await temporaryDatabase(context)
+  const legacy = new DatabaseSync(path, { enableForeignKeyConstraints: true })
+  const legacyMigrations = SQLITE_MIGRATIONS.slice(0, -1)
+  for (const migration of legacyMigrations) {
+    legacy.exec('BEGIN IMMEDIATE')
+    legacy.exec(migration.sql)
+    legacy
+      .prepare(
+        `INSERT INTO twindesk_schema_migrations (version, name, checksum, applied_at)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .run(
+        migration.version,
+        migration.name,
+        createHash('sha256').update(migration.sql, 'utf8').digest('hex'),
+        '2026-08-26T08:00:00Z',
+      )
+    legacy.exec(`PRAGMA application_id = ${TWIN_DESK_SQLITE_APPLICATION_ID}`)
+    legacy.exec(`PRAGMA user_version = ${migration.version}`)
+    legacy.exec('COMMIT')
+  }
+  legacy.exec(`
+    INSERT INTO audit_records (
+      kind, schema_version, id, category, outcome, actor_type, summary,
+      details_json, occurred_at
+    ) VALUES (
+      'audit_record', 1, 'legacy-unknown-reference-audit', 'system', 'success',
+      'system', 'Synthetic legacy Audit record.', '{}', '2026-08-26T08:01:00Z'
+    );
+    INSERT INTO audit_references (
+      audit_record_id, ordinal, reference_kind, reference_id
+    ) VALUES (
+      'legacy-unknown-reference-audit', 0, 'newer-build-reference', 'synthetic-reference'
+    );
+  `)
+  legacy.close()
+
+  assert.throws(
+    () => openTwinDeskDatabase(path),
+    (error) => {
+      assert.ok(error instanceof StorageSchemaError)
+      assert.equal(error.code, 'migration_failed')
+      assert.equal(error.currentVersion, 6)
+      assert.equal(error.targetVersion, 7)
+      return true
+    },
+  )
+
+  const inspection = new DatabaseSync(path, { readOnly: true })
+  context.after(() => inspection.close())
+  assert.equal(readNumberPragma(inspection, 'user_version'), 6)
+  assert.equal(
+    inspection
+      .prepare(
+        `SELECT count(*) AS count FROM sqlite_schema
+         WHERE name IN ('audit_reference_kind_migration_guard', 'audit_references_valid_kind')`,
+      )
+      .get()?.count,
+    0,
   )
 })
 

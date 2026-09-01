@@ -112,6 +112,15 @@ resurrection and makes deletion retries durable without retaining the raw
 Thread ID or business content. See
 [Thread Export and Deletion](THREAD_EXPORT_AND_DELETION.md).
 
+Migration 6 adds the immutable action-dispatch journal used to prove whether an
+approved external write crossed its durable send boundary.
+
+Migration 7 marks support for intrinsic Connector Audit references and rejects
+unsupported reference kinds before insert. Its migration guard also refuses to
+upgrade a database containing an unknown pre-existing kind, so corruption or a
+newer shape cannot be silently reinterpreted. Advancing `user_version` makes an
+older build reject a database after Connector-scoped Audit has become writable.
+
 ## Privacy and Retention Review
 
 The schema contains no token, API key, cookie, private-key, or credential

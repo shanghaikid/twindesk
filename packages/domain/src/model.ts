@@ -221,6 +221,7 @@ export interface AuditActor {
 }
 
 export type AuditReferenceKind =
+  | 'connector'
   | 'external_event'
   | 'external_thread'
   | 'work_item'
