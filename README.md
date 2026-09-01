@@ -77,7 +77,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Workbench Feishu User Identity Bootstrap](docs/WORKBENCH_FEISHU_USER_IDENTITY_BOOTSTRAP.md): create-only User metadata and generated Keychain-reference setup without accepting a credential.
 - [Feishu OAuth Verified Initial Persistence](docs/FEISHU_OAUTH_INITIAL_PERSISTENCE.md): verified User token snapshot, exact initial Keychain replacement, and uncertain-write recovery.
 - [Feishu OAuth Reauthorization Replacement](docs/FEISHU_OAUTH_REAUTHORIZATION.md): explicit blocked-state replacement, journal migration, and restart reconciliation.
-- [Workbench Feishu OAuth Reauthorization Runtime](docs/WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_RUNTIME.md): lease-held composition for already-exchanged blocked-state replacement evidence.
+- [Workbench Feishu OAuth Reauthorization Runtime](docs/WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_RUNTIME.md): lease-held blocked-state callback, exchange, verified replacement, and restart-loaded production composition.
 - [Feishu Operation Scope Authorization](docs/FEISHU_OPERATION_SCOPE_AUTHORIZATION.md): fixed Bot/User operation policies and fresh fail-closed scope evidence.
 - [Feishu User Credential Scope Probe](docs/FEISHU_USER_CREDENTIAL_SCOPE_PROBE.md): exact Keychain OAuth scope observation, refresh gating, and transient-secret cleanup.
 - [Feishu Bot Tenant Token Acquisition](docs/FEISHU_BOT_TENANT_TOKEN_ACQUISITION.md): fixed-endpoint bounded token acquisition, callback-scoped cleanup, and the separate scope-observation boundary.
@@ -184,8 +184,13 @@ reauthorization-required, and reconciliation-required states without exposing
 journal sequence or timestamps. Unavailable or unresolved recovery state
 blocks another initial authorization attempt; no recovery action is exposed
 yet. The
-Workbench reauthorization host also holds the exclusive kernel-backed lease
-across an already-exchanged blocked-state replacement. Fixed operation-level
+Workbench reauthorization runtime now holds the exclusive kernel-backed lease
+from blocked-state inspection through registered-loopback callback, code
+exchange, principal verification, Keychain replacement, and journal settlement.
+It can reconstruct production collaborators from restart-safe Settings and an
+explicit concrete journal; the product composition root still owns selection
+of the default path. No product reauthorization button or API is exposed yet.
+Fixed operation-level
 scope authorization for reply and User discovery now passes synthetic
 contracts, and the User gate reads exact current Keychain token claims. A fixed-endpoint bounded Bot
 tenant-token client and its exact Keychain-to-token scope probe now pass

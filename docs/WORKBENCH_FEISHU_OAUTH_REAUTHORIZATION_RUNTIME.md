@@ -2,10 +2,12 @@
 
 ## Status
 
-TwinDesk now has a Workbench composition boundary for replacing a User OAuth
+TwinDesk has two Workbench composition boundaries for replacing a User OAuth
 credential after the durable rotation journal enters
-`reauthorization_required`. This is synthetic runtime evidence, not a hosted
-authorization callback or live-account guarantee.
+`reauthorization_required`. The original boundary accepts already-exchanged
+evidence. The hosted boundary now owns the authorization callback and exchange
+under the same lease. This is synthetic runtime evidence, not a product UI or
+live-account guarantee.
 
 ## Boundary
 
@@ -33,6 +35,47 @@ secret and token copies. `replace()` does not mutate the caller-owned input
 buffers; the authorization/exchange caller remains responsible for keeping
 their lifetime callback-scoped and clearing them on every exit.
 
+## Hosted authorization boundary
+
+`createWorkbenchFeishuOAuthHostedReauthorizationHost()` accepts the exact
+identity and registered authorization configuration, concrete authorization
+flow and verified persister, a concrete rotation journal, a literal loopback
+callback Host, and the Feishu lease manager. The journal is caller-supplied;
+the Workbench composition root remains responsible for selecting its default
+path. The runtime constructs the
+coordinator from the same persister and journal, preventing preflight and
+replacement from accidentally using different recovery files.
+
+One `reauthorize()` call holds the lease across this complete ordering:
+
+```text
+inspect exact reauthorization_required journal state
+  -> bind the exact registered loopback listener
+  -> start one state-bound S256 PKCE transaction
+  -> present only authorizationUrl and redirectUri
+  -> capture one matching callback
+  -> recheck the blocked journal while the lease is held
+  -> exchange the single-use code
+  -> verify the configured application-scoped User principal
+  -> replace the exact Keychain item
+  -> fsync reauthorized journal evidence
+  -> close the listener and release the lease
+```
+
+No browser or token exchange occurs when the journal is not blocked. A
+`reserved` or `uncertain` state routes to rotation reconciliation instead of
+being overwritten by reauthorization. Callback/configuration mismatch closes
+the listener without exchange or persistence.
+
+`loadWorkbenchFeishuOAuthHostedReauthorizationHost()` reads fresh identity and
+authorization Settings and binds the registered literal-loopback callback.
+`loadDefaultWorkbenchFeishuOAuthHostedReauthorizationHost()` additionally
+constructs the production bounded token transport, minimized User-info client,
+principal verifier, and system-Keychain replacer around the supplied concrete
+journal. Construction performs no
+network or Keychain access; those effects remain inside an explicit
+`reauthorize()` call.
+
 ## Failure and Recovery
 
 The boundary preserves the coordinator's payload-free recovery classes:
@@ -54,21 +97,22 @@ post-completion cancellation check that could invite unsafe repetition.
 
 ## Verification and Remaining Work
 
-Synthetic tests compose the real reauthorization coordinator, principal
+Synthetic tests compose the real authorization flow, callback Host,
+reauthorization coordinator, principal
 verifier, Keychain replacement primitive, rotation journal, and an observable
-injected lease manager. They prove that ownership stays held during verification
-and Keychain replacement, releases afterward, internal secret buffers are
-cleared, post-start cancellation retains uncertain Keychain recovery,
-pre-acquisition cancellation reaches no coordinator, and hostile or User-less
+injected lease manager. They prove that ownership stays held from blocked-state
+inspection through callback, exchange, verification, replacement, and journal
+settlement; non-pending state opens no listener or exchange; restart-loaded
+Settings reconstruct the exact Host; transient buffers are cleared; post-start
+cancellation retains uncertain Keychain recovery; and hostile or User-less
 composition fails without invoking accessors. The separate runtime-lease suite
 proves the production manager's real cross-process exclusion and crash release.
 
 Still open:
 
-- hosted authorization-start and literal-loopback redirect lifecycle;
-- UI state for reauthorization and the two reconciliation-required outcomes;
-- production construction of the exchange, verifier, persister, and recovery
-  host from Settings plus the now-default recovery journal;
+- the product controller, CSRF-bound local API, explicit browser action, status
+  polling, and cancellation for hosted reauthorization;
+- product actions for the two reconciliation-required outcomes;
 - live Keychain and Feishu acceptance; and
 - model-backed Draft editing and exact approval UI.
 

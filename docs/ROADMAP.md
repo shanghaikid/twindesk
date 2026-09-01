@@ -102,6 +102,11 @@ evidence after restart without placing it in Settings. An identifier-free
 read-only projection now surfaces whether that journal is settled, active, or
 requires reauthorization/reconciliation and blocks unsafe initial-authorization
 retries; it does not inspect credential health or expose recovery actions.
+The blocked-state runtime can now reconstruct the registered callback and
+production adapters from restart-safe Settings, then hold one lease through
+code exchange, verified Keychain replacement, and journal settlement. It is not
+yet wired to the default-path composition or exposed through a product
+controller or local API.
 Cordis activation, existing-identity replacement, Bot identity creation,
 recovery actions, live authorization
 acceptance, reauthorization and credential-recovery UI, interactive Draft and

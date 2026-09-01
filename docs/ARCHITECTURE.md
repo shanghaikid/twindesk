@@ -269,10 +269,13 @@ client now composes the held lease, exact scope probes, Keychain, token, and HTT
 boundaries under injected tests. The Workbench composition root now wires the
 durable Host operation to the real lease, User rotation coordinator, and
 production reply adapter, while injecting only synthetic Keychain and Fetch
-boundaries for its full-stack test. A separate Workbench reauthorization host
-now holds that same lease while the existing coordinator verifies and persists
-already-exchanged replacement evidence; it neither hosts the redirect nor
-retries a reply. The Workbench also owns fixed private macOS product paths for
+boundaries for its full-stack test. A separate Workbench reauthorization
+runtime now holds that same lease from blocked journal inspection through the
+registered-loopback callback, code exchange, verified Keychain replacement,
+and journal settlement. A restart-loaded factory composes the bounded
+production HTTP, verifier, Keychain, Settings, and supplied-journal boundaries;
+it neither retries a reply nor exposes a product action yet. The Workbench also
+owns fixed private macOS product paths for
 the Connector-owned identity and OAuth authorization Settings stores plus the
 separate secret-free OAuth rotation journal. It does not place credentials,
 Harness Sessions, or TwinDesk business tables in those files. A Workbench
