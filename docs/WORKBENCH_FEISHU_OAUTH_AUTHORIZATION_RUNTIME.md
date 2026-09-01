@@ -102,6 +102,6 @@ identity and hostile accessor input also fail without invoking runtime access.
 Still open:
 
 - recovery UI plus browser launching;
-- Settings editing and default product path selection;
+- Settings editing and browser presentation;
 - Cordis lifecycle activation and hosted polling coexistence;
 - live-account authorization and Keychain acceptance.

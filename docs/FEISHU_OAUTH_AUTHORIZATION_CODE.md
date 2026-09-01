@@ -110,7 +110,7 @@ The exclusive Host lease also passes cross-process tests, and the bounded
 loopback listener passes real ephemeral-port lifecycle tests. The Workbench
 initial-authorization host now composes the listener through verified
 persistence under that lease, including restart loading from the identity and
-authorization stores. Browser/UI lifecycle, Settings editing and default paths,
+authorization stores. Browser/UI lifecycle and Settings editing,
 operation clients, and live-account acceptance remain open. The strict runtime
 configuration now binds the exact app, scopes, and
 registered literal-loopback redirect. See

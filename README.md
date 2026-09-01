@@ -69,6 +69,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Feishu OAuth Authorization Configuration](docs/FEISHU_OAUTH_AUTHORIZATION_CONFIGURATION.md): versioned app-bound scopes and exact registered literal-loopback redirect settings.
 - [Feishu OAuth Loopback Callback Host](docs/FEISHU_OAUTH_LOOPBACK_CALLBACK_HOST.md): bounded one-shot literal-loopback redirect capture and lifecycle cleanup.
 - [Workbench Feishu OAuth Authorization Runtime](docs/WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_RUNTIME.md): lease-held initial authorization from loopback capture through verified Keychain persistence.
+- [Workbench Local Data Paths](docs/WORKBENCH_LOCAL_DATA_PATHS.md): private macOS product Settings root and restart-safe Feishu store construction.
 - [Feishu OAuth Verified Initial Persistence](docs/FEISHU_OAUTH_INITIAL_PERSISTENCE.md): verified User token snapshot, exact initial Keychain replacement, and uncertain-write recovery.
 - [Feishu OAuth Reauthorization Replacement](docs/FEISHU_OAUTH_REAUTHORIZATION.md): explicit blocked-state replacement, journal migration, and restart reconciliation.
 - [Workbench Feishu OAuth Reauthorization Runtime](docs/WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_RUNTIME.md): lease-held composition for already-exchanged blocked-state replacement evidence.
@@ -91,6 +92,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Inbox Extension Spike](docs/INBOX_EXTENSION_SPIKE.md): out-of-tree route and sidebar findings, limitations, and compatibility seams.
 - [ADR 0001](docs/decisions/0001-upstream-generic-inbox-extension-points.md): historical Harness Client investigation and upstream path.
 - [ADR 0002](docs/decisions/0002-twindesk-owned-product-web-shell.md): accepted standalone product UI boundary.
+- [ADR 0003](docs/decisions/0003-macos-local-data-root.md): accepted private macOS product-data root.
 
 ## Current Status
 
@@ -153,7 +155,8 @@ configured `open_id` through a fixed-endpoint, bounded production Fetch client.
 Authorization-code/PKCE exchange, verified initial Keychain persistence, and an
 explicit reauthorization replacement path now pass synthetic contracts. The
 Workbench can also rebuild the exact registered-loopback authorization Host
-from restart-safe identity and authorization Settings stores. The
+from restart-safe identity and authorization Settings stores. Those stores now
+have a private macOS product path outside the checkout. The
 Workbench reauthorization host also holds the exclusive kernel-backed lease
 across an already-exchanged blocked-state replacement. Fixed operation-level
 scope authorization for reply and User discovery now passes synthetic

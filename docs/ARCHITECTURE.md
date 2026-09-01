@@ -272,7 +272,11 @@ production reply adapter, while injecting only synthetic Keychain and Fetch
 boundaries for its full-stack test. A separate Workbench reauthorization host
 now holds that same lease while the existing coordinator verifies and persists
 already-exchanged replacement evidence; it neither hosts the redirect nor
-retries a reply. The Stage 2 exit remains open until the
+retries a reply. The Workbench also owns the fixed private macOS product path
+for the Connector-owned identity and OAuth authorization Settings stores; it
+does not place credentials, Harness Sessions, or TwinDesk business tables in
+those files. See [ADR 0003](decisions/0003-macos-local-data-root.md). The Stage 2
+exit remains open until the
 production runtime hosts ingestion, polling, and credential-recovery
 lifecycles, and passes product editing/approval UI, model-run linkage, and
 live-account acceptance boundaries. See

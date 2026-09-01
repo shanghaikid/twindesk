@@ -63,7 +63,8 @@ secret deletion.
 
 ## Current Limitations
 
-- No default configuration path or Connectors UI is wired yet.
+- The Workbench now selects the private macOS product configuration path;
+  Connectors UI editing and other platform paths remain open.
 - A macOS system-Keychain reader now resolves validated Bot/User references
   into callback-scoped byte buffers and zeroes them afterward. A versioned
   parser now binds Bot application and User OAuth bundles to the exact identity
