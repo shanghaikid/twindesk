@@ -73,11 +73,13 @@ The Workbench initial-authorization host now composes literal-loopback capture,
 this persister, and the exclusive Host lease with two fail-closed Keychain
 absence checks plus a final ownership guard immediately before Keychain
 replacement. Explicit blocked-state replacement also passes synthetic contracts.
-The Workbench product entry now composes the initial browser/UI lifecycle and
-Settings editing. Remaining work includes reauthorization/reconciliation UI,
-Cordis lifecycle activation, and live-account acceptance. See
+The Workbench product entry now composes the initial browser/UI lifecycle,
+Settings editing, and explicit blocked-state reauthorization. Remaining work
+includes reconciliation UI, Cordis lifecycle activation, and live-account
+acceptance. See
 [Workbench Feishu OAuth Authorization Runtime](WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_RUNTIME.md)
 and
-[Workbench Feishu OAuth Authorization UI](WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_UI.md)
+[Workbench Feishu OAuth Authorization UI](WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_UI.md),
+[Workbench Feishu OAuth Reauthorization UI](WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_UI.md),
 and
 [Feishu OAuth Reauthorization Replacement](FEISHU_OAUTH_REAUTHORIZATION.md).

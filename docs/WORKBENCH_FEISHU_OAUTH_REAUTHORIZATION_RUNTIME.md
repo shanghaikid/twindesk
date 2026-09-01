@@ -5,9 +5,10 @@
 TwinDesk has two Workbench composition boundaries for replacing a User OAuth
 credential after the durable rotation journal enters
 `reauthorization_required`. The original boundary accepts already-exchanged
-evidence. The hosted boundary now owns the authorization callback and exchange
-under the same lease. This is synthetic runtime evidence, not a product UI or
-live-account guarantee.
+evidence. The hosted boundary owns the authorization callback and exchange
+under the same lease, and the product now exposes that boundary through a
+separate recovery-gated controller and local API. This remains synthetic
+runtime evidence, not a live-account guarantee.
 
 ## Boundary
 
@@ -110,11 +111,12 @@ proves the production manager's real cross-process exclusion and crash release.
 
 Still open:
 
-- the product controller, CSRF-bound local API, explicit browser action, status
-  polling, and cancellation for hosted reauthorization;
 - product actions for the two reconciliation-required outcomes;
 - live Keychain and Feishu acceptance; and
 - model-backed Draft editing and exact approval UI.
+
+The product entry is specified in
+[Workbench Feishu OAuth Reauthorization UI](WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_UI.md).
 
 The default secret-free journal path and construction are recorded in
 [ADR 0004](decisions/0004-feishu-oauth-recovery-journal-path.md) and

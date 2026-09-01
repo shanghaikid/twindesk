@@ -67,8 +67,9 @@ actual Application Support directory.
 
 Still open:
 
-- hosted reauthorization and Keychain/rotation reconciliation actions; the
-  presentation-safe read boundary is now implemented separately;
+- Keychain/rotation reconciliation actions; hosted reauthorization now consumes
+  the default journal, and its presentation-safe read boundary is implemented
+  separately;
 - explicit disconnect, configuration deletion, OAuth revocation, and Keychain
   deletion as separate user actions;
 - product paths for SQLite business data and Harness Sessions;

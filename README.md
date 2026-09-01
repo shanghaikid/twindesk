@@ -71,6 +71,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Workbench Feishu OAuth Authorization Runtime](docs/WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_RUNTIME.md): lease-held initial authorization from loopback capture through verified Keychain persistence.
 - [Workbench Feishu OAuth Authorization UI](docs/WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_UI.md): explicit loopback-only initial authorization entry, minimized status, transient app-secret handling, and cancellation.
 - [Workbench Feishu OAuth Recovery Presentation](docs/WORKBENCH_FEISHU_OAUTH_RECOVERY_PRESENTATION.md): identifier-free durable rotation status and fail-closed initial-authorization gating.
+- [Workbench Feishu OAuth Reauthorization UI](docs/WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_UI.md): recovery-gated explicit replacement authorization, separate local capability, minimized polling, and cancellation.
 - [Workbench Local Data Paths](docs/WORKBENCH_LOCAL_DATA_PATHS.md): private macOS product Settings and OAuth recovery-state paths with restart-safe Feishu store construction.
 - [Workbench Feishu Settings Presentation](docs/WORKBENCH_FEISHU_SETTINGS_PRESENTATION.md): minimized read-only Connector status for the local Web boundary.
 - [Workbench Feishu OAuth Settings Editing](docs/WORKBENCH_FEISHU_OAUTH_SETTINGS_EDITING.md): app-bound non-secret OAuth configuration editing with a local request-forgery boundary.
@@ -182,14 +183,17 @@ same page now reads a separate identifier-free durable recovery projection.
 It distinguishes no history, settled rotation, active rotation,
 reauthorization-required, and reconciliation-required states without exposing
 journal sequence or timestamps. Unavailable or unresolved recovery state
-blocks another initial authorization attempt; no recovery action is exposed
-yet. The
+blocks another initial authorization attempt. Only the exact durable
+reauthorization-required state reveals a separate explicit replacement action;
+reconciliation-required states remain blocked without retry. The
 Workbench reauthorization runtime now holds the exclusive kernel-backed lease
 from blocked-state inspection through registered-loopback callback, code
 exchange, principal verification, Keychain replacement, and journal settlement.
 It can reconstruct production collaborators from restart-safe Settings and an
-explicit concrete journal; the product composition root still owns selection
-of the default path. No product reauthorization button or API is exposed yet.
+explicit concrete journal, and the default product composition supplies that
+journal. The Connectors page reaches it through a separately CSRF-bound local
+API, keeps status memory-only, requires a user click to open Feishu, and clears
+TwinDesk-owned app-secret buffers.
 Fixed operation-level
 scope authorization for reply and User discovery now passes synthetic
 contracts, and the User gate reads exact current Keychain token claims. A fixed-endpoint bounded Bot
@@ -208,7 +212,7 @@ normalization, bounded context, an edited Draft revision, exact approval,
 idempotent execution, receipt persistence, restart verification, and a complete local
 Audit trace. The restart evidence is a deterministic acceptance completion,
 not an automatic repair service. Stage 2 is not declared complete: hosted
-ingestion or polling, reauthorization and credential-recovery actions/Cordis wiring,
+ingestion or polling, Keychain/rotation reconciliation actions and Cordis wiring,
 interactive Draft/approval UI, model-backed Draft linkage, and a live-account
 send remain unimplemented.
 Versioned domain records and the product-owned Connector contract are

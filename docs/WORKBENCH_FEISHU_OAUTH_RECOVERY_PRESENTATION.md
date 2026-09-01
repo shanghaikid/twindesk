@@ -49,9 +49,11 @@ not claim that a Keychain item exists, is usable, has current scopes, or can
 reach Feishu. The Connector's principal-bound persistence and
 credential-existence checks remain authoritative.
 
-This slice is presentation only. It does not expose a reauthorization,
-reconciliation, deletion, revocation, credential-health, or external-write
-action.
+The presentation itself remains read-only. When and only when it reports
+`reauthorization_required`, the separate product reauthorization boundary may
+offer an explicit replacement action. `rotation_active` and
+`reconciliation_required` expose no retry or repair action. Neither boundary
+provides deletion, revocation, credential-health, or external-write authority.
 
 ## Verification and remaining work
 
@@ -63,7 +65,11 @@ external network.
 
 Still open:
 
-- hosted blocked-state reauthorization and Keychain/rotation reconciliation
-  actions with exact confirmation and Audit evidence;
+- Keychain/rotation reconciliation actions with exact confirmation and Audit
+  evidence;
 - credential health, scope, disconnect, revocation, and deletion flows;
 - Cordis lifecycle activation and live-account acceptance.
+
+See
+[Workbench Feishu OAuth Reauthorization UI](WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_UI.md)
+for the separate action boundary.

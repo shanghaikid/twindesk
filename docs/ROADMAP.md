@@ -104,12 +104,14 @@ requires reauthorization/reconciliation and blocks unsafe initial-authorization
 retries; it does not inspect credential health or expose recovery actions.
 The blocked-state runtime can now reconstruct the registered callback and
 production adapters from restart-safe Settings, then hold one lease through
-code exchange, verified Keychain replacement, and journal settlement. It is not
-yet wired to the default-path composition or exposed through a product
-controller or local API.
+code exchange, verified Keychain replacement, and journal settlement. The
+default Web composition now exposes that runtime through a separate
+recovery-gated controller and CSRF-bound local API. The Connectors page requires
+an explicit click, polls only minimized memory state, supports cancellation,
+and never converts reconciliation evidence into an automatic retry.
 Cordis activation, existing-identity replacement, Bot identity creation,
-recovery actions, live authorization
-acceptance, reauthorization and credential-recovery UI, interactive Draft and
+Keychain/rotation reconciliation actions, live authorization and
+reauthorization acceptance, interactive Draft and
 approval UI, model-backed linkage, and a real Feishu send remain missing. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).
 

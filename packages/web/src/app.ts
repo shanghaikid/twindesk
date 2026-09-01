@@ -29,6 +29,11 @@ import {
   type FeishuOAuthRecoverySnapshot,
   type FeishuOAuthRecoveryState,
 } from './feishu-oauth-recovery-contract.ts'
+import {
+  parseFeishuReauthorizationSnapshot,
+  type FeishuReauthorizationRecovery,
+  type FeishuReauthorizationSnapshot,
+} from './feishu-reauthorization-contract.ts'
 
 const INBOX_STATES: readonly { readonly id: InboxState; readonly label: string }[] = [
   { id: 'needs_reply', label: 'Needs reply' },
@@ -94,6 +99,13 @@ let feishuOAuthRecovery: FeishuOAuthRecoverySnapshot | undefined
 let feishuOAuthRecoveryLoading = false
 let feishuOAuthRecoveryError: string | undefined
 let feishuOAuthRecoveryRequest = 0
+let feishuReauthorization: FeishuReauthorizationSnapshot | undefined
+let feishuReauthorizationLoading = false
+let feishuReauthorizationError: string | undefined
+let feishuReauthorizationRequest = 0
+let feishuReauthorizationCsrfToken: string | undefined
+let feishuReauthorizationMutating = false
+let feishuReauthorizationPoll: number | undefined
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/gu, (character) => {
@@ -290,6 +302,63 @@ function feishuOAuthRecoveryContent(): string {
   return `<div class="settings-editor" data-feishu-oauth-recovery><div class="settings-editor-heading"><div><h3>OAuth recovery</h3><p${unresolved ? ' class="form-message error" role="alert"' : ''}>${escapeHtml(feishuOAuthRecoveryMessage(state))}</p></div><span class="badge${state === 'ready' ? ' success' : ' neutral'}">${label}</span></div></div>`
 }
 
+function feishuReauthorizationRecoveryMessage(recovery: FeishuReauthorizationRecovery): string {
+  const messages: Readonly<Record<FeishuReauthorizationRecovery, string>> = {
+    configure_settings: 'Complete the local User identity and OAuth settings first.',
+    correct_configuration: 'Correct the local identity or OAuth settings before retrying.',
+    reauthorize: 'The authorization was not accepted. Start a new explicit attempt.',
+    reconcile_keychain: 'The Keychain write outcome is uncertain. Do not authorize again.',
+    reconcile_rotation: 'The credential or journal outcome is uncertain. Reconcile it first.',
+    retry_after_owner_exit: 'Another Feishu runtime owns the lease. Retry after it exits.',
+    do_not_retry: 'Reauthorization stopped safely. Review local diagnostics before retrying.',
+  }
+  return messages[recovery]
+}
+
+function feishuReauthorizationContent(): string {
+  const snapshot = feishuReauthorization
+  const visible =
+    feishuOAuthRecovery?.state === 'reauthorization_required' ||
+    (snapshot !== undefined && snapshot.state !== 'idle')
+  if (!visible) return ''
+  if (feishuReauthorizationLoading) {
+    return '<div class="settings-editor"><div class="settings-editor-heading"><div><h3>Reauthorize Feishu User</h3><p>Reading the current in-process reauthorization state…</p></div></div></div>'
+  }
+  if (feishuReauthorizationError !== undefined) {
+    return `<div class="settings-editor"><div class="settings-editor-heading"><div><h3>Reauthorize Feishu User</h3><p class="form-message error" role="alert">${escapeHtml(feishuReauthorizationError)}</p></div><button class="secondary-button" type="button" data-feishu-reauthorization-retry>Retry status</button></div></div>`
+  }
+  if (snapshot?.state === 'starting') {
+    return `<div class="settings-editor"><div class="settings-editor-heading"><div><h3>Starting reauthorization…</h3><p>Preparing the registered callback and one replacement authorization.</p></div><button class="secondary-button" type="button" data-feishu-reauthorization-cancel${feishuReauthorizationMutating ? ' disabled' : ''}>Cancel</button></div></div>`
+  }
+  if (snapshot?.state === 'waiting') {
+    return `<div class="settings-editor"><div class="settings-editor-heading"><div><h3>Reauthorization waiting</h3><p>Open Feishu, approve the requested scopes, then return here. Callback: ${escapeHtml(snapshot.redirectUri)}</p></div></div><div class="settings-form-actions"><button class="secondary-button" type="button" data-feishu-reauthorization-cancel${feishuReauthorizationMutating ? ' disabled' : ''}>Cancel</button><a class="primary-button" href="${escapeHtml(snapshot.authorizationUrl)}" target="_blank" rel="noopener noreferrer">Open Feishu reauthorization</a></div></div>`
+  }
+  if (snapshot?.state === 'succeeded') {
+    return '<div class="settings-editor"><div class="settings-editor-heading"><div><h3>Reauthorization saved</h3><p>The replacement User credential was principal-verified, persisted in Keychain, and settled in the recovery journal. This does not claim connectivity or scope health.</p></div><span class="badge success">Saved</span></div></div>'
+  }
+  const outcome =
+    snapshot?.state === 'failed'
+      ? `<p class="form-message error" role="alert">${escapeHtml(feishuReauthorizationRecoveryMessage(snapshot.recovery))}</p>`
+      : snapshot?.state === 'cancelled'
+        ? '<p class="muted">The in-process reauthorization was cancelled.</p>'
+        : '<p class="muted">The durable recovery journal requires an explicit replacement authorization.</p>'
+  const retryBlocked =
+    feishuOAuthRecovery?.state !== 'reauthorization_required' ||
+    (snapshot?.state === 'failed' &&
+      (snapshot.recovery === 'reconcile_keychain' ||
+        snapshot.recovery === 'reconcile_rotation' ||
+        snapshot.recovery === 'do_not_retry' ||
+        snapshot.recovery === 'configure_settings' ||
+        snapshot.recovery === 'correct_configuration'))
+  return `<form class="settings-editor" data-feishu-reauthorization-form>
+    <div class="settings-editor-heading"><div><h3>Reauthorize Feishu User</h3><p>Enter the Feishu app secret to replace only the durably blocked User credential.</p></div></div>
+    ${outcome}
+    <div class="settings-fields"><label><span>Feishu App Secret</span><input name="clientSecret" type="password" maxlength="512" autocomplete="off" spellcheck="false" required${retryBlocked ? ' disabled' : ''}></label></div>
+    <p class="muted">The secret remains transient. Reauthorization restores a credential but grants no message approval or external-write authority.</p>
+    <div class="settings-form-actions"><button class="primary-button" type="submit"${feishuReauthorizationMutating || retryBlocked ? ' disabled' : ''}>${feishuReauthorizationMutating ? 'Starting…' : 'Start reauthorization'}</button></div>
+  </form>`
+}
+
 function feishuAuthorizationContent(): string {
   if (feishuSettings?.state !== 'ready') {
     return `<div class="settings-editor"><div class="settings-editor-heading"><div><h3>Authorize Feishu User</h3><p>Complete User identity and OAuth settings before starting authorization.</p></div></div></div>`
@@ -432,6 +501,7 @@ function connectorsContent(): string {
       : ''
   const authorization = feishuAuthorizationContent()
   const recovery = feishuOAuthRecoveryContent()
+  const reauthorization = feishuReauthorizationContent()
   return `
     <section class="panel">
       <div class="panel-header">
@@ -446,6 +516,7 @@ function connectorsContent(): string {
         ${userIdentityEditor}
         ${editor}
         ${recovery}
+        ${reauthorization}
         ${authorization}
         <article class="resource-row">
           <span class="resource-icon">J</span>
@@ -690,6 +761,138 @@ async function loadFeishuOAuthRecovery(): Promise<void> {
   }
 }
 
+function scheduleFeishuReauthorizationPoll(): void {
+  if (feishuReauthorizationPoll !== undefined) window.clearTimeout(feishuReauthorizationPoll)
+  feishuReauthorizationPoll = undefined
+  if (
+    currentRoute().id !== 'connectors' ||
+    (feishuReauthorization?.state !== 'starting' && feishuReauthorization?.state !== 'waiting')
+  ) {
+    return
+  }
+  feishuReauthorizationPoll = window.setTimeout(() => {
+    feishuReauthorizationPoll = undefined
+    void loadFeishuReauthorization(false)
+  }, 1_000)
+}
+
+async function loadFeishuReauthorization(showLoading = true): Promise<void> {
+  const request = ++feishuReauthorizationRequest
+  if (showLoading) feishuReauthorizationLoading = true
+  feishuReauthorizationError = undefined
+  render()
+  try {
+    const response = await fetch('/api/reauthorization/feishu', {
+      headers: { accept: 'application/json' },
+    })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseFeishuReauthorizationSnapshot(await response.json())
+    const csrfToken = response.headers.get('x-twindesk-csrf-token')
+    if (csrfToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(csrfToken)) {
+      throw new Error('Local API returned an invalid Feishu reauthorization capability.')
+    }
+    if (request !== feishuReauthorizationRequest) return
+    const settled = feishuReauthorization?.state !== 'succeeded' && snapshot.state === 'succeeded'
+    feishuReauthorization = snapshot
+    feishuReauthorizationCsrfToken = csrfToken
+    if (settled) await loadFeishuOAuthRecovery()
+  } catch (error) {
+    if (request !== feishuReauthorizationRequest) return
+    feishuReauthorization = undefined
+    feishuReauthorizationCsrfToken = undefined
+    feishuReauthorizationError =
+      error instanceof Error ? error.message : 'The local Feishu reauthorization request failed.'
+  } finally {
+    if (request === feishuReauthorizationRequest) {
+      feishuReauthorizationLoading = false
+      render()
+      scheduleFeishuReauthorizationPoll()
+    }
+  }
+}
+
+async function startFeishuReauthorization(input: HTMLInputElement): Promise<void> {
+  const csrfToken = feishuReauthorizationCsrfToken
+  if (csrfToken === undefined) {
+    feishuReauthorizationError = 'The local reauthorization capability is unavailable.'
+    render()
+    return
+  }
+  const bytes = new TextEncoder().encode(input.value)
+  input.value = ''
+  if (bytes.byteLength === 0 || bytes.byteLength > 512) {
+    bytes.fill(0)
+    feishuReauthorizationError = 'The Feishu App Secret must be 1–512 UTF-8 bytes.'
+    render()
+    return
+  }
+  feishuReauthorizationMutating = true
+  feishuReauthorizationError = undefined
+  feishuReauthorization = Object.freeze({ version: 1, connectorId: 'feishu', state: 'starting' })
+  render()
+  try {
+    const response = await fetch('/api/reauthorization/feishu/start', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/octet-stream',
+        'x-twindesk-csrf-token': csrfToken,
+      },
+      body: bytes,
+    })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseFeishuReauthorizationSnapshot(await response.json())
+    const nextToken = response.headers.get('x-twindesk-csrf-token')
+    if (nextToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(nextToken)) {
+      throw new Error('Local API returned an invalid Feishu reauthorization capability.')
+    }
+    feishuReauthorization = snapshot
+    feishuReauthorizationCsrfToken = nextToken
+    if (snapshot.state === 'succeeded') await loadFeishuOAuthRecovery()
+  } catch (error) {
+    feishuReauthorizationError = `${error instanceof Error ? error.message : 'The local reauthorization request failed.'} The attempt state may be uncertain; refresh status before starting again.`
+  } finally {
+    bytes.fill(0)
+    feishuReauthorizationMutating = false
+    render()
+    scheduleFeishuReauthorizationPoll()
+  }
+}
+
+async function cancelFeishuReauthorization(): Promise<void> {
+  const csrfToken = feishuReauthorizationCsrfToken
+  if (csrfToken === undefined || feishuReauthorizationMutating) return
+  feishuReauthorizationMutating = true
+  feishuReauthorizationError = undefined
+  render()
+  try {
+    const response = await fetch('/api/reauthorization/feishu/cancel', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'x-twindesk-csrf-token': csrfToken,
+      },
+      body: JSON.stringify({ version: 1 }),
+    })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseFeishuReauthorizationSnapshot(await response.json())
+    const nextToken = response.headers.get('x-twindesk-csrf-token')
+    if (nextToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(nextToken)) {
+      throw new Error('Local API returned an invalid Feishu reauthorization capability.')
+    }
+    feishuReauthorization = snapshot
+    feishuReauthorizationCsrfToken = nextToken
+  } catch (error) {
+    feishuReauthorizationError =
+      error instanceof Error ? error.message : 'The local reauthorization cancellation failed.'
+  } finally {
+    feishuReauthorizationMutating = false
+    render()
+    scheduleFeishuReauthorizationPoll()
+  }
+}
+
 function scheduleFeishuAuthorizationPoll(): void {
   if (feishuAuthorizationPoll !== undefined) window.clearTimeout(feishuAuthorizationPoll)
   feishuAuthorizationPoll = undefined
@@ -919,9 +1122,12 @@ function renderRouteAndLoad(): void {
     void loadFeishuSettings()
     void loadFeishuAuthorization()
     void loadFeishuOAuthRecovery()
-  } else if (feishuAuthorizationPoll !== undefined) {
-    window.clearTimeout(feishuAuthorizationPoll)
+    void loadFeishuReauthorization()
+  } else {
+    if (feishuAuthorizationPoll !== undefined) window.clearTimeout(feishuAuthorizationPoll)
     feishuAuthorizationPoll = undefined
+    if (feishuReauthorizationPoll !== undefined) window.clearTimeout(feishuReauthorizationPoll)
+    feishuReauthorizationPoll = undefined
   }
 }
 
@@ -956,8 +1162,14 @@ document.addEventListener('click', (event) => {
   if (target.closest('[data-feishu-oauth-recovery-retry]') !== null) {
     void loadFeishuOAuthRecovery()
   }
+  if (target.closest('[data-feishu-reauthorization-retry]') !== null) {
+    void loadFeishuReauthorization()
+  }
   if (target.closest('[data-feishu-authorization-cancel]') !== null) {
     void cancelFeishuAuthorization()
+  }
+  if (target.closest('[data-feishu-reauthorization-cancel]') !== null) {
+    void cancelFeishuReauthorization()
   }
   if (target.closest('[data-feishu-settings-edit]') !== null) {
     feishuSettingsDraft = {
@@ -1004,6 +1216,17 @@ document.addEventListener('submit', (event) => {
       return
     }
     void startFeishuAuthorization(input)
+    return
+  }
+  if (form.matches('[data-feishu-reauthorization-form]')) {
+    event.preventDefault()
+    const input = form.elements.namedItem('clientSecret')
+    if (!(input instanceof HTMLInputElement)) {
+      feishuReauthorizationError = 'The Feishu reauthorization form is invalid.'
+      render()
+      return
+    }
+    void startFeishuReauthorization(input)
     return
   }
   if (form.matches('[data-feishu-user-identity-form]')) {

@@ -9,6 +9,11 @@ export {
   type FeishuOAuthRecoveryState,
 } from './feishu-oauth-recovery-contract.ts'
 export {
+  parseFeishuReauthorizationSnapshot,
+  type FeishuReauthorizationRecovery,
+  type FeishuReauthorizationSnapshot,
+} from './feishu-reauthorization-contract.ts'
+export {
   startTwinDeskWebServer,
   type RunningTwinDeskWebServer,
   type TwinDeskWebServerOptions,

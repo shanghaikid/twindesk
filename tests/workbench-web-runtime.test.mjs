@@ -79,6 +79,20 @@ test('Workbench hosts default-path Feishu Settings in the product Web shell', as
       state: 'idle',
     })
     assert.ok(authorization.headers.get('x-twindesk-csrf-token') !== null)
+    const reauthorization = await fetch(`${running.url}/api/reauthorization/feishu`, {
+      headers: { connection: 'close' },
+    })
+    assert.equal(reauthorization.status, 200)
+    assert.deepEqual(await reauthorization.json(), {
+      version: 1,
+      connectorId: 'feishu',
+      state: 'idle',
+    })
+    assert.ok(reauthorization.headers.get('x-twindesk-csrf-token') !== null)
+    assert.notEqual(
+      reauthorization.headers.get('x-twindesk-csrf-token'),
+      authorization.headers.get('x-twindesk-csrf-token'),
+    )
     const recovery = await fetch(`${running.url}/api/recovery/feishu/oauth`, {
       headers: { connection: 'close' },
     })
@@ -139,6 +153,14 @@ test('Workbench hosts default-path Feishu Settings in the product Web shell', as
       version: 1,
       connectorId: 'feishu',
       state: 'reauthorization_required',
+    })
+    const reauthorization = await fetch(`${restarted.url}/api/reauthorization/feishu`, {
+      headers: { connection: 'close' },
+    })
+    assert.deepEqual(await reauthorization.json(), {
+      version: 1,
+      connectorId: 'feishu',
+      state: 'idle',
     })
   } finally {
     await restarted.close()
