@@ -103,7 +103,11 @@ journal, so later reauthorization and reconciliation can recover the same
 evidence after restart without placing it in Settings. An identifier-free
 read-only projection now surfaces whether that journal is settled, active, or
 requires reauthorization/reconciliation and blocks unsafe initial-authorization
-retries; it does not inspect credential health or expose recovery actions.
+retries; it does not inspect credential health or grant an automatic retry.
+An explicit local reconciliation action now compares the exact configured
+Keychain bundle with unresolved journal evidence under the Host lease and can
+settle only a strictly newer identity-bound result. It performs no OAuth,
+refresh request, or Keychain write; durable business Audit remains open.
 The blocked-state runtime can now reconstruct the registered callback and
 production adapters from restart-safe Settings, then hold one lease through
 code exchange, a durable replacement reservation, verified Keychain
@@ -113,7 +117,7 @@ recovery-gated controller and CSRF-bound local API. The Connectors page requires
 an explicit click, polls only minimized memory state, supports cancellation,
 and never converts reconciliation evidence into an automatic retry.
 Cordis activation, existing-identity replacement, Bot identity creation,
-Keychain/rotation reconciliation actions, live authorization and
+credential repair/removal, reconciliation Audit, live authorization and
 reauthorization acceptance, interactive Draft and
 approval UI, model-backed linkage, and a real Feishu send remain missing. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).

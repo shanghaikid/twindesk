@@ -19,6 +19,7 @@ import {
 } from './feishu-settings-contract.ts'
 import { parseFeishuAuthorizationSnapshot } from './feishu-authorization-contract.ts'
 import { parseFeishuOAuthRecoverySnapshot } from './feishu-oauth-recovery-contract.ts'
+import { parseFeishuOAuthReconciliationSnapshot } from './feishu-oauth-reconciliation-contract.ts'
 import { parseFeishuReauthorizationSnapshot } from './feishu-reauthorization-contract.ts'
 
 const outputRoot = dirname(fileURLToPath(import.meta.url))
@@ -32,6 +33,10 @@ const ASSETS = new Map([
   [
     '/feishu-oauth-recovery-contract.js',
     { file: 'feishu-oauth-recovery-contract.js', type: 'text/javascript; charset=utf-8' },
+  ],
+  [
+    '/feishu-oauth-reconciliation-contract.js',
+    { file: 'feishu-oauth-reconciliation-contract.js', type: 'text/javascript; charset=utf-8' },
   ],
   [
     '/feishu-reauthorization-contract.js',
@@ -61,6 +66,7 @@ const FEISHU_SETTINGS_BODY_MAX_BYTES = 16 * 1024
 const FEISHU_CLIENT_SECRET_MAX_BYTES = 512
 const FEISHU_SETTINGS_CSRF_HEADER = 'x-twindesk-csrf-token'
 const FEISHU_USER_IDENTITY_CREATION_HEADER = 'x-twindesk-user-identity-creation'
+const FEISHU_OAUTH_RECONCILIATION_HEADER = 'x-twindesk-oauth-reconciliation'
 const UTF8_DECODER = new TextDecoder('utf-8', { fatal: true })
 
 /** Options for the local-only TwinDesk product Web server. */
@@ -85,6 +91,10 @@ export interface TwinDeskWebServerOptions {
   readonly feishuOAuthRecovery?: {
     read(): Promise<unknown> | unknown
   }
+  /** Explicit local-only Keychain/journal reconciliation supplied by Workbench. */
+  readonly feishuOAuthReconciliation?: {
+    reconcile(signal: AbortSignal): Promise<unknown>
+  }
   /** Memory-only hosted OAuth reauthorization service supplied by Workbench. */
   readonly feishuReauthorization?: {
     read(): Promise<unknown> | unknown
@@ -97,6 +107,9 @@ type FeishuSettingsService = NonNullable<TwinDeskWebServerOptions['feishuSetting
 type FeishuSettingsSnapshot = ReturnType<typeof parseFeishuSettingsSnapshot>
 type FeishuAuthorizationService = NonNullable<TwinDeskWebServerOptions['feishuAuthorization']>
 type FeishuOAuthRecoveryService = NonNullable<TwinDeskWebServerOptions['feishuOAuthRecovery']>
+type FeishuOAuthReconciliationService = NonNullable<
+  TwinDeskWebServerOptions['feishuOAuthReconciliation']
+>
 type FeishuReauthorizationService = NonNullable<TwinDeskWebServerOptions['feishuReauthorization']>
 
 function normalizeFeishuSettingsService(value: unknown): FeishuSettingsService | undefined {
@@ -204,6 +217,34 @@ function normalizeFeishuOAuthRecoveryService(
     return Object.freeze({ read: () => Promise.resolve(Reflect.apply(read, value, [])) })
   } catch {
     throw new TypeError('TwinDesk Web Feishu OAuth recovery service is invalid.')
+  }
+}
+
+function normalizeFeishuOAuthReconciliationService(
+  value: unknown,
+): FeishuOAuthReconciliationService | undefined {
+  if (value === undefined) return undefined
+  try {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError()
+    const prototype = Object.getPrototypeOf(value) as unknown
+    const descriptors = Object.getOwnPropertyDescriptors(value)
+    const reconcileDescriptor = descriptors.reconcile
+    if (
+      (prototype !== Object.prototype && prototype !== null) ||
+      Object.getOwnPropertySymbols(value).length !== 0 ||
+      Object.keys(descriptors).length !== 1 ||
+      reconcileDescriptor === undefined ||
+      !Object.hasOwn(reconcileDescriptor, 'value') ||
+      typeof reconcileDescriptor.value !== 'function'
+    ) {
+      throw new TypeError()
+    }
+    const reconcile = reconcileDescriptor.value as (signal: AbortSignal) => Promise<unknown>
+    return Object.freeze({
+      reconcile: (signal: AbortSignal) => Reflect.apply(reconcile, value, [signal]),
+    })
+  } catch {
+    throw new TypeError('TwinDesk Web Feishu OAuth reconciliation service is invalid.')
   }
 }
 
@@ -332,13 +373,14 @@ function assertLocalWriteHeaders(
   csrfToken: string,
   contentType: string,
   maximumBodyBytes: number,
+  csrfHeader = FEISHU_SETTINGS_CSRF_HEADER,
 ): void {
   const expectedAuthority = new URL(expectedOrigin).host
   if (
     request.headers.host !== expectedAuthority ||
     request.headers.origin !== expectedOrigin ||
     request.headers['sec-fetch-site'] !== 'same-origin' ||
-    !csrfMatches(request.headers[FEISHU_SETTINGS_CSRF_HEADER], csrfToken)
+    !csrfMatches(request.headers[csrfHeader], csrfToken)
   ) {
     throw new FeishuSettingsRequestError(403)
   }
@@ -555,6 +597,8 @@ async function serveFeishuOAuthRecoveryApi(
   requestUrl: URL,
   headOnly: boolean,
   recovery: FeishuOAuthRecoveryService | undefined,
+  reconciliation: FeishuOAuthReconciliationService | undefined,
+  csrfToken: string,
 ): Promise<void> {
   if (requestUrl.search.length > 0) {
     send(
@@ -590,8 +634,109 @@ async function serveFeishuOAuthRecoveryApi(
   response.writeHead(200, {
     ...commonHeaders('application/json; charset=utf-8'),
     'content-length': String(Buffer.byteLength(body)),
+    ...(reconciliation === undefined ? {} : { [FEISHU_OAUTH_RECONCILIATION_HEADER]: csrfToken }),
   })
   response.end(headOnly ? undefined : body)
+}
+
+async function serveFeishuOAuthReconciliationMutationApi(
+  request: IncomingMessage,
+  response: ServerResponse,
+  requestUrl: URL,
+  recovery: FeishuOAuthRecoveryService | undefined,
+  reconciliation: FeishuOAuthReconciliationService | undefined,
+  expectedOrigin: string,
+  csrfToken: string,
+  activeControllers: Set<AbortController>,
+): Promise<void> {
+  if (requestUrl.search.length > 0) {
+    request.resume()
+    send(
+      response,
+      400,
+      'Invalid Feishu OAuth reconciliation request.\n',
+      'text/plain; charset=utf-8',
+    )
+    return
+  }
+  try {
+    assertLocalWriteHeaders(
+      request,
+      expectedOrigin,
+      csrfToken,
+      'application/json',
+      FEISHU_SETTINGS_BODY_MAX_BYTES,
+      FEISHU_OAUTH_RECONCILIATION_HEADER,
+    )
+  } catch (cause) {
+    request.resume()
+    const status = cause instanceof FeishuSettingsRequestError ? cause.status : 403
+    send(response, status, requestFailureMessage(status), 'text/plain; charset=utf-8')
+    return
+  }
+  if (recovery === undefined || reconciliation === undefined) {
+    request.resume()
+    send(response, 503, 'Feishu OAuth reconciliation unavailable.\n', 'text/plain; charset=utf-8')
+    return
+  }
+  let before: ReturnType<typeof parseFeishuOAuthRecoverySnapshot>
+  try {
+    before = parseFeishuOAuthRecoverySnapshot(await recovery.read())
+  } catch {
+    request.resume()
+    send(response, 503, 'Feishu OAuth recovery unavailable.\n', 'text/plain; charset=utf-8')
+    return
+  }
+  if (before.state !== 'reconciliation_required') {
+    request.resume()
+    send(
+      response,
+      409,
+      'Feishu OAuth reconciliation is not pending.\n',
+      'text/plain; charset=utf-8',
+    )
+    return
+  }
+  try {
+    parseAuthorizationCancel(await readFeishuSettingsUpdate(request))
+  } catch (cause) {
+    if (!request.complete) request.resume()
+    const status = cause instanceof FeishuSettingsRequestError ? cause.status : 400
+    send(response, status, requestFailureMessage(status), 'text/plain; charset=utf-8')
+    return
+  }
+  const controller = new AbortController()
+  activeControllers.add(controller)
+  let snapshot: ReturnType<typeof parseFeishuOAuthReconciliationSnapshot>
+  try {
+    snapshot = parseFeishuOAuthReconciliationSnapshot(
+      await reconciliation.reconcile(controller.signal),
+    )
+    const after = parseFeishuOAuthRecoverySnapshot(await recovery.read())
+    if (
+      (snapshot.status === 'reconciled' && after.state !== 'ready') ||
+      (snapshot.status === 'still_required' && after.state !== 'reconciliation_required')
+    ) {
+      throw new TypeError()
+    }
+  } catch {
+    send(
+      response,
+      409,
+      'Feishu OAuth reconciliation still requires attention.\n',
+      'text/plain; charset=utf-8',
+    )
+    return
+  } finally {
+    activeControllers.delete(controller)
+  }
+  const body = JSON.stringify(snapshot)
+  response.writeHead(200, {
+    ...commonHeaders('application/json; charset=utf-8'),
+    'content-length': String(Buffer.byteLength(body)),
+    [FEISHU_OAUTH_RECONCILIATION_HEADER]: csrfToken,
+  })
+  response.end(body)
 }
 
 async function serveFeishuReauthorizationApi(
@@ -1017,6 +1162,9 @@ export async function startTwinDeskWebServer(
   const feishuSettings = normalizeFeishuSettingsService(options.feishuSettings)
   const feishuAuthorization = normalizeFeishuAuthorizationService(options.feishuAuthorization)
   const feishuOAuthRecovery = normalizeFeishuOAuthRecoveryService(options.feishuOAuthRecovery)
+  const feishuOAuthReconciliation = normalizeFeishuOAuthReconciliationService(
+    options.feishuOAuthReconciliation,
+  )
   const feishuReauthorization = normalizeFeishuReauthorizationService(options.feishuReauthorization)
 
   const inbox = createFixtureInboxService(options.databasePath, {
@@ -1025,6 +1173,8 @@ export async function startTwinDeskWebServer(
   })
   const csrfToken = randomBytes(32).toString('base64url')
   const reauthorizationCsrfToken = randomBytes(32).toString('base64url')
+  const reconciliationCsrfToken = randomBytes(32).toString('base64url')
+  const activeReconciliationControllers = new Set<AbortController>()
   let boundOrigin: string | undefined
 
   const server = createServer((request, response) => {
@@ -1043,13 +1193,16 @@ export async function startTwinDeskWebServer(
         method === 'POST' && requestUrl.pathname === '/api/reauthorization/feishu/start'
       const reauthorizationCancel =
         method === 'POST' && requestUrl.pathname === '/api/reauthorization/feishu/cancel'
+      const oauthReconciliation =
+        method === 'POST' && requestUrl.pathname === '/api/recovery/feishu/oauth/reconcile'
       const supportedMutation =
         oauthSettingsUpdate ||
         userIdentityCreate ||
         authorizationStart ||
         authorizationCancel ||
         reauthorizationStart ||
-        reauthorizationCancel
+        reauthorizationCancel ||
+        oauthReconciliation
       if (method !== 'GET' && method !== 'HEAD' && !supportedMutation) {
         response.setHeader(
           'allow',
@@ -1063,7 +1216,9 @@ export async function startTwinDeskWebServer(
                 : requestUrl.pathname === '/api/reauthorization/feishu/start' ||
                     requestUrl.pathname === '/api/reauthorization/feishu/cancel'
                   ? 'POST'
-                  : 'GET, HEAD',
+                  : requestUrl.pathname === '/api/recovery/feishu/oauth/reconcile'
+                    ? 'POST'
+                    : 'GET, HEAD',
         )
         send(response, 405, 'Method not allowed.\n', 'text/plain; charset=utf-8')
         return
@@ -1110,6 +1265,20 @@ export async function startTwinDeskWebServer(
         )
         return
       }
+      if (oauthReconciliation) {
+        if (boundOrigin === undefined) throw new Error('TwinDesk Web origin is unavailable')
+        await serveFeishuOAuthReconciliationMutationApi(
+          request,
+          response,
+          requestUrl,
+          feishuOAuthRecovery,
+          feishuOAuthReconciliation,
+          boundOrigin,
+          reconciliationCsrfToken,
+          activeReconciliationControllers,
+        )
+        return
+      }
       if (requestUrl.pathname === '/health') {
         const body = JSON.stringify({ service: 'twindesk-web', status: 'ok', version: 1 })
         send(response, 200, method === 'HEAD' ? '' : body, 'application/json; charset=utf-8')
@@ -1149,6 +1318,8 @@ export async function startTwinDeskWebServer(
           requestUrl,
           method === 'HEAD',
           feishuOAuthRecovery,
+          feishuOAuthReconciliation,
+          reconciliationCsrfToken,
         )
         return
       }
@@ -1211,6 +1382,7 @@ export async function startTwinDeskWebServer(
           })
         })
         try {
+          for (const controller of activeReconciliationControllers) controller.abort()
           try {
             await feishuAuthorization?.cancel()
           } catch {

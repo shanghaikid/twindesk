@@ -16,6 +16,10 @@ The projection never returns a sequence, timestamp, application, account,
 principal, SecretReference, credential, token, scope, external reference, or
 filesystem path.
 
+When the optional explicit reconciliation service is composed, the same-origin
+response also carries a separate process-local capability header. The body
+remains unchanged and contains no authority-bearing value.
+
 ## State semantics
 
 | Journal evidence | Product state | Meaning |
@@ -53,7 +57,9 @@ credential-existence checks remain authoritative.
 The presentation itself remains read-only. When and only when it reports
 `reauthorization_required`, the separate product reauthorization boundary may
 offer an explicit replacement action. `rotation_active` and
-`reconciliation_required` expose no retry or repair action. Neither boundary
+`reconciliation_required` expose no automatic retry or credential repair.
+The latter may expose the explicit local-only evidence comparison described
+below. Neither boundary
 provides deletion, revocation, credential-health, or external-write authority.
 
 ## Verification and remaining work
@@ -64,10 +70,12 @@ query and method rejection, default-path Web composition, and recovery-state
 restart presentation. Tests use no live account, Keychain item, credential, or
 external network.
 
+The Connectors page now uses the separate action documented in
+[Workbench Feishu OAuth Reconciliation](WORKBENCH_FEISHU_OAUTH_RECONCILIATION.md).
+
 Still open:
 
-- Keychain/rotation reconciliation actions with exact confirmation and Audit
-  evidence;
+- durable business Audit evidence for explicit reconciliation;
 - credential health, scope, disconnect, revocation, and deletion flows;
 - Cordis lifecycle activation and live-account acceptance.
 

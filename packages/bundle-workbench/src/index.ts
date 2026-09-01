@@ -2,6 +2,7 @@
 export * from './feishu-oauth-authorization-runtime.ts'
 export * from './feishu-oauth-authorization-controller.ts'
 export * from './feishu-oauth-hosted-reauthorization-runtime.ts'
+export * from './feishu-oauth-reconciliation-runtime.ts'
 export * from './feishu-oauth-reauthorization-controller.ts'
 export * from './feishu-oauth-settings-editor.ts'
 export * from './feishu-user-identity-bootstrap.ts'

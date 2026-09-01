@@ -29,6 +29,7 @@ import {
   type FeishuOAuthRecoverySnapshot,
   type FeishuOAuthRecoveryState,
 } from './feishu-oauth-recovery-contract.ts'
+import { parseFeishuOAuthReconciliationSnapshot } from './feishu-oauth-reconciliation-contract.ts'
 import {
   parseFeishuReauthorizationSnapshot,
   type FeishuReauthorizationRecovery,
@@ -99,6 +100,9 @@ let feishuOAuthRecovery: FeishuOAuthRecoverySnapshot | undefined
 let feishuOAuthRecoveryLoading = false
 let feishuOAuthRecoveryError: string | undefined
 let feishuOAuthRecoveryRequest = 0
+let feishuOAuthReconciliationCsrfToken: string | undefined
+let feishuOAuthReconciliationMutating = false
+let feishuOAuthReconciliationMessage: string | undefined
 let feishuReauthorization: FeishuReauthorizationSnapshot | undefined
 let feishuReauthorizationLoading = false
 let feishuReauthorizationError: string | undefined
@@ -299,7 +303,11 @@ function feishuOAuthRecoveryContent(): string {
           : state === 'reauthorization_required'
             ? 'Reauthorize'
             : 'Reconcile'
-  return `<div class="settings-editor" data-feishu-oauth-recovery><div class="settings-editor-heading"><div><h3>OAuth recovery</h3><p${unresolved ? ' class="form-message error" role="alert"' : ''}>${escapeHtml(feishuOAuthRecoveryMessage(state))}</p></div><span class="badge${state === 'ready' ? ' success' : ' neutral'}">${label}</span></div></div>`
+  const reconciliationAction =
+    state === 'reconciliation_required'
+      ? `<div class="settings-form-actions"><button class="secondary-button" type="button" data-feishu-oauth-reconcile${feishuOAuthReconciliationMutating || feishuOAuthReconciliationCsrfToken === undefined ? ' disabled' : ''}>${feishuOAuthReconciliationMutating ? 'Checking…' : 'Check local credential'}</button></div><p class="muted">This only compares the configured Keychain bundle with the durable journal. It does not contact Feishu, refresh OAuth, or write Keychain.</p>${feishuOAuthReconciliationMessage === undefined ? '' : `<p class="form-message" role="status">${escapeHtml(feishuOAuthReconciliationMessage)}</p>`}`
+      : ''
+  return `<div class="settings-editor" data-feishu-oauth-recovery><div class="settings-editor-heading"><div><h3>OAuth recovery</h3><p${unresolved ? ' class="form-message error" role="alert"' : ''}>${escapeHtml(feishuOAuthRecoveryMessage(state))}</p></div><span class="badge${state === 'ready' ? ' success' : ' neutral'}">${label}</span></div>${reconciliationAction}</div>`
 }
 
 function feishuReauthorizationRecoveryMessage(recovery: FeishuReauthorizationRecovery): string {
@@ -746,11 +754,17 @@ async function loadFeishuOAuthRecovery(): Promise<void> {
     })
     if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
     const snapshot = parseFeishuOAuthRecoverySnapshot(await response.json())
+    const capability = response.headers.get('x-twindesk-oauth-reconciliation')
+    if (capability !== null && !/^[A-Za-z0-9_-]{43}$/u.test(capability)) {
+      throw new Error('Local API returned an invalid Feishu OAuth reconciliation capability.')
+    }
     if (request !== feishuOAuthRecoveryRequest) return
     feishuOAuthRecovery = snapshot
+    feishuOAuthReconciliationCsrfToken = capability ?? undefined
   } catch (error) {
     if (request !== feishuOAuthRecoveryRequest) return
     feishuOAuthRecovery = undefined
+    feishuOAuthReconciliationCsrfToken = undefined
     feishuOAuthRecoveryError =
       error instanceof Error ? error.message : 'The local Feishu OAuth recovery request failed.'
   } finally {
@@ -758,6 +772,48 @@ async function loadFeishuOAuthRecovery(): Promise<void> {
       feishuOAuthRecoveryLoading = false
       render()
     }
+  }
+}
+
+async function reconcileFeishuOAuth(): Promise<void> {
+  const csrfToken = feishuOAuthReconciliationCsrfToken
+  if (csrfToken === undefined) {
+    feishuOAuthReconciliationMessage = 'The local reconciliation capability is unavailable.'
+    render()
+    return
+  }
+  feishuOAuthReconciliationMutating = true
+  feishuOAuthReconciliationMessage = undefined
+  render()
+  try {
+    const response = await fetch('/api/recovery/feishu/oauth/reconcile', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'x-twindesk-oauth-reconciliation': csrfToken,
+      },
+      body: JSON.stringify({ version: 1 }),
+    })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const result = parseFeishuOAuthReconciliationSnapshot(await response.json())
+    const nextToken = response.headers.get('x-twindesk-oauth-reconciliation')
+    if (nextToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(nextToken)) {
+      throw new Error('Local API returned an invalid Feishu OAuth reconciliation capability.')
+    }
+    feishuOAuthReconciliationCsrfToken = nextToken
+    feishuOAuthReconciliationMessage =
+      result.status === 'reconciled'
+        ? 'The local credential matched a newer durable result; the journal is settled.'
+        : 'No newer matching local credential was found. Reconciliation remains required.'
+    await loadFeishuOAuthRecovery()
+  } catch (error) {
+    feishuOAuthReconciliationMessage =
+      error instanceof Error ? error.message : 'The local OAuth reconciliation failed.'
+    await loadFeishuOAuthRecovery()
+  } finally {
+    feishuOAuthReconciliationMutating = false
+    render()
   }
 }
 
@@ -1161,6 +1217,9 @@ document.addEventListener('click', (event) => {
   }
   if (target.closest('[data-feishu-oauth-recovery-retry]') !== null) {
     void loadFeishuOAuthRecovery()
+  }
+  if (target.closest('[data-feishu-oauth-reconcile]') !== null) {
+    void reconcileFeishuOAuth()
   }
   if (target.closest('[data-feishu-reauthorization-retry]') !== null) {
     void loadFeishuReauthorization()

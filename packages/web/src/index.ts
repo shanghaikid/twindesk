@@ -9,6 +9,11 @@ export {
   type FeishuOAuthRecoveryState,
 } from './feishu-oauth-recovery-contract.ts'
 export {
+  parseFeishuOAuthReconciliationSnapshot,
+  type FeishuOAuthReconciliationSnapshot,
+  type FeishuOAuthReconciliationStatus,
+} from './feishu-oauth-reconciliation-contract.ts'
+export {
   parseFeishuReauthorizationSnapshot,
   type FeishuReauthorizationRecovery,
   type FeishuReauthorizationSnapshot,

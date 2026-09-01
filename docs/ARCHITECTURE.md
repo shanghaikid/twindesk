@@ -279,8 +279,11 @@ restart therefore projects reconciliation instead of permission to authorize
 again. A restart-loaded factory composes the bounded
 production HTTP, verifier, Keychain, Settings, and supplied-journal boundaries;
 it neither retries a reply nor grants external-write authority. A separate
-memory-only product controller now exposes the explicit action. The Workbench also
-owns fixed private macOS product paths for
+memory-only product controller now exposes the explicit reauthorization action.
+For reconciliation, a separate lease-held runtime owns only the exact Keychain
+resolver, identity-bound evidence parser, and journal: it has no refresh
+transport or Keychain replacer and settles only strictly newer local evidence.
+The Workbench also owns fixed private macOS product paths for
 the Connector-owned identity and OAuth authorization Settings stores plus the
 separate secret-free OAuth rotation journal. It does not place credentials,
 Harness Sessions, or TwinDesk business tables in those files. A Workbench

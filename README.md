@@ -71,6 +71,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Workbench Feishu OAuth Authorization Runtime](docs/WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_RUNTIME.md): lease-held initial authorization from loopback capture through verified Keychain persistence.
 - [Workbench Feishu OAuth Authorization UI](docs/WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_UI.md): explicit loopback-only initial authorization entry, minimized status, transient app-secret handling, and cancellation.
 - [Workbench Feishu OAuth Recovery Presentation](docs/WORKBENCH_FEISHU_OAUTH_RECOVERY_PRESENTATION.md): identifier-free durable rotation status and fail-closed initial-authorization gating.
+- [Workbench Feishu OAuth Reconciliation](docs/WORKBENCH_FEISHU_OAUTH_RECONCILIATION.md): explicit lease-held local Keychain/journal comparison without OAuth, refresh, or credential writes.
 - [Workbench Feishu OAuth Reauthorization UI](docs/WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_UI.md): recovery-gated explicit replacement authorization, separate local capability, minimized polling, and cancellation.
 - [Workbench Local Data Paths](docs/WORKBENCH_LOCAL_DATA_PATHS.md): private macOS product Settings and OAuth recovery-state paths with restart-safe Feishu store construction.
 - [Workbench Feishu Settings Presentation](docs/WORKBENCH_FEISHU_SETTINGS_PRESENTATION.md): minimized read-only Connector status for the local Web boundary.
@@ -192,6 +193,10 @@ exchange, principal verification, Keychain replacement, and journal settlement.
 Journal version 3 fsyncs a replacement reservation before principal verification
 or Keychain access, so an uncertain write or process restart presents
 reconciliation instead of enabling another authorization.
+The Connectors page can now explicitly compare that unresolved journal with the
+exact configured local Keychain bundle while holding the Feishu Host lease. It
+settles only strictly newer identity-bound evidence and has no refresh transport
+or Keychain writer.
 It can reconstruct production collaborators from restart-safe Settings and an
 explicit concrete journal, and the default product composition supplies that
 journal. The Connectors page reaches it through a separately CSRF-bound local

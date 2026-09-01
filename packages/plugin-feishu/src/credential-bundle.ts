@@ -50,6 +50,13 @@ export interface FeishuUserOAuthCredentialBundle {
   readonly scopes: readonly string[]
 }
 
+export interface FeishuUserOAuthCredentialEvidence {
+  readonly kind: 'feishu_user_oauth_credential_evidence'
+  readonly schemaVersion: typeof FEISHU_CREDENTIAL_BUNDLE_VERSION
+  readonly obtainedAt: IsoTimestamp
+  readonly refreshTokenStatus: 'usable' | 'expired'
+}
+
 export type FeishuCredentialBundle = FeishuAppCredentialBundle | FeishuUserOAuthCredentialBundle
 
 export interface FeishuCredentialBundleParserOptions {
@@ -251,6 +258,7 @@ function parseUserCredential(
   record: UnknownRecord,
   configuration: FeishuIdentityConfiguration,
   observedAt: IsoTimestamp,
+  allowExpired: boolean,
 ): FeishuUserOAuthCredentialBundle {
   exactKeys(record, [
     'kind',
@@ -291,7 +299,7 @@ function parseUserCredential(
   ) {
     throw fail('invalid_bundle', 'The Feishu OAuth credential lifetime is invalid.')
   }
-  if (Date.parse(refreshTokenExpiresAt) <= Date.parse(observedAt)) {
+  if (!allowExpired && Date.parse(refreshTokenExpiresAt) <= Date.parse(observedAt)) {
     throw fail('credential_expired', 'The Feishu OAuth credential requires user authorization.')
   }
   return Object.freeze({
@@ -363,7 +371,7 @@ export class FeishuCredentialBundleParser {
         credential =
           identityType === 'bot'
             ? parseAppCredential(record, configuration)
-            : parseUserCredential(record, configuration, readObservedAt(this.#now))
+            : parseUserCredential(record, configuration, readObservedAt(this.#now), false)
       } catch (error) {
         if (error instanceof FeishuCredentialBundleError) throw error
         if (signal.aborted) signal.throwIfAborted()
@@ -371,6 +379,64 @@ export class FeishuCredentialBundleParser {
       }
       signal.throwIfAborted()
       const result = await use(credential)
+      signal.throwIfAborted()
+      return result
+    } finally {
+      zeroCredential(credential)
+      bundle.fill(0)
+    }
+  }
+
+  /**
+   * Parse identity-bound User evidence for local journal reconciliation. The
+   * caller receives explicit refresh expiry so it cannot confuse historical
+   * write evidence with a currently recoverable credential. No secret bytes
+   * leave this callback boundary.
+   */
+  async withUserCredentialEvidence<TResult>(
+    configurationValue: unknown,
+    bundle: Uint8Array,
+    signal: AbortSignal,
+    use: (evidence: FeishuUserOAuthCredentialEvidence) => Promise<TResult> | TResult,
+  ): Promise<TResult> {
+    if (!(bundle instanceof Uint8Array)) {
+      throw fail('invalid_bundle', 'The Feishu credential bundle is invalid.')
+    }
+    let credential: FeishuUserOAuthCredentialBundle | undefined
+    let refreshTokenStatus: FeishuUserOAuthCredentialEvidence['refreshTokenStatus'] | undefined
+    try {
+      signal.throwIfAborted()
+      if (typeof use !== 'function') {
+        throw fail('invalid_consumer', 'The Feishu credential consumer is invalid.')
+      }
+      try {
+        const configuration = parseFeishuIdentityConfiguration(configurationValue)
+        if (configuration.user === undefined) {
+          throw fail('identity_not_configured', 'The Feishu credential identity is not configured.')
+        }
+        const observedAt = readObservedAt(this.#now)
+        credential = parseUserCredential(decodeBundle(bundle), configuration, observedAt, true)
+        refreshTokenStatus =
+          Date.parse(credential.refreshTokenExpiresAt) > Date.parse(observedAt)
+            ? 'usable'
+            : 'expired'
+      } catch (error) {
+        if (error instanceof FeishuCredentialBundleError) throw error
+        if (signal.aborted) signal.throwIfAborted()
+        throw fail('invalid_bundle', 'The Feishu credential bundle could not be parsed.')
+      }
+      signal.throwIfAborted()
+      if (refreshTokenStatus === undefined) {
+        throw fail('invalid_bundle', 'The Feishu credential bundle could not be parsed.')
+      }
+      const result = await use(
+        Object.freeze({
+          kind: 'feishu_user_oauth_credential_evidence',
+          schemaVersion: FEISHU_CREDENTIAL_BUNDLE_VERSION,
+          obtainedAt: credential.obtainedAt,
+          refreshTokenStatus,
+        }),
+      )
       signal.throwIfAborted()
       return result
     } finally {
