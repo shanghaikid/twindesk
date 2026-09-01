@@ -671,6 +671,44 @@ BEGIN
 END;
 `
 
+const CONNECTOR_MAINTENANCE_AUDIT_SQL = `
+CREATE TABLE connector_maintenance_operations (
+  kind TEXT NOT NULL CHECK (kind = 'connector_maintenance_operation'),
+  schema_version INTEGER NOT NULL CHECK (schema_version = 1),
+  id TEXT PRIMARY KEY,
+  connector_id TEXT NOT NULL,
+  operation TEXT NOT NULL CHECK (operation = 'credential_reconciliation'),
+  requested_at TEXT NOT NULL CHECK (julianday(requested_at) IS NOT NULL),
+  request_audit_id TEXT NOT NULL UNIQUE REFERENCES audit_records(id) ON DELETE RESTRICT,
+  result TEXT CHECK (result IN ('reconciled', 'still_required', 'cancelled', 'failed')),
+  settled_at TEXT CHECK (settled_at IS NULL OR julianday(settled_at) IS NOT NULL),
+  result_audit_id TEXT UNIQUE REFERENCES audit_records(id) ON DELETE RESTRICT,
+  CHECK (
+    (result IS NULL AND settled_at IS NULL AND result_audit_id IS NULL) OR
+    (result IS NOT NULL AND settled_at IS NOT NULL AND result_audit_id IS NOT NULL)
+  ),
+  CHECK (settled_at IS NULL OR julianday(settled_at) >= julianday(requested_at))
+) STRICT;
+
+CREATE UNIQUE INDEX connector_maintenance_one_pending_operation
+  ON connector_maintenance_operations (connector_id, operation)
+  WHERE result IS NULL;
+
+CREATE TRIGGER connector_maintenance_operations_no_update
+BEFORE UPDATE OF kind, schema_version, id, connector_id, operation, requested_at,
+  request_audit_id ON connector_maintenance_operations
+BEGIN
+  SELECT RAISE(ABORT, 'Connector maintenance operation identity is immutable');
+END;
+
+CREATE TRIGGER connector_maintenance_settlement_once
+BEFORE UPDATE OF result, settled_at, result_audit_id ON connector_maintenance_operations
+WHEN OLD.result IS NOT NULL
+BEGIN
+  SELECT RAISE(ABORT, 'Connector maintenance settlement is immutable');
+END;
+`
+
 export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
   Object.freeze({
     version: 1,
@@ -706,6 +744,11 @@ export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
     version: 7,
     name: 'connector_audit_references',
     sql: CONNECTOR_AUDIT_REFERENCES_SQL,
+  }),
+  Object.freeze({
+    version: 8,
+    name: 'connector_maintenance_audit',
+    sql: CONNECTOR_MAINTENANCE_AUDIT_SQL,
   }),
 ])
 

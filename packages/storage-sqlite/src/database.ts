@@ -65,6 +65,19 @@ import {
 } from './audit-timeline.ts'
 
 import {
+  ConnectorMaintenanceAuditError,
+  beginConnectorMaintenance as beginStoredConnectorMaintenance,
+  readConnectorMaintenanceOperation,
+  readPendingConnectorMaintenance,
+  settleConnectorMaintenance as settleStoredConnectorMaintenance,
+  type ConnectorMaintenanceOperationType,
+  type ConnectorMaintenanceRequest,
+  type ConnectorMaintenanceSettlement,
+  type ConnectorMaintenanceWriteResult,
+  type StoredConnectorMaintenanceOperation,
+} from './connector-maintenance-audit.ts'
+
+import {
   DraftActionStateError,
   createActionProposal as storeActionProposal,
   createDraft as storeDraft,
@@ -185,6 +198,15 @@ export interface TwinDeskDatabase {
   ): ActionExecutionReceiptWriteResult
   getActionExecutionReceipt(executionAttemptId: string): StoredActionReceipt | undefined
   recoverActionExecution(request: ActionExecutionRecoveryRequest): ActionExecutionRecoveryResult
+  beginConnectorMaintenance(request: ConnectorMaintenanceRequest): ConnectorMaintenanceWriteResult
+  settleConnectorMaintenance(
+    settlement: ConnectorMaintenanceSettlement,
+  ): ConnectorMaintenanceWriteResult
+  getConnectorMaintenance(id: string): StoredConnectorMaintenanceOperation | undefined
+  getPendingConnectorMaintenance(
+    connectorId: string,
+    operation: ConnectorMaintenanceOperationType,
+  ): StoredConnectorMaintenanceOperation | undefined
   appendAuditRecords(records: readonly AuditRecord[]): AuditAppendResult
   getAuditRecord(id: AuditRecordId): AuditRecord | undefined
   queryAuditTimeline(query?: AuditTimelineQuery): AuditTimelinePage
@@ -410,6 +432,55 @@ class TwinDeskDatabaseHandle implements TwinDeskDatabase {
       throw new ActionExecutionStateError('database_closed', 'The TwinDesk database is closed.')
     }
     return recoverStoredActionExecution(database, request)
+  }
+
+  beginConnectorMaintenance(request: ConnectorMaintenanceRequest): ConnectorMaintenanceWriteResult {
+    const database = this.#database
+    if (database === undefined) {
+      throw new ConnectorMaintenanceAuditError(
+        'database_closed',
+        'The TwinDesk database is closed.',
+      )
+    }
+    return beginStoredConnectorMaintenance(database, request)
+  }
+
+  settleConnectorMaintenance(
+    settlement: ConnectorMaintenanceSettlement,
+  ): ConnectorMaintenanceWriteResult {
+    const database = this.#database
+    if (database === undefined) {
+      throw new ConnectorMaintenanceAuditError(
+        'database_closed',
+        'The TwinDesk database is closed.',
+      )
+    }
+    return settleStoredConnectorMaintenance(database, settlement)
+  }
+
+  getConnectorMaintenance(id: string): StoredConnectorMaintenanceOperation | undefined {
+    const database = this.#database
+    if (database === undefined) {
+      throw new ConnectorMaintenanceAuditError(
+        'database_closed',
+        'The TwinDesk database is closed.',
+      )
+    }
+    return readConnectorMaintenanceOperation(database, id)
+  }
+
+  getPendingConnectorMaintenance(
+    connectorId: string,
+    operation: ConnectorMaintenanceOperationType,
+  ): StoredConnectorMaintenanceOperation | undefined {
+    const database = this.#database
+    if (database === undefined) {
+      throw new ConnectorMaintenanceAuditError(
+        'database_closed',
+        'The TwinDesk database is closed.',
+      )
+    }
+    return readPendingConnectorMaintenance(database, connectorId, operation)
   }
 
   #readPolicyClock(): number {

@@ -24,6 +24,7 @@ const expectedTables = [
   'audit_records',
   'audit_references',
   'connector_cursors',
+  'connector_maintenance_operations',
   'draft_creation_records',
   'draft_state_transitions',
   'drafts',
@@ -120,6 +121,7 @@ test('a new database receives the isolated TwinDesk schema and durable settings'
       { version: 5, name: 'thread_deletion_receipts' },
       { version: 6, name: 'action_dispatch_journal' },
       { version: 7, name: 'connector_audit_references' },
+      { version: 8, name: 'connector_maintenance_audit' },
     ],
   )
   for (const { checksum, applied_at: appliedAt } of migrations) {
@@ -392,7 +394,7 @@ test('migration history tampering is detected before the database is used', asyn
 test('the Connector Audit migration rejects unknown pre-existing reference kinds', async (context) => {
   const path = await temporaryDatabase(context)
   const legacy = new DatabaseSync(path, { enableForeignKeyConstraints: true })
-  const legacyMigrations = SQLITE_MIGRATIONS.slice(0, -1)
+  const legacyMigrations = SQLITE_MIGRATIONS.filter(({ version }) => version <= 6)
   for (const migration of legacyMigrations) {
     legacy.exec('BEGIN IMMEDIATE')
     legacy.exec(migration.sql)

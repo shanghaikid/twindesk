@@ -509,6 +509,27 @@ export function appendAuditRecords(
   database: DatabaseSync,
   inputs: readonly AuditRecord[],
 ): AuditAppendResult {
+  try {
+    database.exec('BEGIN IMMEDIATE')
+  } catch {
+    throw new AuditTimelineError('storage_error', 'The audit transaction could not start.')
+  }
+  try {
+    const result = appendAuditRecordsInTransaction(database, inputs)
+    database.exec('COMMIT')
+    return result
+  } catch (error) {
+    rollback(database)
+    if (error instanceof AuditTimelineError) throw error
+    throw new AuditTimelineError('storage_error', 'The audit batch could not be stored.')
+  }
+}
+
+/** Internal composition primitive for a caller-owned SQLite transaction. */
+export function appendAuditRecordsInTransaction(
+  database: DatabaseSync,
+  inputs: readonly AuditRecord[],
+): AuditAppendResult {
   if (!Array.isArray(inputs) || inputs.length === 0) {
     throw new AuditTimelineError('invalid_request', 'The audit batch must be a non-empty array.')
   }
@@ -519,50 +540,38 @@ export function appendAuditRecords(
       throw new AuditTimelineError('invalid_request', 'An audit record is invalid.', { inputIndex })
     }
   })
-  try {
-    database.exec('BEGIN IMMEDIATE')
-  } catch {
-    throw new AuditTimelineError('storage_error', 'The audit transaction could not start.')
-  }
-  try {
-    const items: AuditAppendItem[] = []
-    let insertedCount = 0
-    let duplicateCount = 0
-    for (const [inputIndex, record] of records.entries()) {
-      const existing = readAuditInSnapshot(database, record.id)
-      if (existing !== undefined) {
-        if (!sameAuditRecord(existing, record)) {
-          throw new AuditTimelineError('record_conflict', 'The audit identity conflicts.', {
-            inputIndex,
-          })
-        }
-        duplicateCount += 1
-        items.push(Object.freeze({ inputIndex, disposition: 'duplicate' }))
-        continue
+  const items: AuditAppendItem[] = []
+  let insertedCount = 0
+  let duplicateCount = 0
+  for (const [inputIndex, record] of records.entries()) {
+    const existing = readAuditInSnapshot(database, record.id)
+    if (existing !== undefined) {
+      if (!sameAuditRecord(existing, record)) {
+        throw new AuditTimelineError('record_conflict', 'The audit identity conflicts.', {
+          inputIndex,
+        })
       }
-      try {
-        validateReferences(database, record)
-      } catch (error) {
-        if (error instanceof AuditTimelineError) {
-          throw new AuditTimelineError(error.code, error.message, { inputIndex })
-        }
-        throw error
-      }
-      writeAuditRecord(database, record)
-      insertedCount += 1
-      items.push(Object.freeze({ inputIndex, disposition: 'inserted' }))
+      duplicateCount += 1
+      items.push(Object.freeze({ inputIndex, disposition: 'duplicate' }))
+      continue
     }
-    database.exec('COMMIT')
-    return Object.freeze({
-      insertedCount,
-      duplicateCount,
-      items: Object.freeze(items),
-    })
-  } catch (error) {
-    rollback(database)
-    if (error instanceof AuditTimelineError) throw error
-    throw new AuditTimelineError('storage_error', 'The audit batch could not be stored.')
+    try {
+      validateReferences(database, record)
+    } catch (error) {
+      if (error instanceof AuditTimelineError) {
+        throw new AuditTimelineError(error.code, error.message, { inputIndex })
+      }
+      throw error
+    }
+    writeAuditRecord(database, record)
+    insertedCount += 1
+    items.push(Object.freeze({ inputIndex, disposition: 'inserted' }))
   }
+  return Object.freeze({
+    insertedCount,
+    duplicateCount,
+    items: Object.freeze(items),
+  })
 }
 
 export function readAuditRecord(

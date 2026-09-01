@@ -77,6 +77,7 @@ an already released migration.
 | Draft and proposal state | `drafts`, `draft_creation_records`, `draft_state_transitions`, `action_proposals`, `action_proposal_creation_records`, `action_proposal_state_transitions` | Original requests, current local state, and immutable transition history |
 | Policy | `approval_records` | Exact identity, target, content, expiry, decision, and one-time consumption bindings |
 | Connector recovery | `connector_cursors` | Per-account, per-stream durable positions |
+| Connector maintenance | `connector_maintenance_operations` | Restart-repairable request/result Audit coordination without credential data |
 | Execution | `action_receipts` | One stable attempt's normalized success, failure, or uncertain result projection; recoverable outcomes may advance after same-key retry or reconciliation |
 | Audit | `audit_records`, `audit_references` | User-visible business timeline and references |
 | Retention | `thread_deletion_receipts` | Immutable hash-and-count-only deletion tombstones |
@@ -121,6 +122,12 @@ upgrade a database containing an unknown pre-existing kind, so corruption or a
 newer shape cannot be silently reinterpreted. Advancing `user_version` makes an
 older build reject a database after Connector-scoped Audit has become writable.
 
+Migration 8 adds the Connector-neutral maintenance operation journal. It binds
+one pending operation to its request Audit and atomically binds one immutable
+settlement to its result Audit. A partial result write rolls back without hiding
+the pending repair state. See
+[Connector Maintenance Audit Protocol](CONNECTOR_MAINTENANCE_AUDIT.md).
+
 ## Privacy and Retention Review
 
 The schema contains no token, API key, cookie, private-key, or credential
@@ -140,8 +147,9 @@ locators, and hidden reasoning. Version 1 stores normalized fields rather than
 raw Connector payloads. `exportThread()` applies that policy to the complete
 authorized aggregate. `deleteThread()` removes Thread-owned records and
 orphaned events in one transaction while retaining shared events, account-level
-Connector cursors, and a content-free deletion tombstone. Harness Session data
-remains outside this database and is not modified or claimed deleted.
+Connector cursors, Connector maintenance history, and a content-free deletion
+tombstone. Harness Session data remains outside this database and is not
+modified or claimed deleted.
 
 ## Verification
 

@@ -55,6 +55,11 @@ still append their user-visible approval Audit records through this timeline.
 TD-207 owns Feishu execution and normalized receipt persistence but likewise
 does not append Audit records automatically; TD-209 must preserve execution and
 reconciliation history here while the receipt projection advances.
+Migration 8 now provides an atomic Connector maintenance request/result Audit
+protocol and restart-visible pending state. Feishu composition must still bind
+that protocol to current rotation-journal evidence without repeating the local
+reconciliation effect. See
+[Connector Maintenance Audit Protocol](CONNECTOR_MAINTENANCE_AUDIT.md).
 The tests
 use synthetic rows and cause no external side effect.
 

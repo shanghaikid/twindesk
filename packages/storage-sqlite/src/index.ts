@@ -38,6 +38,16 @@ export {
   type AuditTimelineQuery,
 } from './audit-timeline.ts'
 export {
+  ConnectorMaintenanceAuditError,
+  type ConnectorMaintenanceAuditErrorCode,
+  type ConnectorMaintenanceOperationType,
+  type ConnectorMaintenanceRequest,
+  type ConnectorMaintenanceResult,
+  type ConnectorMaintenanceSettlement,
+  type ConnectorMaintenanceWriteResult,
+  type StoredConnectorMaintenanceOperation,
+} from './connector-maintenance-audit.ts'
+export {
   StorageSchemaError,
   openTwinDeskDatabase,
   type StorageSchemaErrorCode,

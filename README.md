@@ -93,6 +93,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Persona to Harness Preset Mapping](docs/PERSONA_PRESET_MAPPING.md): versioned built-in behavior mapping and its non-authority boundary.
 - [Draft and ActionProposal Transitions](docs/DRAFT_ACTION_TRANSITIONS.md): local state machines, exact content binding, replay, and no-side-effect boundary.
 - [Local Audit Timeline](docs/AUDIT_TIMELINE.md): immutable business records, cross-store references, pagination, and presentation redaction.
+- [Connector Maintenance Audit Protocol](docs/CONNECTOR_MAINTENANCE_AUDIT.md): atomic request/result Audit, restart-visible pending operations, and Connector-only retention.
 - [Secret References and Shared Redaction](docs/SECRET_REFERENCES_AND_REDACTION.md): opaque secret locators, boundary policies, failure behavior, and current limitations.
 - [Thread Export and Deletion](docs/THREAD_EXPORT_AND_DELETION.md): aggregate export, revision-bound deletion, durable tombstones, and explicit retention behavior.
 - [Harness Upstream Navigation Proposal](docs/HARNESS_UPSTREAM_NAVIGATION_PROPOSAL.md): an optional ecosystem reference for generic Harness Client extensibility.

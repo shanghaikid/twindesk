@@ -240,19 +240,23 @@ function addLifecycleRecords(database, path) {
       },
       occurredAt: '2026-08-26T09:23:00Z',
     }),
-    parseAuditRecord({
-      kind: 'audit_record',
-      schemaVersion: 1,
-      id: 'connector-maintenance-audit-1',
-      category: 'system',
-      outcome: 'success',
-      actor: { type: 'connector', id: 'feishu' },
-      summary: 'Synthetic connector maintenance completed.',
-      references: [{ kind: 'connector', id: 'feishu' }],
-      details: { fixture: true, operation: 'oauth_reconciliation' },
-      occurredAt: '2026-08-26T09:24:00Z',
-    }),
   ])
+  const maintenanceId = 'connector-maintenance:feishu:thread-lifecycle'
+  database.beginConnectorMaintenance({
+    kind: 'connector_maintenance_request',
+    schemaVersion: 1,
+    id: maintenanceId,
+    connectorId: 'feishu',
+    operation: 'credential_reconciliation',
+    requestedAt: '2026-08-26T09:24:00Z',
+  })
+  database.settleConnectorMaintenance({
+    kind: 'connector_maintenance_settlement',
+    schemaVersion: 1,
+    id: maintenanceId,
+    result: 'reconciled',
+    settledAt: '2026-08-26T09:25:00Z',
+  })
 }
 
 test('Thread export is complete, versioned, immutable, and redacted', async (context) => {
@@ -288,7 +292,8 @@ test('Thread export is complete, versioned, immutable, and redacted', async (con
   assert.equal(document.auditRecords.length, 2)
   assert.equal(
     document.auditRecords.some(
-      (/** @type {{ id: string }} */ record) => record.id === 'connector-maintenance-audit-1',
+      (/** @type {{ id: string }} */ record) =>
+        record.id === 'connector-maintenance:feishu:thread-lifecycle:request',
     ),
     false,
   )
@@ -360,7 +365,12 @@ test('Thread deletion cascades local data, retains policy state, and replays aft
   assert.equal(
     inspection
       .prepare(`SELECT count(*) AS count FROM audit_records WHERE id = ?`)
-      .get('connector-maintenance-audit-1')?.count,
+      .get('connector-maintenance:feishu:thread-lifecycle:result')?.count,
+    1,
+  )
+  assert.equal(
+    inspection.prepare(`SELECT count(*) AS count FROM connector_maintenance_operations`).get()
+      ?.count,
     1,
   )
   const receiptRow = inspection.prepare(`SELECT * FROM thread_deletion_receipts`).get()
