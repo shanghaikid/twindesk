@@ -157,6 +157,22 @@ export class FeishuOAuthReauthorizationCoordinator {
     this.#now = validated.now
   }
 
+  async #restoreBlockedState(sequence: number): Promise<void> {
+    try {
+      const latest = await this.#journal.inspect()
+      if (latest?.sequence !== sequence || latest.state !== 'reauthorization_reserved') {
+        throw new TypeError()
+      }
+      await this.#journal.settle(sequence, 'reauthorization_required', observedAt(this.#now))
+    } catch {
+      throw fail(
+        'journal_uncertain',
+        'reconcile_rotation',
+        'The Feishu OAuth reauthorization reservation requires reconciliation.',
+      )
+    }
+  }
+
   async replace(
     configurationValue: unknown,
     clientSecretValue: Uint8Array,
@@ -165,24 +181,29 @@ export class FeishuOAuthReauthorizationCoordinator {
   ): Promise<FeishuOAuthReauthorizationResult> {
     signal.throwIfAborted()
     let persisted: FeishuOAuthInitialPersistenceResult | undefined
+    let reservedSequence: number | undefined
     try {
-      const snapshot = await this.#journal.replaceAfterReauthorization(async (blocked) => {
-        const recordedAt = observedAt(this.#now)
-        if (Date.parse(recordedAt) < Date.parse(blocked.sourceObtainedAt)) {
-          throw fail('invalid_request', 'do_not_retry', 'The reauthorization clock is invalid.')
-        }
-        persisted = await this.#persister.persistWithResult(
-          configurationValue,
-          clientSecretValue,
-          tokenSetValue,
-          signal,
-          Object.freeze({
-            mustBeNewerThan: blocked.sourceObtainedAt,
-            mustNotBeNewerThan: recordedAt,
-          }),
-        )
-        return Object.freeze({ recordedAt, resultObtainedAt: persisted.obtainedAt })
-      })
+      const snapshot = await this.#journal.replaceAfterReauthorization(
+        observedAt(this.#now),
+        async (blocked) => {
+          reservedSequence = blocked.sequence
+          const recordedAt = observedAt(this.#now)
+          if (Date.parse(recordedAt) < Date.parse(blocked.sourceObtainedAt)) {
+            throw fail('invalid_request', 'do_not_retry', 'The reauthorization clock is invalid.')
+          }
+          persisted = await this.#persister.persistWithResult(
+            configurationValue,
+            clientSecretValue,
+            tokenSetValue,
+            signal,
+            Object.freeze({
+              mustBeNewerThan: blocked.sourceObtainedAt,
+              mustNotBeNewerThan: recordedAt,
+            }),
+          )
+          return Object.freeze({ recordedAt, resultObtainedAt: persisted.obtainedAt })
+        },
+      )
       return Object.freeze({ status: 'reauthorized', obtainedAt: snapshot.resultObtainedAt! })
     } catch (error) {
       if (persisted !== undefined) {
@@ -192,8 +213,16 @@ export class FeishuOAuthReauthorizationCoordinator {
           'The replacement credential is durable but its rotation journal outcome is uncertain.',
         )
       }
-      if (error instanceof FeishuOAuthReauthorizationError) throw error
-      if (error instanceof FeishuOAuthInitialPersistenceError) mapPersistence(error)
+      if (error instanceof FeishuOAuthReauthorizationError) {
+        if (reservedSequence !== undefined) await this.#restoreBlockedState(reservedSequence)
+        throw error
+      }
+      if (error instanceof FeishuOAuthInitialPersistenceError) {
+        if (error.code !== 'persistence_uncertain' && reservedSequence !== undefined) {
+          await this.#restoreBlockedState(reservedSequence)
+        }
+        mapPersistence(error)
+      }
       if (error instanceof FeishuOAuthRotationError) {
         if (error.code === 'reauthorization_not_pending') {
           throw fail(
@@ -208,7 +237,10 @@ export class FeishuOAuthReauthorizationCoordinator {
           'The Feishu OAuth rotation journal is unavailable.',
         )
       }
-      if (signal.aborted) signal.throwIfAborted()
+      if (signal.aborted) {
+        if (reservedSequence !== undefined) await this.#restoreBlockedState(reservedSequence)
+        signal.throwIfAborted()
+      }
       throw fail(
         'persistence_unavailable',
         'do_not_retry',

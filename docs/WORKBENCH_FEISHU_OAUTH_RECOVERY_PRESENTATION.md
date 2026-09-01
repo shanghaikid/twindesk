@@ -24,6 +24,7 @@ filesystem path.
 | `completed` or `reauthorized` | `ready` | No unresolved journal transaction; not a credential-health result |
 | Same-process active `reserved` event | `rotation_active` | This process currently owns an in-memory reservation |
 | `reauthorization_required` | `reauthorization_required` | A separate verified reauthorization action is required |
+| `reauthorization_reserved` | `reconciliation_required` | Replacement began and its Keychain/journal outcome must be reconciled |
 | `uncertain`, or a `reserved` event without same-process ownership | `reconciliation_required` | The Keychain and journal must be reconciled before another authorization attempt |
 
 A reservation owned by another process cannot be proven through this
@@ -58,7 +59,7 @@ provides deletion, revocation, credential-health, or external-write authority.
 ## Verification and remaining work
 
 Synthetic tests cover every minimized state, active versus restart-visible
-reservations, exact browser parsing, hostile accessors, fixed API failures,
+rotation and reauthorization reservations, exact browser parsing, hostile accessors, fixed API failures,
 query and method rejection, default-path Web composition, and recovery-state
 restart presentation. Tests use no live account, Keychain item, credential, or
 external network.

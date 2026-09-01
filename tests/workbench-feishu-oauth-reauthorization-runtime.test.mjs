@@ -238,7 +238,7 @@ test('Workbench preserves uncertain Keychain recovery when cancellation follows 
     replacementBundle.every((byte) => byte === 0),
     true,
   )
-  assert.equal((await journal.inspect())?.state, 'reauthorization_required')
+  assert.equal((await journal.inspect())?.state, 'reauthorization_reserved')
   assert.equal(leaseManager.entries(), 1)
   assert.equal(leaseManager.held(), false)
 })

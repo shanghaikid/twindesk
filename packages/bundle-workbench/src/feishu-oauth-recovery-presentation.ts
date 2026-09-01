@@ -70,6 +70,7 @@ export function createWorkbenchFeishuOAuthRecoveryPresentation(
       case 'reauthorization_required':
         return snapshot('reauthorization_required')
       case 'uncertain':
+      case 'reauthorization_reserved':
         return snapshot('reconciliation_required')
       case 'reserved':
         return snapshot(

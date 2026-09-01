@@ -66,7 +66,9 @@ replacement, restart reconciliation, exact post-exchange `open_id` binding,
 the bounded production user-info Fetch client, and the state-bound S256 PKCE
 exchange through verified initial Keychain replacement and restart parsing are
 also covered without live I/O. Explicit reauthorization now replaces a durable
-blocked state through a version 2 journal while preserving version 1 history. A
+blocked state through a version 3 journal while preserving version 1 and 2
+history. Its durable-before-Keychain replacement reservation makes uncertain
+writes reconciliation-required across restart. A
 kernel-backed exclusive Host lease passes real cross-process and process-death
 tests. Fixed Bot/User reply and User-discovery scope gates also pass synthetic
 contracts, and the User gate now reads the exact Keychain token claims while
@@ -104,7 +106,8 @@ requires reauthorization/reconciliation and blocks unsafe initial-authorization
 retries; it does not inspect credential health or expose recovery actions.
 The blocked-state runtime can now reconstruct the registered callback and
 production adapters from restart-safe Settings, then hold one lease through
-code exchange, verified Keychain replacement, and journal settlement. The
+code exchange, a durable replacement reservation, verified Keychain
+replacement, and journal settlement. The
 default Web composition now exposes that runtime through a separate
 recovery-gated controller and CSRF-bound local API. The Connectors page requires
 an explicit click, polls only minimized memory state, supports cancellation,

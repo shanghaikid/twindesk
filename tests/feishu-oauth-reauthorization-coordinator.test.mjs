@@ -200,49 +200,135 @@ test('verified reauthorization writes once, records an explicit terminal state, 
   assert.equal(refreshCalls, 0)
 })
 
-test('a legacy version 1 block upgrades by appending one version 2 reauthorized event', async (context) => {
-  const root = await temporaryDirectory(context, 'feishu-reauthorization-v1-')
-  const path = join(root, 'rotation.jsonl')
-  await writeFile(
-    path,
-    `${JSON.stringify({
-      kind: 'feishu_oauth_rotation_event',
-      schemaVersion: 1,
-      sequence: 1,
-      state: 'reserved',
-      sourceObtainedAt: SOURCE_OBTAINED_AT,
-      recordedAt: REAUTHORIZED_AT,
-    })}\n${JSON.stringify({
-      kind: 'feishu_oauth_rotation_event',
-      schemaVersion: 1,
-      sequence: 1,
-      state: 'reauthorization_required',
-      sourceObtainedAt: SOURCE_OBTAINED_AT,
-      recordedAt: REAUTHORIZED_AT,
-    })}\n`,
-  )
-  await chmod(path, 0o600)
-  const current = fixture(new FeishuOAuthRotationJournal(path))
-  await current.coordinator.replace(
-    configuration(),
-    bytes(PRIVATE_CLIENT_SECRET),
-    /** @type {never} */ (tokenSet()),
-    new AbortController().signal,
-  )
+test('version 1 and 2 blocks upgrade through a durable version 3 replacement reservation', async (context) => {
+  for (const previousVersion of [1, 2]) {
+    const root = await temporaryDirectory(context, `feishu-reauthorization-v${previousVersion}-`)
+    const path = join(root, 'rotation.jsonl')
+    await writeFile(
+      path,
+      `${JSON.stringify({
+        kind: 'feishu_oauth_rotation_event',
+        schemaVersion: previousVersion,
+        sequence: 1,
+        state: 'reserved',
+        sourceObtainedAt: SOURCE_OBTAINED_AT,
+        recordedAt: REAUTHORIZED_AT,
+      })}\n${JSON.stringify({
+        kind: 'feishu_oauth_rotation_event',
+        schemaVersion: previousVersion,
+        sequence: 1,
+        state: 'reauthorization_required',
+        sourceObtainedAt: SOURCE_OBTAINED_AT,
+        recordedAt: REAUTHORIZED_AT,
+      })}\n`,
+    )
+    await chmod(path, 0o600)
+    const current = fixture(new FeishuOAuthRotationJournal(path))
+    await current.coordinator.replace(
+      configuration(),
+      bytes(PRIVATE_CLIENT_SECRET),
+      /** @type {never} */ (tokenSet()),
+      new AbortController().signal,
+    )
 
-  const events = (await readFile(path, 'utf8'))
-    .trimEnd()
-    .split('\n')
-    .map((line) => JSON.parse(line))
-  assert.deepEqual(
-    events.map((event) => [event.schemaVersion, event.state]),
-    [
-      [1, 'reserved'],
-      [1, 'reauthorization_required'],
-      [2, 'reauthorized'],
-    ],
+    const events = (await readFile(path, 'utf8'))
+      .trimEnd()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    assert.deepEqual(
+      events.map((event) => [event.schemaVersion, event.state]),
+      [
+        [previousVersion, 'reserved'],
+        [previousVersion, 'reauthorization_required'],
+        [3, 'reauthorization_reserved'],
+        [3, 'reauthorized'],
+      ],
+    )
+    assert.equal((await new FeishuOAuthRotationJournal(path).inspect())?.state, 'reauthorized')
+  }
+})
+
+test('version 3 refuses terminal reauthorization without a durable replacement reservation', async (context) => {
+  const root = await temporaryDirectory(context, 'feishu-reauthorization-reservation-required-')
+  const journal = new FeishuOAuthRotationJournal(join(root, 'rotation.jsonl'))
+  await block(journal)
+  await assert.rejects(
+    journal.settle(1, 'reauthorized', REAUTHORIZED_AT, REAUTHORIZED_AT),
+    (error) => error instanceof FeishuOAuthRotationError && error.code === 'invalid_request',
   )
-  assert.equal((await new FeishuOAuthRotationJournal(path).inspect())?.state, 'reauthorized')
+  assert.equal((await journal.inspect())?.state, 'reauthorization_required')
+})
+
+test('a newer Keychain bundle reconciles version 1 and 2 blocked histories after restart', async (context) => {
+  for (const previousVersion of [1, 2]) {
+    const root = await temporaryDirectory(
+      context,
+      `feishu-reauthorization-v${previousVersion}-recovery-`,
+    )
+    const path = join(root, 'rotation.jsonl')
+    await writeFile(
+      path,
+      `${JSON.stringify({
+        kind: 'feishu_oauth_rotation_event',
+        schemaVersion: previousVersion,
+        sequence: 1,
+        state: 'reserved',
+        sourceObtainedAt: SOURCE_OBTAINED_AT,
+        recordedAt: REAUTHORIZED_AT,
+      })}\n${JSON.stringify({
+        kind: 'feishu_oauth_rotation_event',
+        schemaVersion: previousVersion,
+        sequence: 1,
+        state: 'reauthorization_required',
+        sourceObtainedAt: SOURCE_OBTAINED_AT,
+        recordedAt: REAUTHORIZED_AT,
+      })}\n`,
+    )
+    await chmod(path, 0o600)
+    let refreshCalls = 0
+    const restarted = new FeishuOAuthRotationCoordinator({
+      now: () => NOW + 30 * 60 * 1000,
+      journal: new FeishuOAuthRotationJournal(path),
+      resolver: new FeishuSystemKeychainSecretResolver({
+        platform: 'darwin',
+        runner: { run: async () => credentialBundle() },
+      }),
+      refresher: new FeishuOAuthV3TokenRefresher({
+        transport: {
+          async send() {
+            refreshCalls += 1
+            throw new Error(PRIVATE_REFRESH_TOKEN)
+          },
+        },
+      }),
+      replacer: new FeishuSystemKeychainSecretReplacer({
+        platform: 'darwin',
+        runner: { replace: async () => assert.fail('Recovery must not rewrite Keychain.') },
+      }),
+    })
+
+    assert.deepEqual(
+      await restarted.refreshIfNeeded(configuration(), new AbortController().signal),
+      {
+        status: 'reauthorized',
+        obtainedAt: REAUTHORIZED_AT,
+      },
+    )
+    assert.equal(refreshCalls, 0)
+    const events = (await readFile(path, 'utf8'))
+      .trimEnd()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    assert.deepEqual(events.at(-1), {
+      kind: 'feishu_oauth_rotation_event',
+      schemaVersion: 3,
+      sequence: 1,
+      state: 'reauthorized',
+      sourceObtainedAt: SOURCE_OBTAINED_AT,
+      recordedAt: new Date(NOW + 30 * 60 * 1000).toISOString(),
+      resultObtainedAt: REAUTHORIZED_AT,
+    })
+  }
 })
 
 test('restart reconciles a newer Keychain bundle when journal completion was not proven', async (context) => {
@@ -250,6 +336,22 @@ test('restart reconciles a newer Keychain bundle when journal completion was not
   const path = join(root, 'rotation.jsonl')
   const journal = new FeishuOAuthRotationJournal(path)
   await block(journal)
+  const interrupted = fixture(journal, {
+    replace: async () => {
+      throw new Error(PRIVATE_REFRESH_TOKEN)
+    },
+  })
+  await assert.rejects(
+    interrupted.coordinator.replace(
+      configuration(),
+      bytes(PRIVATE_CLIENT_SECRET),
+      /** @type {never} */ (tokenSet()),
+      new AbortController().signal,
+    ),
+    (error) =>
+      error instanceof FeishuOAuthReauthorizationError && error.recovery === 'reconcile_keychain',
+  )
+  assert.equal((await journal.inspect())?.state, 'reauthorization_reserved')
   let refreshCalls = 0
   const restarted = new FeishuOAuthRotationCoordinator({
     now: () => NOW + 30 * 60 * 1000,
@@ -432,6 +534,47 @@ test('a confirmed replacement remains authoritative when cancellation arrives du
   assert.equal((await journal.inspect())?.state, 'reauthorized')
 })
 
+test('pre-write cancellation restores the durable reauthorization requirement', async (context) => {
+  const root = await temporaryDirectory(context, 'feishu-reauthorization-cancelled-verify-')
+  const journal = new FeishuOAuthRotationJournal(join(root, 'rotation.jsonl'))
+  await block(journal)
+  const controller = new AbortController()
+  let writes = 0
+  const persister = new FeishuOAuthInitialCredentialPersister({
+    verifier: new FeishuOAuthUserPrincipalVerifier({
+      client: {
+        async get() {
+          controller.abort()
+          controller.signal.throwIfAborted()
+          return { openId: PRINCIPAL_ID }
+        },
+      },
+    }),
+    replacer: /** @type {never} */ ({
+      async replace() {
+        writes += 1
+      },
+    }),
+  })
+  const coordinator = new FeishuOAuthReauthorizationCoordinator({
+    journal,
+    persister,
+    now: () => NOW,
+  })
+
+  await assert.rejects(
+    coordinator.replace(
+      configuration(),
+      bytes(PRIVATE_CLIENT_SECRET),
+      /** @type {never} */ (tokenSet()),
+      controller.signal,
+    ),
+    { name: 'AbortError' },
+  )
+  assert.equal(writes, 0)
+  assert.equal((await journal.inspect())?.state, 'reauthorization_required')
+})
+
 test('uncertain Keychain and post-write journal failures require explicit reconciliation', async (context) => {
   const root = await temporaryDirectory(context, 'feishu-reauthorization-uncertain-')
   const keychainJournal = new FeishuOAuthRotationJournal(join(root, 'keychain.jsonl'))
@@ -454,16 +597,17 @@ test('uncertain Keychain and post-write journal failures require explicit reconc
       error.recovery === 'reconcile_keychain' &&
       !error.message.includes(PRIVATE_REFRESH_TOKEN),
   )
-  assert.equal((await keychainJournal.inspect())?.state, 'reauthorization_required')
+  assert.equal((await keychainJournal.inspect())?.state, 'reauthorization_reserved')
 
   class AmbiguousJournal extends FeishuOAuthRotationJournal {
     /**
      * @override
+     * @param {string} recordedAt
      * @param {(blocked: import('../packages/plugin-feishu/dist/index.js').FeishuOAuthRotationSnapshot) => Promise<Readonly<{recordedAt: string, resultObtainedAt: string}>>} replace
      * @returns {Promise<import('../packages/plugin-feishu/dist/index.js').FeishuOAuthRotationSnapshot>}
      */
-    async replaceAfterReauthorization(replace) {
-      await super.replaceAfterReauthorization(replace)
+    async replaceAfterReauthorization(recordedAt, replace) {
+      await super.replaceAfterReauthorization(recordedAt, replace)
       throw new Error(PRIVATE_ACCESS_TOKEN)
     }
   }
@@ -532,6 +676,7 @@ test('hostile options and replacement evidence fail without evaluating accessors
   let evidenceAccessed = false
   await assert.rejects(
     journal.replaceAfterReauthorization(
+      REAUTHORIZED_AT,
       async () =>
         /** @type {never} */ (
           Object.defineProperty({ resultObtainedAt: REAUTHORIZED_AT }, 'recordedAt', {
@@ -547,5 +692,5 @@ test('hostile options and replacement evidence fail without evaluating accessors
   )
   assert.equal(evidenceAccessed, false)
   assert.equal(current.counts().writes, 0)
-  assert.equal((await journal.inspect())?.state, 'reauthorization_required')
+  assert.equal((await journal.inspect())?.state, 'reauthorization_reserved')
 })

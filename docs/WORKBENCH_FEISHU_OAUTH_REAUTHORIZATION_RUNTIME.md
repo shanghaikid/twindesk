@@ -57,6 +57,7 @@ inspect exact reauthorization_required journal state
   -> capture one matching callback
   -> recheck the blocked journal while the lease is held
   -> exchange the single-use code
+  -> fsync reauthorization_reserved
   -> verify the configured application-scoped User principal
   -> replace the exact Keychain item
   -> fsync reauthorized journal evidence

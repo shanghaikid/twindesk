@@ -165,6 +165,33 @@ test('Workbench hosts default-path Feishu Settings in the product Web shell', as
   } finally {
     await restarted.close()
   }
+
+  await assert.rejects(
+    restartedStores.rotationJournal.replaceAfterReauthorization(
+      '2026-08-31T08:03:00.000Z',
+      async () => {
+        throw new Error('synthetic-interrupted-keychain-boundary')
+      },
+    ),
+    /synthetic-interrupted/u,
+  )
+  const reconciliationRestart = await startWorkbenchWebServer({
+    ...localPaths,
+    databasePath,
+    port: 0,
+  })
+  try {
+    const recovery = await fetch(`${reconciliationRestart.url}/api/recovery/feishu/oauth`, {
+      headers: { connection: 'close' },
+    })
+    assert.deepEqual(await recovery.json(), {
+      version: 1,
+      connectorId: 'feishu',
+      state: 'reconciliation_required',
+    })
+  } finally {
+    await reconciliationRestart.close()
+  }
 })
 
 test('Workbench Web composition rejects unknown and hostile options before local access', async () => {

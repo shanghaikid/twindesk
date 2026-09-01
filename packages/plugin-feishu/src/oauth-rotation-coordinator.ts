@@ -19,17 +19,24 @@ import {
   FeishuSystemKeychainSecretResolver,
 } from './system-keychain.ts'
 
-export const FEISHU_OAUTH_ROTATION_JOURNAL_VERSION = 2 as const
+export const FEISHU_OAUTH_ROTATION_JOURNAL_VERSION = 3 as const
 export const FEISHU_OAUTH_ROTATION_JOURNAL_LEGACY_VERSION = 1 as const
+export const FEISHU_OAUTH_ROTATION_JOURNAL_REAUTHORIZATION_VERSION = 2 as const
 export const FEISHU_OAUTH_ROTATION_JOURNAL_MAX_BYTES = 1024 * 1024
 
 export type FeishuOAuthRotationState =
-  'reserved' | 'completed' | 'uncertain' | 'reauthorization_required' | 'reauthorized'
+  | 'reserved'
+  | 'completed'
+  | 'uncertain'
+  | 'reauthorization_required'
+  | 'reauthorization_reserved'
+  | 'reauthorized'
 
 export interface FeishuOAuthRotationSnapshot {
   readonly kind: 'feishu_oauth_rotation_event'
   readonly schemaVersion:
     | typeof FEISHU_OAUTH_ROTATION_JOURNAL_LEGACY_VERSION
+    | typeof FEISHU_OAUTH_ROTATION_JOURNAL_REAUTHORIZATION_VERSION
     | typeof FEISHU_OAUTH_ROTATION_JOURNAL_VERSION
   readonly sequence: number
   readonly state: FeishuOAuthRotationState
@@ -103,14 +110,22 @@ function parseEvent(value: unknown): FeishuOAuthRotationSnapshot {
     expected.some((key) => !Object.hasOwn(record, key)) ||
     record.kind !== 'feishu_oauth_rotation_event' ||
     (record.schemaVersion !== FEISHU_OAUTH_ROTATION_JOURNAL_LEGACY_VERSION &&
+      record.schemaVersion !== FEISHU_OAUTH_ROTATION_JOURNAL_REAUTHORIZATION_VERSION &&
       record.schemaVersion !== FEISHU_OAUTH_ROTATION_JOURNAL_VERSION) ||
     !Number.isSafeInteger(record.sequence) ||
     (record.sequence as number) <= 0 ||
-    !['reserved', 'completed', 'uncertain', 'reauthorization_required', 'reauthorized'].includes(
-      state as string,
-    ) ||
+    ![
+      'reserved',
+      'completed',
+      'uncertain',
+      'reauthorization_required',
+      'reauthorization_reserved',
+      'reauthorized',
+    ].includes(state as string) ||
     (record.schemaVersion === FEISHU_OAUTH_ROTATION_JOURNAL_LEGACY_VERSION &&
-      state === 'reauthorized')
+      state === 'reauthorized') ||
+    (state === 'reauthorization_reserved' &&
+      record.schemaVersion !== FEISHU_OAUTH_ROTATION_JOURNAL_VERSION)
   ) {
     throw fail('unsafe_file', 'The Feishu OAuth rotation journal contains invalid data.')
   }
@@ -131,14 +146,14 @@ function parseEvent(value: unknown): FeishuOAuthRotationSnapshot {
     Date.parse(recordedAt) < Date.parse(sourceObtainedAt) ||
     (resultObtainedAt !== undefined &&
       (Date.parse(resultObtainedAt) <= Date.parse(sourceObtainedAt) ||
-        (record.schemaVersion === FEISHU_OAUTH_ROTATION_JOURNAL_VERSION &&
+        (record.schemaVersion !== FEISHU_OAUTH_ROTATION_JOURNAL_LEGACY_VERSION &&
           Date.parse(recordedAt) < Date.parse(resultObtainedAt))))
   ) {
     throw fail('unsafe_file', 'The Feishu OAuth rotation journal contains invalid data.')
   }
   return Object.freeze({
     kind: 'feishu_oauth_rotation_event',
-    schemaVersion: record.schemaVersion as 1 | 2,
+    schemaVersion: record.schemaVersion as 1 | 2 | 3,
     sequence: record.sequence as number,
     state: state as FeishuOAuthRotationState,
     sourceObtainedAt,
@@ -168,11 +183,17 @@ function validateTransition(
       : previous.state === 'uncertain'
         ? ['completed']
         : previous.state === 'reauthorization_required'
-          ? ['reauthorized']
-          : []
+          ? ['reauthorization_reserved', 'reauthorized']
+          : previous.state === 'reauthorization_reserved'
+            ? ['reauthorization_required', 'reauthorized']
+            : []
   if (
     next.sequence !== previous.sequence ||
     next.sourceObtainedAt !== previous.sourceObtainedAt ||
+    next.schemaVersion < previous.schemaVersion ||
+    (previous.state === 'reauthorization_required' &&
+      next.state === 'reauthorized' &&
+      previous.schemaVersion === FEISHU_OAUTH_ROTATION_JOURNAL_VERSION) ||
     !allowed.includes(next.state)
   ) {
     throw new TypeError()
@@ -350,7 +371,7 @@ export class FeishuOAuthRotationJournal {
 
   settle(
     sequence: number,
-    state: Exclude<FeishuOAuthRotationState, 'reserved'>,
+    state: Exclude<FeishuOAuthRotationState, 'reserved' | 'reauthorization_reserved'>,
     recordedAtValue: string,
     resultObtainedAtValue?: string,
   ): Promise<FeishuOAuthRotationSnapshot> {
@@ -391,6 +412,7 @@ export class FeishuOAuthRotationJournal {
   }
 
   replaceAfterReauthorization(
+    recordedAtValue: string,
     replace: (
       blocked: FeishuOAuthRotationSnapshot,
     ) => Promise<Readonly<{ recordedAt: string; resultObtainedAt: string }>>,
@@ -407,6 +429,21 @@ export class FeishuOAuthRotationJournal {
           'No Feishu OAuth reauthorization replacement is pending.',
         )
       }
+      const reservation = parseEvent({
+        kind: 'feishu_oauth_rotation_event',
+        schemaVersion: FEISHU_OAUTH_ROTATION_JOURNAL_VERSION,
+        sequence: latest.sequence,
+        state: 'reauthorization_reserved',
+        sourceObtainedAt: latest.sourceObtainedAt,
+        recordedAt: instant(recordedAtValue),
+      })
+      try {
+        validateTransition(latest, reservation)
+      } catch {
+        throw fail('invalid_request', 'The Feishu OAuth reauthorization chronology is invalid.')
+      }
+      await this.#append(reservation)
+      this.#state.latest = reservation
       const replacementValue = await replace(latest)
       let replacement: Readonly<{ recordedAt: string; resultObtainedAt: string }>
       try {
@@ -439,14 +476,14 @@ export class FeishuOAuthRotationJournal {
       const event = parseEvent({
         kind: 'feishu_oauth_rotation_event',
         schemaVersion: FEISHU_OAUTH_ROTATION_JOURNAL_VERSION,
-        sequence: latest.sequence,
+        sequence: reservation.sequence,
         state: 'reauthorized',
-        sourceObtainedAt: latest.sourceObtainedAt,
+        sourceObtainedAt: reservation.sourceObtainedAt,
         recordedAt: replacement.recordedAt,
         resultObtainedAt: replacement.resultObtainedAt,
       })
       try {
-        validateTransition(latest, event)
+        validateTransition(reservation, event)
       } catch {
         throw fail('invalid_request', 'The Feishu OAuth reauthorization chronology is invalid.')
       }
@@ -591,7 +628,8 @@ export class FeishuOAuthRotationCoordinator {
         throw fail('rotation_pending', 'A Feishu OAuth rotation is already in progress.')
       }
       if (Date.parse(credential.obtainedAt) > Date.parse(latest.sourceObtainedAt)) {
-        const reauthorized = latest.state === 'reauthorization_required'
+        const reauthorized =
+          latest.state === 'reauthorization_required' || latest.state === 'reauthorization_reserved'
         await this.#journal.settle(
           latest.sequence,
           reauthorized ? 'reauthorized' : 'completed',

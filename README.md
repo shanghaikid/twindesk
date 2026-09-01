@@ -189,6 +189,9 @@ reconciliation-required states remain blocked without retry. The
 Workbench reauthorization runtime now holds the exclusive kernel-backed lease
 from blocked-state inspection through registered-loopback callback, code
 exchange, principal verification, Keychain replacement, and journal settlement.
+Journal version 3 fsyncs a replacement reservation before principal verification
+or Keychain access, so an uncertain write or process restart presents
+reconciliation instead of enabling another authorization.
 It can reconstruct production collaborators from restart-safe Settings and an
 explicit concrete journal, and the default product composition supplies that
 journal. The Connectors page reaches it through a separately CSRF-bound local

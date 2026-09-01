@@ -304,7 +304,11 @@ async function assertReauthorizationPending(options: ParsedOptions): Promise<voi
     )
   }
   if (latest?.state === 'reauthorization_required') return
-  if (latest?.state === 'reserved' || latest?.state === 'uncertain') {
+  if (
+    latest?.state === 'reserved' ||
+    latest?.state === 'uncertain' ||
+    latest?.state === 'reauthorization_reserved'
+  ) {
     throw error(
       'reauthorization_not_pending',
       'reconcile_rotation',

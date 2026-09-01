@@ -221,9 +221,10 @@ The verified initial-persistence composition then requires the exact configured
 configured Keychain reference. An exclusive
 kernel-backed Host lease now prevents two processes from operating Feishu at
 once and survives abrupt owner death without stale recovery files. Explicit
-reauthorization now replaces only a durably blocked credential and
-records a distinct version 2 `reauthorized` event while preserving version 1
-journal history. A bounded fixed-endpoint reply HTTP primitive now preserves
+reauthorization now replaces only a durably blocked credential. Version 2
+introduced the distinct `reauthorized` event; version 3 adds a
+durable-before-Keychain replacement reservation while preserving version 1 and
+2 journal history. A bounded fixed-endpoint reply HTTP primitive now preserves
 post-send ambiguity without inventing remote reconciliation, and the durable
 dispatch reservation already blocks blind restart sends. A send-only production
 adapter now composes an already-held lease with concrete Bot/User scope probes,
@@ -272,9 +273,13 @@ production reply adapter, while injecting only synthetic Keychain and Fetch
 boundaries for its full-stack test. A separate Workbench reauthorization
 runtime now holds that same lease from blocked journal inspection through the
 registered-loopback callback, code exchange, verified Keychain replacement,
-and journal settlement. A restart-loaded factory composes the bounded
+and journal settlement. Before principal verification or Keychain access,
+journal version 3 fsyncs `reauthorization_reserved`; uncertain replacement or
+restart therefore projects reconciliation instead of permission to authorize
+again. A restart-loaded factory composes the bounded
 production HTTP, verifier, Keychain, Settings, and supplied-journal boundaries;
-it neither retries a reply nor exposes a product action yet. The Workbench also
+it neither retries a reply nor grants external-write authority. A separate
+memory-only product controller now exposes the explicit action. The Workbench also
 owns fixed private macOS product paths for
 the Connector-owned identity and OAuth authorization Settings stores plus the
 separate secret-free OAuth rotation journal. It does not place credentials,

@@ -14,6 +14,7 @@ The only successful ordering is:
 ```text
 load exact reauthorization_required journal state
   -> serialize this replacement against same-Host journal work
+  -> fsync reauthorization_reserved before replacement work
   -> require a strictly newer token set
   -> verify exact configured application-scoped open_id
   -> replace the exact connector_oauth Keychain item
@@ -28,12 +29,13 @@ and encoded, not from caller-mutable input.
 
 ## Journal Version and Recovery
 
-Rotation journal schema version 2 adds the terminal `reauthorized` state. The
-journal continues to read valid version 1 events and may append one version 2
-event to a legacy log, providing a forward migration without deleting local
-state. Version 1 is not allowed to claim the new state. Downgrading after a
-version 2 event is written is unsupported and fails closed rather than ignoring
-the newer transition.
+Rotation journal schema version 2 added the terminal `reauthorized` state.
+Version 3 adds `reauthorization_reserved`, a durable-before-Keychain transition.
+The journal continues to read valid version 1 and 2 events and appends version 3
+events to legacy logs without deleting local state. Version 1 cannot claim
+`reauthorized`, and only version 3 may claim `reauthorization_reserved`.
+Downgrading after a newer event is written fails closed rather than ignoring the
+transition.
 
 `reauthorized` is intentionally distinct from `completed`:
 
@@ -41,16 +43,23 @@ the newer transition.
 - `reauthorized` proves explicit User authorization replaced a credential after
   an invalid, expired, revoked, or consumed refresh token;
 - either terminal state may become the source of a later normal refresh;
-- `uncertain` can recover only to `completed`, while
-  `reauthorization_required` can transition only to `reauthorized`.
+- `uncertain` can recover only to `completed`;
+- `reauthorization_required` first transitions to
+  `reauthorization_reserved`; and
+- `reauthorization_reserved` can settle as `reauthorized`, or return to
+  `reauthorization_required` only when the coordinator proves no Keychain write
+  began.
 
-If Keychain replacement is uncertain, the journal remains
-`reauthorization_required` and recovery is `reconcile_keychain`. If Keychain
-replacement succeeded but the journal append is uncertain, recovery is
-`reconcile_rotation`; a fresh rotation coordinator can read the strictly newer
-Keychain bundle and append `reauthorized` without repeating authorization or
-the Keychain write. Same or older credential timestamps never unblock the
-journal.
+The reservation is fsynced before principal verification and Keychain access.
+Known validation, principal-verification, or pre-write cancellation failure
+restores `reauthorization_required`. If Keychain replacement is uncertain, the
+journal remains `reauthorization_reserved` and recovery is
+`reconcile_keychain`. If replacement succeeded but terminal journal settlement
+is uncertain, recovery is `reconcile_rotation`. After restart, a fresh rotation
+coordinator can read the exact configured Keychain bundle and append
+`reauthorized` only when it proves a strictly newer credential, without
+repeating authorization, refresh, or Keychain write. Same or older timestamps
+never unblock the journal.
 
 The journal serializes the complete replacement callback. A second same-Host
 attempt waits and then fails with `reauthorization_not_pending` after the first
@@ -59,7 +68,7 @@ Cross-process exclusion remains the responsibility of the Feishu Host lease.
 
 ## Privacy and Authority
 
-The version 2 journal remains secret-free. It stores only sequence, state, and
+The version 3 journal remains secret-free. It stores only sequence, state, and
 canonical source, result, and record timestamps. It contains no account,
 application, principal, SecretReference, scope, token, client secret, OAuth
 response, profile, or error payload.
@@ -77,7 +86,6 @@ chronology, same-Host concurrency, uncertain Keychain replacement, ambiguous
 post-write journal completion, non-pending rejection, hostile accessors, and
 payload-free errors. They use no live Feishu account or Keychain item.
 
-Remaining work includes composing authorization and replacement inside the
-exclusive Host runtime lease, hosted loopback callback and browser lifecycle,
-Bot token/scope acquisition and operation HTTP clients, product UI, and live-account
-acceptance.
+The exclusive Host runtime, loopback callback, and product reauthorization
+entry are now composed. Remaining work includes an explicit product
+reconciliation action and Audit, hosted polling, and live-account acceptance.

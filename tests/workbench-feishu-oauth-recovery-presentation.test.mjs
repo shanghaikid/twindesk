@@ -103,6 +103,44 @@ test('Workbench treats a reserved journal from another process as reconciliation
     (await presentation(new FeishuOAuthRotationJournal(path)).read()).state,
     'reconciliation_required',
   )
+
+  const replacementPath = join(root, 'reauthorization.jsonl')
+  await writeFile(
+    replacementPath,
+    [
+      {
+        kind: 'feishu_oauth_rotation_event',
+        schemaVersion: 3,
+        sequence: 1,
+        state: 'reserved',
+        sourceObtainedAt: SOURCE,
+        recordedAt: RESERVED,
+      },
+      {
+        kind: 'feishu_oauth_rotation_event',
+        schemaVersion: 3,
+        sequence: 1,
+        state: 'reauthorization_required',
+        sourceObtainedAt: SOURCE,
+        recordedAt: SETTLED,
+      },
+      {
+        kind: 'feishu_oauth_rotation_event',
+        schemaVersion: 3,
+        sequence: 1,
+        state: 'reauthorization_reserved',
+        sourceObtainedAt: SOURCE,
+        recordedAt: SETTLED,
+      },
+    ]
+      .map((event) => JSON.stringify(event))
+      .join('\n') + '\n',
+    { mode: 0o600 },
+  )
+  assert.equal(
+    (await presentation(new FeishuOAuthRotationJournal(replacementPath)).read()).state,
+    'reconciliation_required',
+  )
 })
 
 test('Workbench recovery presentation rejects hostile options without reading accessors', () => {

@@ -13,7 +13,9 @@ authorization store, and concrete default rotation journal to
 `createDefaultWorkbenchFeishuOAuthReauthorizationController()`. The controller
 loads the hosted runtime only after an explicit start and keeps attempt state in
 memory. Restart therefore recovers the durable blocked state but not an
-in-process callback or browser session.
+in-process callback or browser session. Once replacement work begins, journal
+version 3 preserves `reauthorization_reserved`, so restart exposes
+reconciliation rather than another authorization attempt.
 
 ## Product and local API boundary
 
@@ -60,6 +62,14 @@ fails closed. Successful status means only that the replacement principal was
 verified, the exact Keychain item was persisted, and the journal settled as
 `reauthorized`. It does not prove current connectivity, remote scope health, or
 permission to send a message.
+
+Before verification or Keychain access, the Connector fsyncs a durable
+replacement reservation. Known pre-write failures restore the prior blocked
+state. An uncertain Keychain write or interrupted process retains the
+reservation, and the read-only recovery projection becomes
+`reconciliation_required`. A newer exact Keychain bundle may later settle the
+journal without repeating authorization; this UI does not yet expose that
+reconciliation action.
 
 ## Verification and limitations
 

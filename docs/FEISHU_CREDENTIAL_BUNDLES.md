@@ -129,5 +129,5 @@ composes with exact Keychain resolution, Bot-principal verification, and
 tenant-only scope observation. Remaining TD-209 work includes runtime
 composition under that lease, Feishu operation HTTP composition,
 product UI, and an authorized live-account acceptance run. Explicit blocked-state replacement now
-uses the version 2 rotation journal described in
+uses the version 3 rotation journal described in
 [Feishu OAuth Reauthorization Replacement](FEISHU_OAUTH_REAUTHORIZATION.md).

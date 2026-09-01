@@ -104,7 +104,7 @@ test('default Feishu Settings and recovery stores survive a cold restart', async
   ])
   assert.deepEqual(JSON.parse(coldRead.stdout), {
     kind: 'feishu_oauth_rotation_event',
-    schemaVersion: 2,
+    schemaVersion: 3,
     sequence: 1,
     state: 'completed',
     sourceObtainedAt: '2026-08-31T12:00:00.000Z',
@@ -120,7 +120,7 @@ test('default Feishu Settings and recovery stores survive a cold restart', async
   })
   assert.deepEqual(await restarted.rotationJournal.inspect(), {
     kind: 'feishu_oauth_rotation_event',
-    schemaVersion: 2,
+    schemaVersion: 3,
     sequence: 1,
     state: 'completed',
     sourceObtainedAt: '2026-08-31T12:00:00.000Z',
