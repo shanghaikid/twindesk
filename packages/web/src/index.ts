@@ -19,6 +19,18 @@ export {
   type FeishuReauthorizationSnapshot,
 } from './feishu-reauthorization-contract.ts'
 export {
+  parseFeishuReplyApprovalDecisionRequest,
+  parseFeishuReplyApprovalRequest,
+  parseFeishuReplyApprovalSnapshot,
+  parseFeishuReplyApprovalStatusSnapshot,
+  type FeishuReplyApprovalCapability,
+  type FeishuReplyApprovalDecision,
+  type FeishuReplyApprovalDecisionRequest,
+  type FeishuReplyApprovalRequest,
+  type FeishuReplyApprovalSnapshot,
+  type FeishuReplyApprovalStatusSnapshot,
+} from './feishu-reply-approval-contract.ts'
+export {
   parseFeishuReplyProposalCreateRequest,
   parseFeishuReplyProposalSnapshot,
   parseFeishuReplyProposalStatusSnapshot,

@@ -99,5 +99,5 @@ that same Host lease before reply reservation and scope authorization.
 Temporary preflight failures retain `retry_same_key`; reauthorization-required
 or uncertain rotation results produce distinct terminal reply receipts and
 never reach reply HTTP.
-Hosted ingestion or polling, interactive Draft and approval UI, model-backed
-Draft linkage, and live-account acceptance also remain open.
+Hosted ingestion or polling, approved-action execution UI, and live-account
+acceptance also remain open.

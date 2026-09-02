@@ -12,7 +12,9 @@ import {
 } from '../packages/plugin-feishu/dist/index.js'
 import { openTwinDeskDatabase } from '../packages/storage-sqlite/dist/index.js'
 import {
+  createWorkbenchFeishuReplyApprovalController,
   createWorkbenchFeishuReplyProposalController,
+  WorkbenchFeishuReplyApprovalError,
   WorkbenchFeishuReplyProposalError,
 } from '../packages/bundle-workbench/dist/index.js'
 
@@ -287,5 +289,320 @@ test('Workbench repairs an interrupted proposal Audit without creating another p
   const inspection = new DatabaseSync(databasePath, { readOnly: true })
   assert.equal(inspection.prepare('SELECT count(*) AS count FROM action_proposals').get()?.count, 1)
   assert.equal(inspection.prepare('SELECT count(*) AS count FROM audit_records').get()?.count, 1)
+  inspection.close()
+})
+
+test('Workbench requests and grants exact one-time approval across restart without execution', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'twindesk-workbench-reply-approval-'))
+  context.after(() => rm(root, { recursive: true, force: true }))
+  const databasePath = join(root, 'twindesk.sqlite3')
+  const identityStore = new FeishuIdentityConfigurationStore(join(root, 'identity.json'))
+  await identityStore.write(configuration())
+  let nowMs = Date.parse('2026-09-02T09:04:00.000Z')
+  let database = openTwinDeskDatabase(databasePath, { now: () => nowMs })
+  context.after(() => database.isOpen && database.close())
+  const { workItem, draft } = seedReadyDraft(database)
+  let proposalController = createWorkbenchFeishuReplyProposalController({
+    database,
+    identityStore,
+    now: () => nowMs,
+  })
+  const request = { version: /** @type {const} */ (1), workItemId: workItem.id, draftRevision: 1 }
+  await proposalController.create(request, new AbortController().signal)
+  let approvalController = createWorkbenchFeishuReplyApprovalController({
+    database,
+    proposalController,
+    now: () => nowMs,
+  })
+  assert.deepEqual(await approvalController.read(), {
+    version: 1,
+    capability: 'ready',
+    actionType: 'feishu.reply',
+    ttlSeconds: 900,
+  })
+
+  nowMs = Date.parse('2026-09-02T09:05:00.000Z')
+  const pending = /** @type {any} */ (
+    await approvalController.request(request, new AbortController().signal)
+  )
+  const replay = /** @type {any} */ (
+    await approvalController.request(request, new AbortController().signal)
+  )
+  assert.equal(pending.operation, 'request')
+  assert.equal(pending.disposition, 'applied')
+  assert.equal(replay.disposition, 'recovered')
+  assert.equal(pending.approval.decision, 'pending')
+  assert.equal(pending.approval.requestedAt, '2026-09-02T09:05:00.000Z')
+  assert.equal(pending.approval.expiresAt, '2026-09-02T09:20:00.000Z')
+  assert.equal(pending.proposal.state, 'awaiting_approval')
+  assert.equal(pending.proposal.identity.displayName, 'Synthetic Preview User')
+  assert.equal(pending.proposal.target.externalId, MESSAGE_ID)
+  assert.equal(pending.proposal.content.text, draft.content.text)
+  assert.equal(pending.executionAvailable, false)
+  await assert.rejects(
+    proposalController.create(request, new AbortController().signal),
+    (error) =>
+      error instanceof WorkbenchFeishuReplyProposalError && error.code === 'target_unavailable',
+  )
+
+  database.close()
+  database = openTwinDeskDatabase(databasePath, { now: () => nowMs })
+  proposalController = createWorkbenchFeishuReplyProposalController({ database, identityStore })
+  approvalController = createWorkbenchFeishuReplyApprovalController({
+    database,
+    proposalController,
+    now: () => nowMs,
+  })
+  const restarted = /** @type {any} */ (
+    await approvalController.request(request, new AbortController().signal)
+  )
+  assert.equal(restarted.disposition, 'recovered')
+  assert.deepEqual(restarted.approval, pending.approval)
+
+  nowMs = Date.parse('2026-09-02T09:06:00.000Z')
+  const decision = { ...request, decision: /** @type {const} */ ('approved') }
+  const approved = /** @type {any} */ (
+    await approvalController.decide(decision, new AbortController().signal)
+  )
+  const approvedReplay = /** @type {any} */ (
+    await approvalController.decide(decision, new AbortController().signal)
+  )
+  assert.equal(approved.operation, 'decision')
+  assert.equal(approved.disposition, 'applied')
+  assert.equal(approvedReplay.disposition, 'recovered')
+  assert.equal(approved.approval.decision, 'approved')
+  assert.equal(approved.approval.decidedAt, '2026-09-02T09:06:00.000Z')
+  assert.equal(approved.proposal.state, 'approved')
+  assert.equal(approved.executionAvailable, false)
+  const serialized = JSON.stringify(approved)
+  assert.doesNotMatch(serialized, new RegExp(USER_PRINCIPAL, 'u'))
+  assert.doesNotMatch(serialized, /secret-ref|contentDigest|approvalId|responderUserId/u)
+
+  const inspection = new DatabaseSync(databasePath, { readOnly: true })
+  assert.equal(inspection.prepare('SELECT count(*) AS count FROM approval_records').get()?.count, 1)
+  assert.equal(
+    inspection.prepare('SELECT decision FROM approval_records').get()?.decision,
+    'approved',
+  )
+  assert.equal(
+    inspection.prepare('SELECT consumed_at FROM approval_records').get()?.consumed_at,
+    null,
+  )
+  assert.equal(inspection.prepare('SELECT count(*) AS count FROM action_receipts').get()?.count, 0)
+  assert.equal(inspection.prepare('SELECT count(*) AS count FROM audit_records').get()?.count, 3)
+  inspection.close()
+})
+
+for (const decision of /** @type {const} */ (['rejected', 'cancelled', 'expired'])) {
+  test(`Workbench records ${decision} without granting or consuming execution`, async (context) => {
+    const root = await mkdtemp(join(tmpdir(), `twindesk-workbench-reply-${decision}-`))
+    context.after(() => rm(root, { recursive: true, force: true }))
+    let nowMs = Date.parse('2026-09-02T09:04:00.000Z')
+    const databasePath = join(root, 'twindesk.sqlite3')
+    const database = openTwinDeskDatabase(databasePath, { now: () => nowMs })
+    context.after(() => database.close())
+    const { workItem } = seedReadyDraft(database)
+    const identityStore = new FeishuIdentityConfigurationStore(join(root, 'identity.json'))
+    await identityStore.write(configuration())
+    const proposalController = createWorkbenchFeishuReplyProposalController({
+      database,
+      identityStore,
+      now: () => nowMs,
+    })
+    const request = {
+      version: /** @type {const} */ (1),
+      workItemId: workItem.id,
+      draftRevision: 1,
+    }
+    await proposalController.create(request, new AbortController().signal)
+    const approvalController = createWorkbenchFeishuReplyApprovalController({
+      database,
+      proposalController,
+      now: () => nowMs,
+    })
+    nowMs = Date.parse('2026-09-02T09:05:00.000Z')
+    await approvalController.request(request, new AbortController().signal)
+    nowMs = Date.parse(
+      decision === 'expired' ? '2026-09-02T09:20:00.001Z' : '2026-09-02T09:06:00.000Z',
+    )
+    const result = /** @type {any} */ (
+      await approvalController.decide(
+        { ...request, decision: decision === 'expired' ? 'approved' : decision },
+        new AbortController().signal,
+      )
+    )
+    assert.equal(result.approval.decision, decision)
+    assert.equal(result.proposal.state, decision === 'rejected' ? 'rejected' : 'cancelled')
+    assert.equal(result.executionAvailable, false)
+    if (decision === 'expired') {
+      const replay = /** @type {any} */ (
+        await approvalController.decide(
+          { ...request, decision: 'approved' },
+          new AbortController().signal,
+        )
+      )
+      assert.equal(replay.disposition, 'recovered')
+      assert.equal(replay.approval.decision, 'expired')
+    }
+    const inspection = new DatabaseSync(databasePath, { readOnly: true })
+    assert.equal(
+      inspection.prepare('SELECT consumed_at FROM approval_records').get()?.consumed_at,
+      null,
+    )
+    assert.equal(
+      inspection.prepare('SELECT count(*) AS count FROM action_receipts').get()?.count,
+      0,
+    )
+    const approvalAudits = inspection
+      .prepare(
+        `SELECT outcome, actor_type, details_json
+         FROM audit_records WHERE category = 'approval' ORDER BY occurred_at, id`,
+      )
+      .all()
+    assert.equal(approvalAudits.length, 3)
+    assert.deepEqual(
+      {
+        outcome: approvalAudits[1]?.outcome,
+        actorType: approvalAudits[1]?.actor_type,
+        decision: JSON.parse(/** @type {string} */ (approvalAudits[1]?.details_json)).decision,
+      },
+      { outcome: 'pending', actorType: 'user', decision: 'pending' },
+    )
+    assert.deepEqual(
+      {
+        outcome: approvalAudits[2]?.outcome,
+        actorType: approvalAudits[2]?.actor_type,
+        decision: JSON.parse(/** @type {string} */ (approvalAudits[2]?.details_json)).decision,
+      },
+      {
+        outcome: 'cancelled',
+        actorType: decision === 'expired' ? 'system' : 'user',
+        decision,
+      },
+    )
+    inspection.close()
+  })
+}
+
+test('Workbench approval fails closed on changed decisions and hostile inputs', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'twindesk-workbench-reply-approval-fail-'))
+  context.after(() => rm(root, { recursive: true, force: true }))
+  let nowMs = Date.parse('2026-09-02T09:04:00.000Z')
+  const database = openTwinDeskDatabase(join(root, 'twindesk.sqlite3'), { now: () => nowMs })
+  context.after(() => database.close())
+  const { workItem } = seedReadyDraft(database)
+  const identityStore = new FeishuIdentityConfigurationStore(join(root, 'identity.json'))
+  await identityStore.write(configuration())
+  const proposalController = createWorkbenchFeishuReplyProposalController({
+    database,
+    identityStore,
+    now: () => nowMs,
+  })
+  const request = { version: /** @type {const} */ (1), workItemId: workItem.id, draftRevision: 1 }
+  await proposalController.create(request, new AbortController().signal)
+  const approvalController = createWorkbenchFeishuReplyApprovalController({
+    database,
+    proposalController,
+    now: () => nowMs,
+  })
+  nowMs = Date.parse('2026-09-02T09:05:00.000Z')
+  await approvalController.request(request, new AbortController().signal)
+  nowMs = Date.parse('2026-09-02T09:06:00.000Z')
+  await approvalController.decide(
+    { ...request, decision: 'rejected' },
+    new AbortController().signal,
+  )
+  await assert.rejects(
+    approvalController.decide({ ...request, decision: 'approved' }, new AbortController().signal),
+    (error) =>
+      error instanceof WorkbenchFeishuReplyApprovalError && error.code === 'approval_unavailable',
+  )
+  await assert.rejects(
+    approvalController.decide(
+      /** @type {any} */ ({ ...request, decision: 'approved', responderUserId: 'attacker' }),
+      new AbortController().signal,
+    ),
+    (error) =>
+      error instanceof WorkbenchFeishuReplyApprovalError && error.code === 'invalid_request',
+  )
+  const cancelled = new AbortController()
+  cancelled.abort()
+  await assert.rejects(
+    approvalController.request(request, cancelled.signal),
+    (error) =>
+      error instanceof WorkbenchFeishuReplyApprovalError && error.code === 'runtime_unavailable',
+  )
+})
+
+test('Workbench repairs interrupted approval request and decision Audit after durable state', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'twindesk-workbench-reply-approval-audit-'))
+  context.after(() => rm(root, { recursive: true, force: true }))
+  let nowMs = Date.parse('2026-09-02T09:04:00.000Z')
+  const databasePath = join(root, 'twindesk.sqlite3')
+  const database = openTwinDeskDatabase(databasePath, { now: () => nowMs })
+  context.after(() => database.close())
+  const { workItem } = seedReadyDraft(database)
+  const identityStore = new FeishuIdentityConfigurationStore(join(root, 'identity.json'))
+  await identityStore.write(configuration())
+  const proposalController = createWorkbenchFeishuReplyProposalController({
+    database,
+    identityStore,
+    now: () => nowMs,
+  })
+  const request = { version: /** @type {const} */ (1), workItemId: workItem.id, draftRevision: 1 }
+  await proposalController.create(request, new AbortController().signal)
+  let auditAttempts = 0
+  const interruptedDatabase = {
+    /** @param {any} records */
+    appendAuditRecords(records) {
+      auditAttempts += 1
+      if (auditAttempts === 1 || auditAttempts === 3) {
+        throw new Error('synthetic-private-approval-audit-interruption')
+      }
+      return database.appendAuditRecords(records)
+    },
+    decideActionApproval: database.decideActionApproval.bind(database),
+    getActionApproval: database.getActionApproval.bind(database),
+    requestActionApproval: database.requestActionApproval.bind(database),
+  }
+  const approvalController = createWorkbenchFeishuReplyApprovalController(
+    /** @type {any} */ ({
+      database: interruptedDatabase,
+      proposalController,
+      now: () => nowMs,
+    }),
+  )
+  nowMs = Date.parse('2026-09-02T09:05:00.000Z')
+  await assert.rejects(
+    approvalController.request(request, new AbortController().signal),
+    (error) =>
+      error instanceof WorkbenchFeishuReplyApprovalError &&
+      error.code === 'runtime_unavailable' &&
+      !error.message.includes('synthetic-private'),
+  )
+  const repairedRequest = /** @type {any} */ (
+    await approvalController.request(request, new AbortController().signal)
+  )
+  assert.equal(repairedRequest.disposition, 'repaired')
+
+  nowMs = Date.parse('2026-09-02T09:06:00.000Z')
+  const decision = { ...request, decision: /** @type {const} */ ('approved') }
+  await assert.rejects(
+    approvalController.decide(decision, new AbortController().signal),
+    (error) =>
+      error instanceof WorkbenchFeishuReplyApprovalError &&
+      error.code === 'runtime_unavailable' &&
+      !error.message.includes('synthetic-private'),
+  )
+  const repairedDecision = /** @type {any} */ (
+    await approvalController.decide(decision, new AbortController().signal)
+  )
+  assert.equal(repairedDecision.disposition, 'repaired')
+  assert.equal(repairedDecision.approval.decision, 'approved')
+  assert.equal(auditAttempts, 4)
+  const inspection = new DatabaseSync(databasePath, { readOnly: true })
+  assert.equal(inspection.prepare('SELECT count(*) AS count FROM approval_records').get()?.count, 1)
+  assert.equal(inspection.prepare('SELECT count(*) AS count FROM audit_records').get()?.count, 3)
+  assert.equal(inspection.prepare('SELECT count(*) AS count FROM action_receipts').get()?.count, 0)
   inspection.close()
 })

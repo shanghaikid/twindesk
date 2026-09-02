@@ -82,6 +82,23 @@ test('Workbench hosts default-path Feishu Settings in the product Web shell', as
       replyPreview.headers.get('x-twindesk-action-proposal-csrf-token') ?? '',
       /^[A-Za-z0-9_-]{43}$/u,
     )
+    const replyApproval = await fetch(`${running.url}/api/action-approvals/feishu-reply`, {
+      headers: { connection: 'close' },
+    })
+    assert.deepEqual(await replyApproval.json(), {
+      version: 1,
+      capability: 'ready',
+      actionType: 'feishu.reply',
+      ttlSeconds: 900,
+    })
+    assert.match(
+      replyApproval.headers.get('x-twindesk-action-approval-csrf-token') ?? '',
+      /^[A-Za-z0-9_-]{43}$/u,
+    )
+    assert.notEqual(
+      replyApproval.headers.get('x-twindesk-action-approval-csrf-token'),
+      replyPreview.headers.get('x-twindesk-action-proposal-csrf-token'),
+    )
     const authorization = await fetch(`${running.url}/api/authorization/feishu`, {
       headers: { connection: 'close' },
     })

@@ -24,6 +24,12 @@ import { parseFeishuOAuthRecoverySnapshot } from './feishu-oauth-recovery-contra
 import { parseFeishuOAuthReconciliationSnapshot } from './feishu-oauth-reconciliation-contract.ts'
 import { parseFeishuReauthorizationSnapshot } from './feishu-reauthorization-contract.ts'
 import {
+  parseFeishuReplyApprovalDecisionRequest,
+  parseFeishuReplyApprovalRequest,
+  parseFeishuReplyApprovalSnapshot,
+  parseFeishuReplyApprovalStatusSnapshot,
+} from './feishu-reply-approval-contract.ts'
+import {
   parseFeishuReplyProposalCreateRequest,
   parseFeishuReplyProposalSnapshot,
   parseFeishuReplyProposalStatusSnapshot,
@@ -55,6 +61,10 @@ const ASSETS = new Map([
   [
     '/feishu-reauthorization-contract.js',
     { file: 'feishu-reauthorization-contract.js', type: 'text/javascript; charset=utf-8' },
+  ],
+  [
+    '/feishu-reply-approval-contract.js',
+    { file: 'feishu-reply-approval-contract.js', type: 'text/javascript; charset=utf-8' },
   ],
   [
     '/feishu-reply-proposal-contract.js',
@@ -89,9 +99,11 @@ const FEISHU_CLIENT_SECRET_MAX_BYTES = 512
 const MODEL_DRAFT_BODY_MAX_BYTES = 1_024
 const MODEL_DRAFT_EDIT_BODY_MAX_BYTES = 66 * 1_024
 const FEISHU_REPLY_PROPOSAL_BODY_MAX_BYTES = 1_024
+const FEISHU_REPLY_APPROVAL_BODY_MAX_BYTES = 1_024
 const FEISHU_SETTINGS_CSRF_HEADER = 'x-twindesk-csrf-token'
 const MODEL_DRAFT_CSRF_HEADER = 'x-twindesk-model-draft-csrf-token'
 const FEISHU_REPLY_PROPOSAL_CSRF_HEADER = 'x-twindesk-action-proposal-csrf-token'
+const FEISHU_REPLY_APPROVAL_CSRF_HEADER = 'x-twindesk-action-approval-csrf-token'
 const FEISHU_USER_IDENTITY_CREATION_HEADER = 'x-twindesk-user-identity-creation'
 const FEISHU_OAUTH_RECONCILIATION_HEADER = 'x-twindesk-oauth-reconciliation'
 const UTF8_DECODER = new TextDecoder('utf-8', { fatal: true })
@@ -141,6 +153,12 @@ export interface TwinDeskWebServerOptions {
     read(): Promise<unknown> | unknown
     create(request: unknown, signal: AbortSignal): Promise<unknown>
   }
+  /** Host-controlled exact one-time approval; it cannot consume approval or execute. */
+  readonly feishuReplyApproval?: {
+    read(): Promise<unknown> | unknown
+    request(request: unknown, signal: AbortSignal): Promise<unknown>
+    decide(request: unknown, signal: AbortSignal): Promise<unknown>
+  }
 }
 
 type FeishuSettingsService = NonNullable<TwinDeskWebServerOptions['feishuSettings']>
@@ -153,6 +171,49 @@ type FeishuOAuthReconciliationService = NonNullable<
 type FeishuReauthorizationService = NonNullable<TwinDeskWebServerOptions['feishuReauthorization']>
 type ModelDraftService = NonNullable<TwinDeskWebServerOptions['modelDraft']>
 type FeishuReplyProposalService = NonNullable<TwinDeskWebServerOptions['feishuReplyProposal']>
+type FeishuReplyApprovalService = NonNullable<TwinDeskWebServerOptions['feishuReplyApproval']>
+
+function normalizeFeishuReplyApprovalService(
+  value: unknown,
+): FeishuReplyApprovalService | undefined {
+  if (value === undefined) return undefined
+  try {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError()
+    const prototype = Object.getPrototypeOf(value) as unknown
+    const descriptors = Object.getOwnPropertyDescriptors(value)
+    const keys = ['read', 'request', 'decide']
+    if (
+      (prototype !== Object.prototype && prototype !== null) ||
+      Object.getOwnPropertySymbols(value).length !== 0 ||
+      Object.keys(descriptors).length !== keys.length ||
+      keys.some((key) => !Object.hasOwn(descriptors, key)) ||
+      Object.values(descriptors).some(
+        (descriptor) =>
+          !Object.hasOwn(descriptor, 'value') || typeof descriptor.value !== 'function',
+      )
+    ) {
+      throw new TypeError()
+    }
+    const read = descriptors.read?.value as () => unknown
+    const request = descriptors.request?.value as (
+      request: unknown,
+      signal: AbortSignal,
+    ) => Promise<unknown>
+    const decide = descriptors.decide?.value as (
+      request: unknown,
+      signal: AbortSignal,
+    ) => Promise<unknown>
+    return Object.freeze({
+      read: () => Promise.resolve(Reflect.apply(read, value, [])),
+      request: (input: unknown, signal: AbortSignal) =>
+        Reflect.apply(request, value, [input, signal]),
+      decide: (input: unknown, signal: AbortSignal) =>
+        Reflect.apply(decide, value, [input, signal]),
+    })
+  } catch {
+    throw new TypeError('TwinDesk Web Feishu reply approval service is invalid.')
+  }
+}
 
 function normalizeFeishuReplyProposalService(
   value: unknown,
@@ -1572,6 +1633,157 @@ async function serveFeishuReplyProposalCreateApi(
   }
 }
 
+async function serveFeishuReplyApprovalStatusApi(
+  response: ServerResponse,
+  requestUrl: URL,
+  headOnly: boolean,
+  service: FeishuReplyApprovalService | undefined,
+  csrfToken: string,
+): Promise<void> {
+  if (requestUrl.search.length > 0) {
+    send(
+      response,
+      400,
+      headOnly ? '' : 'Invalid reply approval query.\n',
+      'text/plain; charset=utf-8',
+    )
+    return
+  }
+  if (service === undefined) {
+    const body = JSON.stringify({
+      version: 1,
+      capability: 'unavailable',
+      actionType: 'feishu.reply',
+      ttlSeconds: 900,
+    })
+    response.writeHead(200, {
+      ...commonHeaders('application/json; charset=utf-8'),
+      'content-length': String(Buffer.byteLength(body)),
+    })
+    response.end(headOnly ? undefined : body)
+    return
+  }
+  let snapshot: ReturnType<typeof parseFeishuReplyApprovalStatusSnapshot>
+  try {
+    snapshot = parseFeishuReplyApprovalStatusSnapshot(await service.read())
+  } catch {
+    send(
+      response,
+      503,
+      headOnly ? '' : 'Reply approval unavailable.\n',
+      'text/plain; charset=utf-8',
+    )
+    return
+  }
+  const body = JSON.stringify(snapshot)
+  response.writeHead(200, {
+    ...commonHeaders('application/json; charset=utf-8'),
+    'content-length': String(Buffer.byteLength(body)),
+    ...(snapshot.capability === 'ready' ? { [FEISHU_REPLY_APPROVAL_CSRF_HEADER]: csrfToken } : {}),
+  })
+  response.end(headOnly ? undefined : body)
+}
+
+async function serveFeishuReplyApprovalMutationApi(
+  request: IncomingMessage,
+  response: ServerResponse,
+  requestUrl: URL,
+  service: FeishuReplyApprovalService | undefined,
+  expectedOrigin: string,
+  csrfToken: string,
+  activeControllers: Set<AbortController>,
+  operation: 'request' | 'decision',
+): Promise<void> {
+  if (requestUrl.search.length > 0) {
+    request.resume()
+    send(response, 400, 'Invalid reply approval request.\n', 'text/plain; charset=utf-8')
+    return
+  }
+  try {
+    assertLocalWriteHeaders(
+      request,
+      expectedOrigin,
+      csrfToken,
+      'application/json',
+      FEISHU_REPLY_APPROVAL_BODY_MAX_BYTES,
+      FEISHU_REPLY_APPROVAL_CSRF_HEADER,
+    )
+  } catch (error) {
+    request.resume()
+    const status = error instanceof FeishuSettingsRequestError ? error.status : 403
+    const message =
+      status === 403
+        ? 'Reply approval request forbidden.\n'
+        : status === 413
+          ? 'Reply approval request too large.\n'
+          : status === 415
+            ? 'Reply approval content type unsupported.\n'
+            : 'Invalid reply approval request.\n'
+    send(response, status, message, 'text/plain; charset=utf-8')
+    return
+  }
+  if (service === undefined) {
+    request.resume()
+    send(response, 503, 'Reply approval unavailable.\n', 'text/plain; charset=utf-8')
+    return
+  }
+  let input:
+    | ReturnType<typeof parseFeishuReplyApprovalRequest>
+    | ReturnType<typeof parseFeishuReplyApprovalDecisionRequest>
+  try {
+    const body = await readBoundedBody(request, FEISHU_REPLY_APPROVAL_BODY_MAX_BYTES)
+    try {
+      const decoded = JSON.parse(UTF8_DECODER.decode(body)) as unknown
+      input =
+        operation === 'request'
+          ? parseFeishuReplyApprovalRequest(decoded)
+          : parseFeishuReplyApprovalDecisionRequest(decoded)
+    } finally {
+      body.fill(0)
+    }
+  } catch (error) {
+    if (!request.complete) request.resume()
+    const status = error instanceof FeishuSettingsRequestError ? error.status : 400
+    send(
+      response,
+      status,
+      status === 413 ? 'Reply approval request too large.\n' : 'Invalid reply approval request.\n',
+      'text/plain; charset=utf-8',
+    )
+    return
+  }
+  const controller = new AbortController()
+  const abort = (): void => controller.abort()
+  activeControllers.add(controller)
+  request.once('aborted', abort)
+  try {
+    const snapshot = parseFeishuReplyApprovalSnapshot(
+      operation === 'request'
+        ? await service.request(input, controller.signal)
+        : await service.decide(input, controller.signal),
+    )
+    if (
+      snapshot.operation !== operation ||
+      snapshot.proposal.workItemId !== input.workItemId ||
+      snapshot.proposal.draftRevision !== input.draftRevision
+    ) {
+      throw new TypeError()
+    }
+    const body = JSON.stringify(snapshot)
+    response.writeHead(200, {
+      ...commonHeaders('application/json; charset=utf-8'),
+      'content-length': String(Buffer.byteLength(body)),
+      [FEISHU_REPLY_APPROVAL_CSRF_HEADER]: csrfToken,
+    })
+    response.end(body)
+  } catch {
+    send(response, 503, 'Reply approval unavailable.\n', 'text/plain; charset=utf-8')
+  } finally {
+    request.off('aborted', abort)
+    activeControllers.delete(controller)
+  }
+}
+
 async function serveAsset(
   response: ServerResponse,
   pathname: string,
@@ -1635,6 +1847,7 @@ export async function startTwinDeskWebServer(
   const feishuReauthorization = normalizeFeishuReauthorizationService(options.feishuReauthorization)
   const modelDraft = normalizeModelDraftService(options.modelDraft)
   const feishuReplyProposal = normalizeFeishuReplyProposalService(options.feishuReplyProposal)
+  const feishuReplyApproval = normalizeFeishuReplyApprovalService(options.feishuReplyApproval)
 
   const inboxOptions = { includeAudit: true, includeDraftFlow: true }
   const inbox =
@@ -1646,9 +1859,11 @@ export async function startTwinDeskWebServer(
   const reconciliationCsrfToken = randomBytes(32).toString('base64url')
   const modelDraftCsrfToken = randomBytes(32).toString('base64url')
   const feishuReplyProposalCsrfToken = randomBytes(32).toString('base64url')
+  const feishuReplyApprovalCsrfToken = randomBytes(32).toString('base64url')
   const activeReconciliationControllers = new Set<AbortController>()
   const activeModelDraftControllers = new Set<AbortController>()
   const activeFeishuReplyProposalControllers = new Set<AbortController>()
+  const activeFeishuReplyApprovalControllers = new Set<AbortController>()
   let boundOrigin: string | undefined
 
   const server = createServer((request, response) => {
@@ -1674,6 +1889,10 @@ export async function startTwinDeskWebServer(
       const modelDraftEdit = method === 'POST' && requestUrl.pathname === '/api/model-drafts/edit'
       const feishuReplyProposalCreate =
         method === 'POST' && requestUrl.pathname === '/api/action-proposals/feishu-reply/create'
+      const feishuReplyApprovalRequest =
+        method === 'POST' && requestUrl.pathname === '/api/action-approvals/feishu-reply/request'
+      const feishuReplyApprovalDecision =
+        method === 'POST' && requestUrl.pathname === '/api/action-approvals/feishu-reply/decide'
       const supportedMutation =
         oauthSettingsUpdate ||
         userIdentityCreate ||
@@ -1684,7 +1903,9 @@ export async function startTwinDeskWebServer(
         oauthReconciliation ||
         modelDraftCreate ||
         modelDraftEdit ||
-        feishuReplyProposalCreate
+        feishuReplyProposalCreate ||
+        feishuReplyApprovalRequest ||
+        feishuReplyApprovalDecision
       if (method !== 'GET' && method !== 'HEAD' && !supportedMutation) {
         response.setHeader(
           'allow',
@@ -1705,7 +1926,10 @@ export async function startTwinDeskWebServer(
                       ? 'POST'
                       : requestUrl.pathname === '/api/action-proposals/feishu-reply/create'
                         ? 'POST'
-                        : 'GET, HEAD',
+                        : requestUrl.pathname === '/api/action-approvals/feishu-reply/request' ||
+                            requestUrl.pathname === '/api/action-approvals/feishu-reply/decide'
+                          ? 'POST'
+                          : 'GET, HEAD',
         )
         send(response, 405, 'Method not allowed.\n', 'text/plain; charset=utf-8')
         return
@@ -1805,6 +2029,20 @@ export async function startTwinDeskWebServer(
         )
         return
       }
+      if (feishuReplyApprovalRequest || feishuReplyApprovalDecision) {
+        if (boundOrigin === undefined) throw new Error('TwinDesk Web origin is unavailable')
+        await serveFeishuReplyApprovalMutationApi(
+          request,
+          response,
+          requestUrl,
+          feishuReplyApproval,
+          boundOrigin,
+          feishuReplyApprovalCsrfToken,
+          activeFeishuReplyApprovalControllers,
+          feishuReplyApprovalRequest ? 'request' : 'decision',
+        )
+        return
+      }
       if (requestUrl.pathname === '/health') {
         const body = JSON.stringify({ service: 'twindesk-web', status: 'ok', version: 1 })
         send(response, 200, method === 'HEAD' ? '' : body, 'application/json; charset=utf-8')
@@ -1835,6 +2073,16 @@ export async function startTwinDeskWebServer(
           method === 'HEAD',
           feishuReplyProposal,
           feishuReplyProposalCsrfToken,
+        )
+        return
+      }
+      if (requestUrl.pathname === '/api/action-approvals/feishu-reply') {
+        await serveFeishuReplyApprovalStatusApi(
+          response,
+          requestUrl,
+          method === 'HEAD',
+          feishuReplyApproval,
+          feishuReplyApprovalCsrfToken,
         )
         return
       }
@@ -1931,6 +2179,7 @@ export async function startTwinDeskWebServer(
           for (const controller of activeReconciliationControllers) controller.abort()
           for (const controller of activeModelDraftControllers) controller.abort()
           for (const controller of activeFeishuReplyProposalControllers) controller.abort()
+          for (const controller of activeFeishuReplyApprovalControllers) controller.abort()
           try {
             await feishuAuthorization?.cancel()
           } catch {

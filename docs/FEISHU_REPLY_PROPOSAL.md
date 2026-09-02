@@ -97,11 +97,14 @@ preview. See
 ## Remaining Integration Work
 
 - TD-206 now binds one-time approval to the exact proposal identity, target,
-  content digest, responder, and expiration.
+  content digest, responder, and expiration. The Workbench Inbox composes its
+  request and decision UI with a fixed 15-minute lifetime and stops before
+  consumption or execution.
 - TD-207 now defines and tests the credential-resolving client contract,
   idempotent execution, reconciliation, and uncertain-result receipts. The
-  production credential/HTTP and durable dispatch composition remain integration
-  work; the isolated system-Keychain reader is not composed here.
+  Workbench reply runtime composes production-compatible credential, HTTP,
+  lease, and durable dispatch boundaries; the product execution UI and
+  live-account acceptance remain open.
 
 ## Verification
 

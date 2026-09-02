@@ -36,6 +36,15 @@ import {
   type FeishuReauthorizationSnapshot,
 } from './feishu-reauthorization-contract.ts'
 import {
+  parseFeishuReplyApprovalDecisionRequest,
+  parseFeishuReplyApprovalRequest,
+  parseFeishuReplyApprovalSnapshot,
+  parseFeishuReplyApprovalStatusSnapshot,
+  type FeishuReplyApprovalDecisionRequest,
+  type FeishuReplyApprovalSnapshot,
+  type FeishuReplyApprovalStatusSnapshot,
+} from './feishu-reply-approval-contract.ts'
+import {
   parseFeishuReplyProposalCreateRequest,
   parseFeishuReplyProposalSnapshot,
   parseFeishuReplyProposalStatusSnapshot,
@@ -93,6 +102,14 @@ let feishuReplyProposalStatusRequest = 0
 let feishuReplyProposalCreating = false
 let feishuReplyProposalError: string | undefined
 let feishuReplyProposalResult: FeishuReplyProposalSnapshot | undefined
+let feishuReplyApprovalStatus: FeishuReplyApprovalStatusSnapshot | undefined
+let feishuReplyApprovalCsrfToken: string | undefined
+let feishuReplyApprovalStatusLoading = false
+let feishuReplyApprovalStatusError: string | undefined
+let feishuReplyApprovalStatusRequest = 0
+let feishuReplyApprovalBusy = false
+let feishuReplyApprovalError: string | undefined
+let feishuReplyApprovalResult: FeishuReplyApprovalSnapshot | undefined
 let auditSnapshot: AuditSnapshot | undefined
 let auditLoading = false
 let auditError: string | undefined
@@ -224,13 +241,22 @@ function workItemDetails(item: InboxItem | undefined): string {
     feishuReplyProposalResult?.proposal.workItemId === item.id
       ? feishuReplyProposalResult
       : undefined
+  const replyApproval =
+    feishuReplyApprovalResult?.proposal.workItemId === item.id
+      ? feishuReplyApprovalResult
+      : undefined
+  const replyApprovalLocksDraft =
+    replyApproval?.approval.decision === 'pending' ||
+    replyApproval?.approval.decision === 'approved'
   const canCreate =
     item.personaId !== undefined &&
     modelDraftStatus?.capability === 'ready' &&
     modelDraftCsrfToken !== undefined &&
     !modelDraftCreating &&
     !modelDraftEditing &&
-    !feishuReplyProposalCreating
+    !feishuReplyProposalCreating &&
+    !feishuReplyApprovalBusy &&
+    !replyApprovalLocksDraft
   const modelDraftMessage =
     item.personaId === undefined
       ? 'Select a Persona before generating a Draft.'
@@ -247,9 +273,11 @@ function workItemDetails(item: InboxItem | undefined): string {
     (modelDraftEditorText ?? generated.draft.content.text) === generated.draft.content.text &&
     feishuReplyProposalStatus?.capability === 'ready' &&
     feishuReplyProposalCsrfToken !== undefined &&
+    replyApproval === undefined &&
     !modelDraftCreating &&
     !modelDraftEditing &&
-    !feishuReplyProposalCreating
+    !feishuReplyProposalCreating &&
+    !feishuReplyApprovalBusy
   const replyPreviewMessage =
     generated?.draft.state !== 'ready_for_review'
       ? 'Mark the local Draft ready for review before creating an exact reply preview.'
@@ -264,6 +292,35 @@ function workItemDetails(item: InboxItem | undefined): string {
               : feishuReplyProposalStatus?.capability !== 'ready'
                 ? 'A configured Feishu User identity is required for reply preview.'
                 : 'TwinDesk will bind the current Draft to the Host-selected Feishu User identity and latest unique message target.'
+  const canRequestReplyApproval =
+    replyPreview !== undefined &&
+    replyApproval === undefined &&
+    feishuReplyApprovalStatus?.capability === 'ready' &&
+    feishuReplyApprovalCsrfToken !== undefined &&
+    !modelDraftCreating &&
+    !modelDraftEditing &&
+    !feishuReplyProposalCreating &&
+    !feishuReplyApprovalBusy
+  const canDecideReplyApproval =
+    replyApproval?.approval.decision === 'pending' &&
+    feishuReplyApprovalCsrfToken !== undefined &&
+    !feishuReplyApprovalBusy
+  const replyApprovalMessage =
+    replyPreview === undefined
+      ? 'Create the exact reply preview before requesting approval.'
+      : feishuReplyApprovalStatusLoading
+        ? 'Checking the one-time approval boundary…'
+        : feishuReplyApprovalStatusError !== undefined
+          ? feishuReplyApprovalStatusError
+          : feishuReplyApprovalStatus?.capability !== 'ready'
+            ? 'The local one-time approval boundary is unavailable.'
+            : replyApproval === undefined
+              ? 'Request a 15-minute approval window for this exact account, identity, target, and content.'
+              : replyApproval.approval.decision === 'pending'
+                ? `Awaiting your decision until ${formatTimestamp(replyApproval.approval.expiresAt)}.`
+                : replyApproval.approval.decision === 'approved'
+                  ? 'Approved once. The authorization is stored but has not been consumed or sent.'
+                  : `Approval ${replyApproval.approval.decision}. No message was sent.`
   return `<article class="detail-card">
     <div class="detail-title"><span class="badge">${escapeHtml(stateLabel(item.inboxState))}</span><h2>${escapeHtml(item.title)}</h2><p>${escapeHtml(item.summary)}</p></div>
     <dl class="detail-list">
@@ -280,7 +337,7 @@ function workItemDetails(item: InboxItem | undefined): string {
       ${
         generated === undefined
           ? ''
-          : `<div class="draft-preview"><div><strong>${escapeHtml(generated.draft.personaLabel)}</strong><span>Revision ${generated.draft.revision} · ${escapeHtml(generated.draft.state.replaceAll('_', ' '))}</span></div><label class="draft-editor"><span>Draft content</span><textarea data-model-draft-text maxlength="65536" spellcheck="true"${modelDraftEditing || feishuReplyProposalCreating ? ' disabled' : ''}>${escapeHtml(modelDraftEditorText ?? generated.draft.content.text)}</textarea></label><div class="settings-form-actions"><button class="secondary-button" type="button" data-model-draft-save${modelDraftEditing || feishuReplyProposalCreating ? ' disabled' : ''}>${modelDraftEditing ? 'Saving…' : 'Save editing revision'}</button><button class="primary-button" type="button" data-model-draft-review${modelDraftEditing || feishuReplyProposalCreating ? ' disabled' : ''}>${modelDraftEditing ? 'Saving…' : 'Ready for review'}</button></div>${modelDraftEditError === undefined ? '' : `<p class="form-message error" role="alert">${escapeHtml(modelDraftEditError)}</p>`}<p>Local Draft only. Ready for review is not approval and cannot deliver content.</p></div>`
+          : `<div class="draft-preview"><div><strong>${escapeHtml(generated.draft.personaLabel)}</strong><span>Revision ${generated.draft.revision} · ${escapeHtml(generated.draft.state.replaceAll('_', ' '))}</span></div><label class="draft-editor"><span>Draft content</span><textarea data-model-draft-text maxlength="65536" spellcheck="true"${modelDraftEditing || feishuReplyProposalCreating || feishuReplyApprovalBusy || replyApprovalLocksDraft ? ' disabled' : ''}>${escapeHtml(modelDraftEditorText ?? generated.draft.content.text)}</textarea></label><div class="settings-form-actions"><button class="secondary-button" type="button" data-model-draft-save${modelDraftEditing || feishuReplyProposalCreating || feishuReplyApprovalBusy || replyApprovalLocksDraft ? ' disabled' : ''}>${modelDraftEditing ? 'Saving…' : 'Save editing revision'}</button><button class="primary-button" type="button" data-model-draft-review${modelDraftEditing || feishuReplyProposalCreating || feishuReplyApprovalBusy || replyApprovalLocksDraft ? ' disabled' : ''}>${modelDraftEditing ? 'Saving…' : 'Ready for review'}</button></div>${modelDraftEditError === undefined ? '' : `<p class="form-message error" role="alert">${escapeHtml(modelDraftEditError)}</p>`}<p>Local Draft only. Ready for review is not approval and cannot deliver content.</p></div>`
       }
     </section>
     <section class="draft-entry" aria-label="Feishu reply preview">
@@ -290,7 +347,23 @@ function workItemDetails(item: InboxItem | undefined): string {
       ${
         replyPreview === undefined
           ? ''
-          : `<div class="draft-preview"><div><strong>${escapeHtml(replyPreview.proposal.identity.displayName)}</strong><span>Feishu ${escapeHtml(replyPreview.proposal.identity.identityType)} · ${escapeHtml(replyPreview.proposal.state)}</span></div><dl class="detail-list"><div><dt>Account</dt><dd>${escapeHtml(replyPreview.proposal.identity.accountId)}</dd></div><div><dt>Target</dt><dd>${escapeHtml(replyPreview.proposal.target.externalId)} · ${escapeHtml(formatTimestamp(replyPreview.proposal.target.sourceTimestamp))}</dd></div><div><dt>Risk</dt><dd>${escapeHtml(replyPreview.proposal.risk)}</dd></div><div><dt>Draft</dt><dd>Revision ${replyPreview.proposal.draftRevision}</dd></div></dl><section class="proposal-content"><strong>Exact content</strong><p>${escapeHtml(replyPreview.proposal.content.text)}</p></section><p>Preview only. Approval and execution are unavailable; no Feishu message was sent.</p></div>`
+          : `<div class="draft-preview"><div><strong>${escapeHtml(replyPreview.proposal.identity.displayName)}</strong><span>Feishu ${escapeHtml(replyPreview.proposal.identity.identityType)} · ${escapeHtml(replyPreview.proposal.state)}</span></div><dl class="detail-list"><div><dt>Account</dt><dd>${escapeHtml(replyPreview.proposal.identity.accountId)}</dd></div><div><dt>Target</dt><dd>${escapeHtml(replyPreview.proposal.target.externalId)} · ${escapeHtml(formatTimestamp(replyPreview.proposal.target.sourceTimestamp))}</dd></div><div><dt>Risk</dt><dd>${escapeHtml(replyPreview.proposal.risk)}</dd></div><div><dt>Draft</dt><dd>Revision ${replyPreview.proposal.draftRevision}</dd></div></dl><section class="proposal-content"><strong>Exact content</strong><p>${escapeHtml(replyPreview.proposal.content.text)}</p></section><p>Preview only. Nothing has been approved or sent.</p></div>`
+      }
+    </section>
+    <section class="draft-entry" aria-label="Feishu reply approval">
+      <div><h3>One-time approval</h3><p>${escapeHtml(replyApprovalMessage)}</p></div>
+      ${
+        replyApproval === undefined
+          ? `<button class="primary-button" type="button" data-feishu-reply-approval-request${canRequestReplyApproval ? '' : ' disabled'}>${feishuReplyApprovalBusy ? 'Requesting…' : 'Request approval'}</button>`
+          : replyApproval.approval.decision === 'pending'
+            ? `<div class="settings-form-actions"><button class="primary-button" type="button" data-feishu-reply-approval-decision="approved"${canDecideReplyApproval ? '' : ' disabled'}>${feishuReplyApprovalBusy ? 'Saving…' : 'Approve once'}</button><button class="secondary-button" type="button" data-feishu-reply-approval-decision="rejected"${canDecideReplyApproval ? '' : ' disabled'}>Reject</button><button class="secondary-button" type="button" data-feishu-reply-approval-decision="cancelled"${canDecideReplyApproval ? '' : ' disabled'}>Cancel</button></div>`
+            : ''
+      }
+      ${feishuReplyApprovalError === undefined ? '' : `<p class="form-message error" role="alert">${escapeHtml(feishuReplyApprovalError)}</p>`}
+      ${
+        replyApproval === undefined
+          ? ''
+          : `<div class="draft-preview"><div><strong>${escapeHtml(replyApproval.proposal.identity.displayName)}</strong><span>${escapeHtml(replyApproval.approval.decision)} · expires ${escapeHtml(formatTimestamp(replyApproval.approval.expiresAt))}</span></div><dl class="detail-list"><div><dt>Account</dt><dd>${escapeHtml(replyApproval.proposal.identity.accountId)}</dd></div><div><dt>Identity</dt><dd>Feishu ${escapeHtml(replyApproval.proposal.identity.identityType)}</dd></div><div><dt>Target</dt><dd>${escapeHtml(replyApproval.proposal.target.externalId)} · ${escapeHtml(formatTimestamp(replyApproval.proposal.target.sourceTimestamp))}</dd></div><div><dt>Risk</dt><dd>${escapeHtml(replyApproval.proposal.risk)}</dd></div></dl><section class="proposal-content"><strong>Exact final content</strong><p>${escapeHtml(replyApproval.proposal.content.text)}</p></section><p>This decision does not execute or send the reply.</p></div>`
       }
     </section>
     <div class="notice"><strong>Fixture only.</strong> This page reads local synthetic data and cannot perform an external write.</div>
@@ -827,6 +900,42 @@ async function loadFeishuReplyProposalStatus(): Promise<void> {
   }
 }
 
+async function loadFeishuReplyApprovalStatus(): Promise<void> {
+  const request = ++feishuReplyApprovalStatusRequest
+  feishuReplyApprovalStatusLoading = true
+  feishuReplyApprovalStatusError = undefined
+  render()
+  try {
+    const response = await fetch('/api/action-approvals/feishu-reply', {
+      headers: { accept: 'application/json' },
+    })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseFeishuReplyApprovalStatusSnapshot(await response.json())
+    const csrfToken = response.headers.get('x-twindesk-action-approval-csrf-token')
+    if (
+      (snapshot.capability === 'ready' &&
+        (csrfToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(csrfToken))) ||
+      (snapshot.capability === 'unavailable' && csrfToken !== null)
+    ) {
+      throw new Error('Local API returned an invalid reply approval capability.')
+    }
+    if (request !== feishuReplyApprovalStatusRequest) return
+    feishuReplyApprovalStatus = snapshot
+    feishuReplyApprovalCsrfToken = csrfToken ?? undefined
+  } catch (error) {
+    if (request !== feishuReplyApprovalStatusRequest) return
+    feishuReplyApprovalStatus = undefined
+    feishuReplyApprovalCsrfToken = undefined
+    feishuReplyApprovalStatusError =
+      error instanceof Error ? error.message : 'The local reply approval check failed.'
+  } finally {
+    if (request === feishuReplyApprovalStatusRequest) {
+      feishuReplyApprovalStatusLoading = false
+      render()
+    }
+  }
+}
+
 async function createModelDraft(): Promise<void> {
   const workItemId = selectedWorkItemId
   const csrfToken = modelDraftCsrfToken
@@ -835,7 +944,10 @@ async function createModelDraft(): Promise<void> {
     csrfToken === undefined ||
     modelDraftCreating ||
     modelDraftEditing ||
-    feishuReplyProposalCreating
+    feishuReplyProposalCreating ||
+    feishuReplyApprovalBusy ||
+    feishuReplyApprovalResult?.approval.decision === 'pending' ||
+    feishuReplyApprovalResult?.approval.decision === 'approved'
   )
     return
   modelDraftCreating = true
@@ -866,6 +978,8 @@ async function createModelDraft(): Promise<void> {
     modelDraftCsrfToken = nextToken
     feishuReplyProposalResult = undefined
     feishuReplyProposalError = undefined
+    feishuReplyApprovalResult = undefined
+    feishuReplyApprovalError = undefined
   } catch (error) {
     modelDraftCreateError =
       error instanceof Error ? error.message : 'The local model Draft request failed.'
@@ -884,7 +998,10 @@ async function editModelDraft(submitForReview: boolean): Promise<void> {
     csrfToken === undefined ||
     editor === null ||
     modelDraftEditing ||
-    feishuReplyProposalCreating
+    feishuReplyProposalCreating ||
+    feishuReplyApprovalBusy ||
+    feishuReplyApprovalResult?.approval.decision === 'pending' ||
+    feishuReplyApprovalResult?.approval.decision === 'approved'
   )
     return
   let request: ReturnType<typeof parseModelDraftEditRequest>
@@ -935,6 +1052,8 @@ async function editModelDraft(submitForReview: boolean): Promise<void> {
     modelDraftCsrfToken = nextToken
     feishuReplyProposalResult = undefined
     feishuReplyProposalError = undefined
+    feishuReplyApprovalResult = undefined
+    feishuReplyApprovalError = undefined
   } catch (error) {
     const message = error instanceof Error ? error.message : 'The local Draft edit failed.'
     modelDraftEditError = `${message} Refresh or retry the same edit before making another revision.`
@@ -955,7 +1074,9 @@ async function createFeishuReplyProposal(): Promise<void> {
     csrfToken === undefined ||
     modelDraftCreating ||
     modelDraftEditing ||
-    feishuReplyProposalCreating
+    feishuReplyProposalCreating ||
+    feishuReplyApprovalBusy ||
+    feishuReplyApprovalResult !== undefined
   ) {
     return
   }
@@ -1007,11 +1128,93 @@ async function createFeishuReplyProposal(): Promise<void> {
     }
     feishuReplyProposalResult = snapshot
     feishuReplyProposalCsrfToken = nextToken
+    feishuReplyApprovalResult = undefined
+    feishuReplyApprovalError = undefined
   } catch (error) {
     const message = error instanceof Error ? error.message : 'The local reply preview failed.'
     feishuReplyProposalError = `${message} Refresh or retry the exact Draft before editing it again.`
   } finally {
     feishuReplyProposalCreating = false
+    render()
+  }
+}
+
+async function mutateFeishuReplyApproval(
+  decision?: FeishuReplyApprovalDecisionRequest['decision'],
+): Promise<void> {
+  const preview = feishuReplyProposalResult
+  const csrfToken = feishuReplyApprovalCsrfToken
+  if (
+    preview === undefined ||
+    csrfToken === undefined ||
+    feishuReplyApprovalStatus?.capability !== 'ready' ||
+    feishuReplyApprovalBusy ||
+    (decision !== undefined && feishuReplyApprovalResult?.approval.decision !== 'pending')
+  ) {
+    return
+  }
+  let input:
+    | ReturnType<typeof parseFeishuReplyApprovalRequest>
+    | ReturnType<typeof parseFeishuReplyApprovalDecisionRequest>
+  try {
+    const base = {
+      version: 1,
+      workItemId: preview.proposal.workItemId,
+      draftRevision: preview.proposal.draftRevision,
+    }
+    input =
+      decision === undefined
+        ? parseFeishuReplyApprovalRequest(base)
+        : parseFeishuReplyApprovalDecisionRequest({ ...base, decision })
+  } catch (error) {
+    feishuReplyApprovalError =
+      error instanceof Error ? error.message : 'The local reply approval request is invalid.'
+    render()
+    return
+  }
+  feishuReplyApprovalBusy = true
+  feishuReplyApprovalError = undefined
+  render()
+  try {
+    const response = await fetch(
+      decision === undefined
+        ? '/api/action-approvals/feishu-reply/request'
+        : '/api/action-approvals/feishu-reply/decide',
+      {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          'content-type': 'application/json',
+          'x-twindesk-action-approval-csrf-token': csrfToken,
+        },
+        body: JSON.stringify(input),
+      },
+    )
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseFeishuReplyApprovalSnapshot(await response.json())
+    if (
+      snapshot.proposal.workItemId !== input.workItemId ||
+      snapshot.proposal.draftRevision !== input.draftRevision ||
+      snapshot.proposal.identity.accountId !== preview.proposal.identity.accountId ||
+      snapshot.proposal.identity.displayName !== preview.proposal.identity.displayName ||
+      snapshot.proposal.target.externalId !== preview.proposal.target.externalId ||
+      snapshot.proposal.target.sourceTimestamp !== preview.proposal.target.sourceTimestamp ||
+      snapshot.proposal.content.text !== preview.proposal.content.text ||
+      snapshot.operation !== (decision === undefined ? 'request' : 'decision')
+    ) {
+      throw new Error('Local API returned approval for another reply preview.')
+    }
+    const nextToken = response.headers.get('x-twindesk-action-approval-csrf-token')
+    if (nextToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(nextToken)) {
+      throw new Error('Local API returned an invalid reply approval capability.')
+    }
+    feishuReplyApprovalResult = snapshot
+    feishuReplyApprovalCsrfToken = nextToken
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'The local reply approval failed.'
+    feishuReplyApprovalError = `${message} Retry the same operation to recover its durable result.`
+  } finally {
+    feishuReplyApprovalBusy = false
     render()
   }
 }
@@ -1535,6 +1738,7 @@ function renderRouteAndLoad(): void {
     void loadInbox(activeInboxState)
     void loadModelDraftStatus()
     void loadFeishuReplyProposalStatus()
+    void loadFeishuReplyApprovalStatus()
   }
   if (route.id === 'audit') void loadAudit()
   if (route.id === 'connectors') {
@@ -1574,6 +1778,8 @@ document.addEventListener('click', (event) => {
     modelDraftEditorText = undefined
     feishuReplyProposalResult = undefined
     feishuReplyProposalError = undefined
+    feishuReplyApprovalResult = undefined
+    feishuReplyApprovalError = undefined
     render()
     return
   }
@@ -1591,6 +1797,22 @@ document.addEventListener('click', (event) => {
   }
   if (target.closest('[data-feishu-reply-proposal-create]') !== null) {
     void createFeishuReplyProposal()
+    return
+  }
+  if (target.closest('[data-feishu-reply-approval-request]') !== null) {
+    void mutateFeishuReplyApproval()
+    return
+  }
+  const approvalDecisionButton = target.closest<HTMLButtonElement>(
+    '[data-feishu-reply-approval-decision]',
+  )
+  const approvalDecision = approvalDecisionButton?.dataset.feishuReplyApprovalDecision
+  if (
+    approvalDecision === 'approved' ||
+    approvalDecision === 'rejected' ||
+    approvalDecision === 'cancelled'
+  ) {
+    void mutateFeishuReplyApproval(approvalDecision)
     return
   }
   if (target.closest('[data-inbox-retry]') !== null) void loadInbox(activeInboxState)
@@ -1666,7 +1888,10 @@ document.addEventListener('input', (event) => {
         feishuReplyProposalCsrfToken === undefined ||
         modelDraftCreating ||
         modelDraftEditing ||
-        feishuReplyProposalCreating
+        feishuReplyProposalCreating ||
+        feishuReplyApprovalBusy ||
+        feishuReplyApprovalResult?.approval.decision === 'pending' ||
+        feishuReplyApprovalResult?.approval.decision === 'approved'
     }
   }
 })

@@ -50,6 +50,16 @@ export interface WorkbenchFeishuReplyProposalControllerOptions {
 export interface WorkbenchFeishuReplyProposalController {
   read(): Promise<unknown>
   create(request: WorkbenchFeishuReplyProposalRequest, signal: AbortSignal): Promise<unknown>
+  /** Host-only resolution used by approval composition; it grants no browser authority. */
+  resolve(
+    request: WorkbenchFeishuReplyProposalRequest,
+    signal: AbortSignal,
+  ): Promise<WorkbenchFeishuReplyProposalResolution>
+}
+
+export interface WorkbenchFeishuReplyProposalResolution {
+  readonly draft: Draft
+  readonly proposal: ActionProposal
 }
 
 type ParsedOptions = Readonly<Required<WorkbenchFeishuReplyProposalControllerOptions>>
@@ -268,18 +278,96 @@ async function exactExistingProposal(
   nonce: string,
   existing: ActionProposal,
   signal: AbortSignal,
+  allowTransitioned = false,
 ): Promise<ActionProposal> {
-  if (existing.state !== 'proposed') {
+  if (!allowTransitioned && existing.state !== 'proposed') {
     throw fail('target_unavailable', 'The Feishu reply preview is no longer proposed.')
   }
   const expected = await new FeishuReplyProposer(configuration, {
     now: () => Date.parse(existing.createdAt),
     createNonce: () => nonce,
   }).propose(proposalRequest(configuration, draft, target), signal)
-  if (!isDeepStrictEqual(existing, expected)) {
+  const immutableCreation = {
+    ...existing,
+    state: 'proposed',
+    updatedAt: existing.createdAt,
+  }
+  if (!isDeepStrictEqual(immutableCreation, expected)) {
     throw fail('target_unavailable', 'The Feishu reply preview does not match current data.')
   }
   return existing
+}
+
+async function resolveCurrentProposal(
+  options: ParsedOptions,
+  request: WorkbenchFeishuReplyProposalRequest,
+  signal: AbortSignal,
+): Promise<WorkbenchFeishuReplyProposalResolution> {
+  throwIfCancelled(signal)
+  let configuration: FeishuIdentityConfiguration | undefined
+  try {
+    configuration = await options.identityStore.read()
+  } catch {
+    throw fail('connector_unavailable', 'The Feishu identity configuration is unavailable.')
+  }
+  if (configuration === undefined) {
+    throw fail('connector_unavailable', 'The Feishu identity configuration is unavailable.')
+  }
+  configuredUser(configuration)
+  throwIfCancelled(signal)
+  let workItem: ReturnType<TwinDeskDatabase['getWorkItem']>
+  let draft: Draft | undefined
+  let thread: ReturnType<TwinDeskDatabase['getThread']>
+  try {
+    workItem = options.database.getWorkItem(request.workItemId as WorkItemId)
+    draft = options.database.getDraftByWorkItemRevision(
+      request.workItemId as WorkItemId,
+      request.draftRevision,
+    )
+    thread = workItem === undefined ? undefined : options.database.getThread(workItem.threadId)
+  } catch {
+    throw fail('target_unavailable', 'The Feishu reply preview target is unavailable.')
+  }
+  if (
+    workItem === undefined ||
+    draft === undefined ||
+    thread === undefined ||
+    draft.workItemId !== workItem.id ||
+    draft.revision !== request.draftRevision ||
+    draft.state !== 'ready_for_review' ||
+    draft.content.mediaType !== 'text/plain'
+  ) {
+    throw fail('target_unavailable', 'The Feishu reply preview target is unavailable.')
+  }
+  const target = latestMessageTarget(thread.externalReferences, configuration)
+  const nonce = stableNonce(configuration, draft, target)
+  let existing: ActionProposal | undefined
+  try {
+    existing = options.database.getActionProposal(proposalId(configuration, nonce))
+  } catch {
+    throw fail('target_unavailable', 'The Feishu reply preview target is unavailable.')
+  }
+  if (existing === undefined) {
+    throw fail('target_unavailable', 'Create the exact Feishu reply preview first.')
+  }
+  try {
+    return Object.freeze({
+      draft,
+      proposal: await exactExistingProposal(
+        configuration,
+        draft,
+        target,
+        nonce,
+        existing,
+        signal,
+        true,
+      ),
+    })
+  } catch (error) {
+    if (error instanceof WorkbenchFeishuReplyProposalError) throw error
+    if (signal.aborted) throwIfCancelled(signal)
+    throw fail('target_unavailable', 'The Feishu reply preview target is unavailable.')
+  }
 }
 
 function recordProposalAudit(
@@ -488,6 +576,11 @@ export function createWorkbenchFeishuReplyProposalController(
             ? 'repaired'
             : 'recovered',
       )
+    },
+    async resolve(requestValue: WorkbenchFeishuReplyProposalRequest, signalValue: AbortSignal) {
+      const request = requestAt(requestValue)
+      const signal = signalAt(signalValue)
+      return resolveCurrentProposal(options, request, signal)
     },
   })
 }

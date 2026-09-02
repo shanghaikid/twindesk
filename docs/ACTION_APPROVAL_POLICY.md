@@ -35,9 +35,11 @@ ApprovalRecord may be created through this boundary for a proposal; exact
 replay is a duplicate, while ID or proposal reuse with changed values fails
 closed.
 
-The UI must show the proposal's exact account, sending identity, target, and
-final content before it submits a decision. This storage boundary supplies the
-bound values and digests but does not implement that UI.
+The Workbench UI now shows the proposal's exact account, sending identity,
+target, expiration, and final content before it submits a decision. This
+storage boundary supplies the bound values and digests; the separate product
+composition is documented in
+[Workbench Feishu Reply Approval UI](WORKBENCH_FEISHU_REPLY_APPROVAL_UI.md).
 
 ## Decisions and Expiration
 
@@ -98,22 +100,25 @@ SQL, paths, or underlying SQLite failures.
 
 ApprovalRecords are already included in redacted Thread export, local deletion,
 and Audit reference validation. `consumedAt` is part of that record and is
-deleted with its owning Thread. TD-206 does not automatically append an Audit
-record; the composed Work Hub flow must append user-visible request/decision
-Audit records, and TD-209 must verify the complete source-to-receipt trace.
+deleted with its owning Thread. The storage boundary does not automatically
+append Audit records. The Workbench approval controller now appends
+user-visible request and decision Audit records with restart repair, while the
+composed execution flow owns consumption and receipt Audit ordering. TD-209
+must still verify the complete source-to-receipt trace.
 
 ## Remaining Work
 
-- Product UI for displaying the exact proposal and collecting the responder's
-  decision is not implemented here.
+- The product UI stops after persisting the decision. It does not consume the
+  approval or expose execution yet.
 - The Connector-neutral Work Hub Host now composes approval consumption,
   durable dispatch, receipt, and recoverable Audit ordering inside an injected
-  exclusive-operation callback. Binding it to Feishu Keychain rotation and the
-  lease-held reply adapter remains runtime composition work; neither boundary
-  grants execution authority by itself. See
+  exclusive-operation callback. The Workbench Feishu reply runtime binds that
+  Host to Keychain rotation and the lease-held reply adapter, but the product UI
+  does not invoke it yet; neither boundary grants execution authority by itself.
+  See
   [Work Hub Action Execution Host](ACTION_EXECUTION_HOST.md).
-- TD-209 local acceptance integrates approval Audit records; the product
-  runtime still needs to append them in the live Feishu loop.
+- TD-209 local acceptance integrates the complete Audit trace; live-account
+  acceptance remains required.
 
 ## Verification
 

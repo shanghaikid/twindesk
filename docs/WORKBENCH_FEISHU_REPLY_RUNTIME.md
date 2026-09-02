@@ -58,6 +58,6 @@ This factory is an executable composition API, not yet a hosted Cordis
 Connector lifecycle. A rotation result that requires reauthorization or
 Keychain reconciliation terminates the approved reply without blind retry;
 hosted recovery and reauthorization UX remain open. Hosted callback or polling,
-interactive Draft editing and exact approval UI, model-backed Draft linkage,
-and an authorized live-account acceptance run also remain open. Synthetic
+approved-action execution UI, and an authorized live-account acceptance run
+also remain open. Synthetic
 evidence must not be presented as a live Feishu guarantee.

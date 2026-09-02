@@ -110,6 +110,7 @@ make no live request and use no real credential.
 Host lease, durable User rotation, exact Keychain resolution, fresh Bot/User
 scope authorization, and callback-scoped User or tenant tokens. The Workbench
 root now composes that client with the Connector-neutral Host operation under
-the real lease. Remaining TD-209 work includes hosted lifecycle, product
-approval UI, and a live authorized account. The repository must not claim that
+the real lease. Remaining TD-209 work includes hosted lifecycle,
+approved-action execution UI, and a live authorized account. The repository
+must not claim that
 the isolated or synthetically composed HTTP contract proves a real Feishu send.
