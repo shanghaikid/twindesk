@@ -55,6 +55,11 @@ export interface HarnessModelDraftRunner {
   ): Promise<HarnessModelDraftRunResult>
 }
 
+export interface HarnessModelDraftRoute {
+  readonly provider: string
+  readonly model: string
+}
+
 interface HarnessRuntimeServices {
   readonly agents: Context['agents']
   readonly sessions: Context['sessions']
@@ -165,6 +170,133 @@ function signalAt(value: AbortSignal | undefined): AbortSignal | undefined {
     throw fail('invalid_request', 'The Harness model Draft run request is invalid.')
   }
   return value
+}
+
+function routeIdAt(value: unknown, maximum: number): string {
+  if (
+    typeof value !== 'string' ||
+    value.length === 0 ||
+    value.length > maximum ||
+    !/^[A-Za-z0-9][A-Za-z0-9:._/-]*$/u.test(value)
+  ) {
+    throw fail('invalid_request', 'The Harness model Draft route is invalid.')
+  }
+  return value
+}
+
+function ownDataValue(value: unknown, key: string): unknown {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError()
+  const prototype = Object.getPrototypeOf(value) as unknown
+  const descriptor = Object.getOwnPropertyDescriptor(value, key)
+  if (
+    (prototype !== Object.prototype && prototype !== null) ||
+    Object.getOwnPropertySymbols(value).length !== 0 ||
+    descriptor === undefined ||
+    !Object.hasOwn(descriptor, 'value')
+  ) {
+    throw new TypeError()
+  }
+  return descriptor.value
+}
+
+function denseArrayValues(value: unknown): readonly unknown[] {
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) {
+    throw new TypeError()
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value) as Record<
+    string,
+    PropertyDescriptor | undefined
+  >
+  const lengthDescriptor = descriptors.length
+  if (
+    Object.getOwnPropertySymbols(value).length !== 0 ||
+    lengthDescriptor === undefined ||
+    !Object.hasOwn(lengthDescriptor, 'value') ||
+    !Number.isSafeInteger(lengthDescriptor.value) ||
+    (lengthDescriptor.value as number) < 0 ||
+    (lengthDescriptor.value as number) > 1_000 ||
+    Object.keys(descriptors).length !== (lengthDescriptor.value as number) + 1
+  ) {
+    throw new TypeError()
+  }
+  const values: unknown[] = []
+  for (let index = 0; index < (lengthDescriptor.value as number); index += 1) {
+    const descriptor = descriptors[String(index)]
+    if (descriptor === undefined || !Object.hasOwn(descriptor, 'value')) {
+      throw new TypeError()
+    }
+    values.push(descriptor.value)
+  }
+  return values
+}
+
+/**
+ * Prove that one Host-selected provider/model route is mounted in the current
+ * Harness generation without making a model request or resolving a credential.
+ */
+export async function inspectHarnessModelDraftRoute(
+  contextValue: unknown,
+  routeValue: HarnessModelDraftRoute,
+  signalValue?: AbortSignal,
+): Promise<HarnessModelDraftRoute> {
+  const signal = signalAt(signalValue)
+  let provider: string
+  let model: string
+  let llm: Context['llm']
+  try {
+    if (typeof routeValue !== 'object' || routeValue === null || Array.isArray(routeValue)) {
+      throw new TypeError()
+    }
+    const prototype = Object.getPrototypeOf(routeValue) as unknown
+    const descriptors = Object.getOwnPropertyDescriptors(routeValue)
+    if (
+      (prototype !== Object.prototype && prototype !== null) ||
+      Object.getOwnPropertySymbols(routeValue).length !== 0 ||
+      Object.keys(descriptors).length !== 2 ||
+      !Object.hasOwn(descriptors, 'provider') ||
+      !Object.hasOwn(descriptors, 'model') ||
+      Object.values(descriptors).some((descriptor) => !Object.hasOwn(descriptor, 'value'))
+    ) {
+      throw new TypeError()
+    }
+    provider = routeIdAt(descriptors.provider?.value, 120)
+    model = routeIdAt(descriptors.model?.value, 160)
+  } catch (error) {
+    if (error instanceof HarnessModelDraftRunError) throw error
+    throw fail('invalid_request', 'The Harness model Draft route is invalid.')
+  }
+  try {
+    if (typeof contextValue !== 'object' || contextValue === null) throw new TypeError()
+    const candidate = (contextValue as Context).llm
+    if (
+      typeof candidate?.listProviders !== 'function' ||
+      typeof candidate.resolveModelInfo !== 'function'
+    ) {
+      throw new TypeError()
+    }
+    llm = candidate
+  } catch (error) {
+    if (error instanceof HarnessModelDraftRunError) throw error
+    throw fail('invalid_context', 'The Harness model Draft route context is invalid.')
+  }
+  try {
+    signal?.throwIfAborted()
+    const providers = denseArrayValues(llm.listProviders())
+    if (providers.filter((candidate) => ownDataValue(candidate, 'id') === provider).length !== 1) {
+      throw new TypeError()
+    }
+    const resolved = await llm.resolveModelInfo(provider, model, signal)
+    signal?.throwIfAborted()
+    if (ownDataValue(resolved, 'provider') !== provider || ownDataValue(resolved, 'id') !== model) {
+      throw new TypeError()
+    }
+    return Object.freeze({ provider, model })
+  } catch {
+    if (signal?.aborted === true) {
+      throw fail('cancelled', 'The Harness model Draft route check was cancelled.')
+    }
+    throw fail('runtime_unavailable', 'The Harness model Draft route is unavailable.')
+  }
 }
 
 function visibleText(event: Extract<SessionEvent, { type: 'assistant/message' }>): string {

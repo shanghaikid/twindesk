@@ -1,5 +1,17 @@
 import { spawn, spawnSync } from 'node:child_process'
-import { chmod, cp, lstat, mkdir, readFile, readdir, realpath, writeFile } from 'node:fs/promises'
+import {
+  chmod,
+  cp,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  writeFile,
+} from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -454,102 +466,138 @@ async function verifyServedClientPlugin(baseUrl) {
   }
 }
 
+/** @param {string} baseUrl */
+async function verifyProductWeb(baseUrl) {
+  const response = await fetch(new URL('/api/model-drafts', baseUrl), {
+    cache: 'no-store',
+    signal: AbortSignal.timeout(clientVerificationTimeoutMs),
+  })
+  if (!response.ok) {
+    throw new Error(`TwinDesk product Web returned HTTP ${String(response.status)}.`)
+  }
+  const snapshot = await response.json()
+  if (
+    snapshot?.version !== 1 ||
+    snapshot.capability !== 'ready' ||
+    snapshot.autonomy !== 'draft_only' ||
+    Object.keys(snapshot).length !== 3 ||
+    !/^[A-Za-z0-9_-]{43}$/u.test(response.headers.get('x-twindesk-model-draft-csrf-token') ?? '')
+  ) {
+    throw new Error('TwinDesk product Web did not expose the Host-owned model Draft route.')
+  }
+}
+
 /**
  * Start the Web Profile, verify its served Client graph, and shut it down.
  * @param {string} harnessHome
  */
 export async function smokeProfile(harnessHome = resolveHarnessHome()) {
   await prepareProfile(harnessHome)
+  const productHome = await mkdtemp(join(tmpdir(), 'twindesk-profile-product-'))
+  try {
+    await new Promise((resolvePromise, reject) => {
+      const child = spawn(
+        process.execPath,
+        [dshBin, '--profile', PROFILE_NAME, '--port', '0', '--no-open'],
+        {
+          cwd: repositoryRoot,
+          env: {
+            ...process.env,
+            DSH_HOME: harnessHome,
+            TWINDESK_HOME_DIRECTORY: productHome,
+            TWINDESK_DATABASE_PATH: join(productHome, 'twindesk.sqlite3'),
+            TWINDESK_WEB_PORT: '0',
+            TWINDESK_MODEL_PROVIDER: 'deepseek-official',
+            TWINDESK_MODEL: 'deepseek-v4-flash',
+          },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        },
+      )
+      let output = ''
+      let harnessUrl
+      let productUrl
+      let verifying = false
+      /** @type {unknown} */
+      let verificationFailure
+      let timedOut = false
+      let shutdownTimedOut = false
+      /** @type {NodeJS.Timeout | undefined} */
+      let forcedShutdown
+      const timeout = setTimeout(() => {
+        timedOut = true
+        child.kill('SIGTERM')
+        forcedShutdown = setTimeout(() => {
+          shutdownTimedOut = true
+          child.kill('SIGKILL')
+        }, shutdownTimeoutMs)
+      }, startupTimeoutMs)
 
-  await new Promise((resolvePromise, reject) => {
-    const child = spawn(
-      process.execPath,
-      [dshBin, '--profile', PROFILE_NAME, '--port', '0', '--no-open'],
-      {
-        cwd: repositoryRoot,
-        env: { ...process.env, DSH_HOME: harnessHome },
-        stdio: ['ignore', 'pipe', 'pipe'],
-      },
-    )
-    let output = ''
-    let ready = false
-    /** @type {unknown} */
-    let verificationFailure
-    let timedOut = false
-    let shutdownTimedOut = false
-    /** @type {NodeJS.Timeout | undefined} */
-    let forcedShutdown
-    const timeout = setTimeout(() => {
-      timedOut = true
-      child.kill('SIGTERM')
-      forcedShutdown = setTimeout(() => {
-        shutdownTimedOut = true
-        child.kill('SIGKILL')
-      }, shutdownTimeoutMs)
-    }, startupTimeoutMs)
-
-    /** @param {Buffer | string} chunk */
-    const consume = (chunk) => {
-      output += String(chunk)
-      if (output.length > maxDiagnosticOutput) output = output.slice(-maxDiagnosticOutput)
-      const match = /dsh web: (http:\/\/[^\s]+)/u.exec(output)
-      if (!ready && match?.[1] !== undefined) {
-        ready = true
+      /** @param {Buffer | string} chunk */
+      const consume = (chunk) => {
+        output += String(chunk)
+        if (output.length > maxDiagnosticOutput) output = output.slice(-maxDiagnosticOutput)
+        harnessUrl ??= /dsh web: (http:\/\/[^\s]+)/u.exec(output)?.[1]
+        productUrl ??= /TwinDesk product web: (http:\/\/[^\s]+)/u.exec(output)?.[1]
+        if (!verifying && harnessUrl !== undefined && productUrl !== undefined) {
+          verifying = true
+          clearTimeout(timeout)
+          void Promise.all([verifyServedClientPlugin(harnessUrl), verifyProductWeb(productUrl)])
+            .catch((error) => {
+              verificationFailure = error
+            })
+            .finally(() => {
+              child.kill('SIGTERM')
+              forcedShutdown = setTimeout(() => {
+                shutdownTimedOut = true
+                child.kill('SIGKILL')
+              }, shutdownTimeoutMs)
+            })
+        }
+      }
+      child.stdout.on('data', consume)
+      child.stderr.on('data', consume)
+      child.on('error', (error) => {
         clearTimeout(timeout)
-        void verifyServedClientPlugin(match[1])
-          .catch((error) => {
-            verificationFailure = error
-          })
-          .finally(() => {
-            child.kill('SIGTERM')
-            forcedShutdown = setTimeout(() => {
-              shutdownTimedOut = true
-              child.kill('SIGKILL')
-            }, shutdownTimeoutMs)
-          })
-      }
-    }
-    child.stdout.on('data', consume)
-    child.stderr.on('data', consume)
-    child.on('error', (error) => {
-      clearTimeout(timeout)
-      clearTimeout(forcedShutdown)
-      reject(error)
-    })
-    child.on('exit', (code, signal) => {
-      clearTimeout(timeout)
-      clearTimeout(forcedShutdown)
-      if (timedOut) {
-        reject(new Error(`Timed out waiting for the TwinDesk Profile to start.\n${output}`))
-        return
-      }
-      if (shutdownTimedOut) {
+        clearTimeout(forcedShutdown)
+        reject(error)
+      })
+      child.on('exit', (code, signal) => {
+        clearTimeout(timeout)
+        clearTimeout(forcedShutdown)
+        if (timedOut) {
+          reject(new Error(`Timed out waiting for the TwinDesk Profile to start.\n${output}`))
+          return
+        }
+        if (shutdownTimedOut) {
+          reject(
+            new Error(
+              `TwinDesk Profile did not shut down within ${shutdownTimeoutMs} ms.\n${output}`,
+            ),
+          )
+          return
+        }
+        if (verificationFailure !== undefined) {
+          reject(
+            new Error(`TwinDesk Profile production verification failed.\n${output}`, {
+              cause: verificationFailure,
+            }),
+          )
+          return
+        }
+        if (verifying && code === 0) {
+          resolvePromise(undefined)
+          return
+        }
         reject(
           new Error(
-            `TwinDesk Profile did not shut down within ${shutdownTimeoutMs} ms.\n${output}`,
+            `TwinDesk Profile exited before a clean startup (code ${String(code)}, signal ${String(signal)}).\n${output}`,
           ),
         )
-        return
-      }
-      if (verificationFailure !== undefined) {
-        reject(
-          new Error(`TwinDesk Client plugin production verification failed.\n${output}`, {
-            cause: verificationFailure,
-          }),
-        )
-        return
-      }
-      if (ready && code === 0) {
-        resolvePromise(undefined)
-        return
-      }
-      reject(
-        new Error(
-          `TwinDesk Profile exited before a clean startup (code ${String(code)}, signal ${String(signal)}).\n${output}`,
-        ),
-      )
+      })
     })
-  })
+  } finally {
+    await rm(productHome, { recursive: true, force: true })
+  }
 }
 
 /** @param {string[]} args */
@@ -582,6 +630,8 @@ async function main(args) {
       config.includes('- id: subagent-codex\n') ||
       !config.includes('id: twindesk-work-hub') ||
       !config.includes("name: '@twindesk/plugin-work-hub'") ||
+      !config.includes('id: twindesk-workbench-runtime') ||
+      !config.includes("name: '@twindesk/bundle-workbench/cordis-runtime'") ||
       !config.includes('id: twindesk-ui') ||
       !config.includes("name: '@twindesk/plugin-ui'")
     ) {

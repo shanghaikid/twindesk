@@ -58,7 +58,7 @@ use synthetic data and no external model or company account.
 | Extension point | Evidence | Stage 1 disposition |
 |---|---|---|
 | Profile Bundles and patches | Ordered base, Web, and Workbench composition; formally installed dependencies; real boot | Use behind exact Profile checks |
-| Cordis Host plugin lifecycle | Host activation, dependency injection, effect-owned registration, disposal | Use for Work Hub services and Connectors |
+| Cordis Host plugin lifecycle | Host activation, dependency injection, effect-owned registration, async product Web startup, and disposal | Use for Work Hub services, the model-Draft product runtime, and Connectors |
 | Tool Registry and Agent Loop | Structured Tool execution, cancellation, model visibility, durable Session trace | Use through `@twindesk/harness-adapter` |
 | Settings registry and file provider | Strict owner validation, persistence, restart, redacted browser projection | Use for non-secret configuration; secrets remain references |
 | Client package discovery and slots | External package loads, settings card renders, slot registration and disposal work | Use additive supported slots only; do not use the Inbox shadow as product routing |

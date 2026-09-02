@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The Stage 0 `workbench` Profile proves that TwinDesk can compose the pinned DeepSeek Harness runtime and activate TwinDesk Host and Client plugins without changing Harness core. The Bundle contributes two Agent Presets and a read-only Codex specialist provider; the plugins contribute synthetic read-only Tools, one non-secret setting, one browser diagnostic card, and one static Inbox extension spike for compatibility testing. They do not add external connectors, filesystem mutation Tools, product persistence, or external writes.
+The Stage 0 `workbench` Profile proves that TwinDesk can compose the pinned DeepSeek Harness runtime and activate TwinDesk Host and Client plugins without changing Harness core. The Bundle contributes two Agent Presets and a read-only Codex specialist provider; the plugins contribute synthetic read-only Tools, one non-secret setting, one browser diagnostic card, and one static Inbox extension spike for compatibility testing. The Profile now also owns the separate product Web and model-Draft runner through a disposable Cordis plugin. It adds local Draft persistence but no external Connector, filesystem mutation Tool, approval authority, or external write.
 
 ## Composition
 
@@ -12,7 +12,7 @@ The generated Profile applies these Bundle layers in order:
 2. `@deepseek-ai/dsh-web-app`
 3. `@twindesk/bundle-workbench`
 
-The TwinDesk Bundle declares `dsh.bundle.patch` in its package manifest. Its patch inserts the dedicated `twindesk-codex-readonly` provider, `twindesk-work-hub`, and `twindesk-ui`. `@deepseek-ai/dsh-subagent-codex`, `@twindesk/plugin-work-hub`, and `@twindesk/plugin-ui` are formally installed Profile dependencies. The upstream Codex Bundle patch is deliberately not composed, so it cannot add a second default provider outside the TwinDesk safety configuration. The Work Hub Host plugin waits for the Harness settings and Tool registries, and both contributions are owned by its disposable lifecycle. The UI Host entry is intentionally empty; its installed package metadata enrolls the browser half through Harness's `dsh.client` discovery contract.
+The TwinDesk Bundle declares `dsh.bundle.patch` in its package manifest. Its patch inserts the dedicated `twindesk-codex-readonly` provider, `twindesk-work-hub`, `twindesk-workbench-runtime`, and `twindesk-ui`. `@deepseek-ai/dsh-subagent-codex`, `@twindesk/harness-adapter`, `@twindesk/plugin-work-hub`, and `@twindesk/plugin-ui` are formally installed dependencies. The upstream Codex Bundle patch is deliberately not composed, so it cannot add a second default provider outside the TwinDesk safety configuration. The Work Hub Host plugin waits for the Harness settings and Tool registries, and both contributions are owned by its disposable lifecycle. The Workbench runtime waits for the Agent, Session, persistence, Preset, and LLM services, then owns product Web startup and shutdown. The UI Host entry is intentionally empty; its installed package metadata enrolls the browser half through Harness's `dsh.client` discovery contract.
 
 ## Read-Only Status Tool
 
@@ -133,8 +133,8 @@ corepack pnpm@11.7.0 run profile:config
 ```
 
 The dump must contain a final `@twindesk/bundle-workbench` layer with the single
-`twindesk-codex-readonly` provider plus the `twindesk-work-hub` and `twindesk-ui`
-entries. It must not contain the optional upstream Bundle's default `codex`
+`twindesk-codex-readonly` provider plus the `twindesk-work-hub`,
+`twindesk-workbench-runtime`, and `twindesk-ui` entries. It must not contain the optional upstream Bundle's default `codex`
 provider. Harness produces this dump with the same patch composition algorithm
 used during boot.
 
@@ -146,7 +146,7 @@ Start the Web Profile without browser handoff:
 corepack pnpm@11.7.0 run profile:start -- --port 3080
 ```
 
-The default bind address comes from the pinned Web Bundle and remains `127.0.0.1`. Stop the process with `Ctrl-C`.
+The default bind address for both listeners remains `127.0.0.1`. The Harness UI uses the supplied `--port`; the product Web defaults to port `4173` and reports its URL separately. Stop the process with `Ctrl-C`; Cordis awaits product Web and SQLite shutdown.
 
 Run the automated composition and startup smoke test with:
 
@@ -163,7 +163,7 @@ corepack pnpm@11.7.0 run compat:check
 The complete manifest and failure contract are documented in
 [`HARNESS_COMPATIBILITY_SUITE.md`](HARNESS_COMPATIBILITY_SUITE.md).
 
-The smoke test checks both dumped entries, starts the Profile on port `0` so the operating system selects an available loopback port, and waits for the Harness URL readiness line. It then loads the production index twice, verifies a stable TwinDesk row in `__DSH_BOOT__`, fetches the bundle and source map through Harness's plugin routes, and requests normal shutdown. A separate bundle execution test materializes the factory across clean and direct-Inbox routes and verifies card and sidebar registration, page switching, restoration, disposal, listener cleanup, and reload isolation. The checks do not open a browser or invoke an Agent. Sandboxed development environments must permit loopback binding for this check.
+The smoke test checks all dumped TwinDesk entries, creates a temporary product home and database, and starts the Harness and product listeners on independent operating-system-selected loopback ports. It loads the Harness production index twice, verifies a stable TwinDesk row in `__DSH_BOOT__`, fetches the bundle and source map, verifies the product's minimized model-Draft capability, and requests normal shutdown. Temporary product data is then removed. A separate bundle execution test materializes the factory across clean and direct-Inbox routes and verifies card and sidebar registration, page switching, restoration, disposal, listener cleanup, and reload isolation. The checks do not open a browser, resolve a provider credential, or invoke an Agent. Sandboxed development environments must permit loopback binding for this check.
 
 ## Current Limitations
 
@@ -175,4 +175,4 @@ The smoke test checks both dumped entries, starts the Profile on port `0` so the
 - The external Client builder covers one source module and the shared React runtime only because the upstream preset is not published.
 - JSONL Session artifacts can contain user text, model output, and Tool data. The Stage 0 probe uses synthetic temporary data; product retention, redacted export, deletion, encryption-at-rest expectations, and format migration remain unresolved before Stage 1 persistence work.
 - The Codex provider cannot enforce Harness numeric depth or Tool-filter options in this pin. `provider-managed` is a recorded Stage 0 limitation; TD-404 must add native child-runtime budgets before production use.
-- Profile state under `.twindesk/` is disposable compatibility-test data, not a supported user-data location.
+- Profile state and the default developer TwinDesk database under `.twindesk/` are not supported production user-data locations.

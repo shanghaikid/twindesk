@@ -343,6 +343,12 @@ and deterministic Session identity, and supplies the configured provider/model
 route to the adapter. The minimized result contains local Draft state and no
 provider, prompt, credential, Tool, approval, or authority data. See
 [Workbench Model Draft Product Entry](WORKBENCH_MODEL_DRAFT_PRODUCT_ENTRY.md).
+The Workbench Profile owns this entry through a separate disposable Cordis
+plugin that requires the Harness Agent, Session, Preset, persistence, and LLM
+services. It checks only registered route/model composition before binding the
+product listener; credential health and live provider acceptance remain
+separate checks. See
+[Workbench Cordis Model-Draft Runtime](WORKBENCH_CORDIS_MODEL_DRAFT_RUNTIME.md).
 
 ### `@twindesk/plugin-jira`
 

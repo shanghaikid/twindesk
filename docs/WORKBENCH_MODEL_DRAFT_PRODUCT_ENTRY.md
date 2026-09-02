@@ -46,7 +46,9 @@ still editing.
 `startWorkbenchWebServer()` accepts this runtime only through an explicit
 Host-side `modelDraftRuntime` option. The default standalone Web launcher does
 not invent a provider connection: it advertises `unavailable` and renders a
-disabled entry until a Harness Host injects the runner and route.
+disabled entry. The Workbench Harness Profile injects the runner and route
+through the separate disposable
+[Cordis runtime](WORKBENCH_CORDIS_MODEL_DRAFT_RUNTIME.md).
 
 ## Verification and limitations
 
@@ -55,6 +57,6 @@ injection, Host-owned provider/model selection, model-context redaction,
 durable Draft/Audit recovery, and missing-Persona failure without a live model
 or external account.
 
-This does not prove a live production model provider. Cordis lifecycle wiring,
-provider credential health, interactive Draft editing, exact approval UI,
-polling, and live Feishu acceptance remain open Stage 2 work.
+This does not prove a live production model provider. Provider credential
+health, interactive Draft editing, exact approval UI, polling, and live Feishu
+acceptance remain open Stage 2 work.

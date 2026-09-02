@@ -8,6 +8,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./cordis-runtime": {
+      "types": "./dist/cordis-runtime.d.ts",
+      "default": "./dist/cordis-runtime.js"
+    },
     "./cordis.patch.yml": "./cordis.patch.yml"
   },
   "files": [
@@ -26,6 +30,7 @@
     "@deepseek-ai/dsh-subagent-codex": "0.1.1-rc.2",
     "@deepseek-ai/dsh-tool-subagent": "0.1.1-rc.2",
     "@deepseek-ai/dsh-tool-skill": "0.1.1-rc.2",
+    "@twindesk/harness-adapter": "workspace:*",
     "@twindesk/plugin-feishu": "workspace:*",
     "@twindesk/plugin-ui": "workspace:*",
     "@twindesk/plugin-work-hub": "workspace:*",

@@ -45,7 +45,7 @@ test.
 | Model Draft run | One real Agent turn, required Session flush, cold persisted-output inspection, exact retry recovery with zero additional model calls |
 | Codex delegation | Real package-local app server, synthetic repository read, denied write, cancellation, capability rejection, result attribution |
 | Built adapter boundary | Expected exports, exact versions, and no upstream types in declarations |
-| Real Profile boot | Effective config, one TwinDesk Codex provider, loopback Web startup, stable Client boot graph and artifacts, normal shutdown |
+| Real Profile boot | Effective config, one TwinDesk Codex provider, independent Harness/product loopback startup, stable Client boot graph and artifacts, ready model-Draft route, normal shutdown |
 
 This is the Stage 0 compatibility set, not the complete product security test
 plan. Connector idempotency, external-write approvals, business SQLite

@@ -81,6 +81,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Feishu OAuth Reauthorization Replacement](docs/FEISHU_OAUTH_REAUTHORIZATION.md): explicit blocked-state replacement, journal migration, and restart reconciliation.
 - [Workbench Feishu OAuth Reauthorization Runtime](docs/WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_RUNTIME.md): lease-held blocked-state callback, exchange, verified replacement, and restart-loaded production composition.
 - [Workbench Model Draft Product Entry](docs/WORKBENCH_MODEL_DRAFT_PRODUCT_ENTRY.md): Work Item-only browser intent with Host-owned redacted prompt, provider/model route, and durable local Draft recovery.
+- [Workbench Cordis Model-Draft Runtime](docs/WORKBENCH_CORDIS_MODEL_DRAFT_RUNTIME.md): Cordis-owned product Web and Harness runner lifecycle with Host-only route configuration and normal shutdown.
 - [Feishu Operation Scope Authorization](docs/FEISHU_OPERATION_SCOPE_AUTHORIZATION.md): fixed Bot/User operation policies and fresh fail-closed scope evidence.
 - [Feishu User Credential Scope Probe](docs/FEISHU_USER_CREDENTIAL_SCOPE_PROBE.md): exact Keychain OAuth scope observation, refresh gating, and transient-secret cleanup.
 - [Feishu Bot Tenant Token Acquisition](docs/FEISHU_BOT_TENANT_TOKEN_ACQUISITION.md): fixed-endpoint bounded token acquisition, callback-scoped cleanup, and the separate scope-observation boundary.
@@ -123,8 +124,10 @@ across restart with no model call, approval, Connector execution, or external
 write. Draft editing UI, approval decisions, product-composed secret-store
 resolution, user-created Personas, and hosted Connector subscriptions are not
 implemented. A Host-controlled model-Draft entry covers initial generation
-synthetically, but the default launcher has no live provider route and remains
-unavailable by design.
+synthetically. The standalone `web:start` launcher remains unavailable by
+design, while the Workbench Harness Profile now owns the product Web and
+configured model route through a disposable Cordis lifecycle. Credential health
+and live generation are not yet proven.
 Stage 2 identity configuration now distinguishes Feishu Bot application
 credentials from User OAuth credentials and persists only opaque secret
 references. The Feishu plugin now verifies and decrypts Bot direct-message and
@@ -224,8 +227,9 @@ normalization, bounded context, an edited Draft revision, exact approval,
 idempotent execution, receipt persistence, restart verification, and a complete local
 Audit trace. The restart evidence is a deterministic acceptance completion,
 not an automatic repair service. The Inbox now has a Host-controlled model-Draft
-entry, but the standalone launcher correctly reports its Agent Runtime as
-unavailable until Cordis injects a configured provider route. Stage 2 is not
+entry. The standalone launcher correctly reports its Agent Runtime as
+unavailable, while `profile:start` injects the pinned Harness runner and
+Host-selected route. Stage 2 is not
 declared complete: hosted ingestion or polling, remaining Connector lifecycle
 wiring, production provider activation, interactive Draft/approval UI, and a
 live-account send remain unimplemented.
@@ -258,8 +262,8 @@ corepack pnpm@11.7.0 run web:build
 corepack pnpm@11.7.0 run web:start -- --port 4173
 ```
 
-Open `http://127.0.0.1:4173/inbox`. The product shell is separate from the
-Harness diagnostic Profile described below.
+Open `http://127.0.0.1:4173/inbox`. This standalone product shell intentionally
+reports model generation as unavailable because it owns no Harness lifecycle.
 
 The combined check covers formatting, TypeScript validation, unit tests, all
 project-reference builds, the built Harness adapter boundary, production
@@ -276,11 +280,16 @@ corepack pnpm@11.7.0 run profile:prepare
 corepack pnpm@11.7.0 run profile:config
 ```
 
-Start the Harness diagnostic Web Profile without automatically opening a
-browser:
+Start the Harness Profile and its Cordis-owned product Web without automatically
+opening a browser:
 
 ```sh
 corepack pnpm@11.7.0 run profile:start -- --port 3080
 ```
+
+The Harness diagnostic UI binds to port `3080`; the product Inbox binds to
+`http://127.0.0.1:4173/inbox` by default. Provider/model and product port may be
+set with the non-secret Host variables documented in
+[Workbench Cordis Model-Draft Runtime](docs/WORKBENCH_CORDIS_MODEL_DRAFT_RUNTIME.md).
 
 Generated Harness state stays under the ignored `.twindesk/` directory.

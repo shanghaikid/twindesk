@@ -65,7 +65,7 @@ local business records; credentials and raw connector responses do not.
 | SecretReference resolves and parses from macOS Keychain | Contract passed | Fixed read-only lookup plus identity-bound Bot/User parsing and zeroed source/derived bytes are tested with injected adapters; no live item is read |
 | Real Feishu reply succeeds | Not proven | The Workbench composition root binds the held lease, Host approval/dispatch/receipt/Audit operation, durable User rotation, and production Bot/User adapter; its complete test injects Keychain and Fetch and uses no live account |
 | User edits and approves in the product UI | Not implemented | Current Web shell remains read-only fixture UI |
-| Model-backed Draft and Harness trace are linked | Runtime and product-entry contracts passed; live provider not composed | A Persona-mapped pinned Harness Agent run requires Session flush, cold persisted-turn validation, and bounded visible output before Work Hub creates the local Draft and opaque WorkItem -> Session -> Run Audit chain. The product entry now accepts only a Work Item ID while Host owns prompt, identities, and provider/model. Exact restart recovery makes zero model calls. The acceptance Draft remains deterministic with `modelInvocation: false`; no credential-healthy provider lifecycle is configured. |
+| Model-backed Draft and Harness trace are linked | Runtime, product-entry, and Cordis lifecycle contracts passed; live provider not accepted | A Persona-mapped pinned Harness Agent run requires Session flush, cold persisted-turn validation, and bounded visible output before Work Hub creates the local Draft and opaque WorkItem -> Session -> Run Audit chain. The product entry accepts only a Work Item ID while Host owns prompt, identities, and provider/model. The Workbench Cordis effect proves the route, starts product Web, and shuts it down normally; route inspection makes no model request and does not resolve a credential. Exact restart recovery makes zero model calls. The acceptance Draft remains deterministic with `modelInvocation: false`; credential health and authenticated remote generation are not proven. |
 
 ## Why the Stage Does Not Exit Yet
 
@@ -79,8 +79,8 @@ approval, and a real external receipt.
 
 TD-209 therefore remains open until the runtime hosts ingestion, polling,
 blocked-state recovery, and reauthorization around the now-composed Work Hub
-reply operation, binds the now-exposed Harness model-Draft entry to a
-credential-healthy production provider, and implements Draft and approval UI
+reply operation, proves the now-lifecycle-bound Harness model-Draft entry against
+a credential-healthy production provider, and implements Draft and approval UI
 plus an authorized live-account acceptance run. Stage 3 must not rely on a claimed
 Stage 2 exit before those checks pass.
 

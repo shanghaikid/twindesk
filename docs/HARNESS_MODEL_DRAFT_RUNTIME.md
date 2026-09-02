@@ -83,7 +83,9 @@ and JSONL persistence with a deterministic keyless LLM adapter. They verify one
 model call, durable cold inspection, cold-Host recovery with zero model calls,
 empty-output refusal, installed-Persona mapping, target preflight, cancellation,
 malformed result rejection, local Draft/Audit persistence, and Audit privacy.
-They do not prove a live provider, real Feishu message, credential-healthy
-Cordis lifecycle, or authorized external send. The product-entry contract and
-its Host-owned provider/model route are covered separately by
-[Workbench Model Draft Product Entry](WORKBENCH_MODEL_DRAFT_PRODUCT_ENTRY.md).
+They do not prove a live provider, real Feishu message, credential health, or
+authorized external send. The product-entry contract and its Host-owned
+provider/model route are covered by
+[Workbench Model Draft Product Entry](WORKBENCH_MODEL_DRAFT_PRODUCT_ENTRY.md),
+and the disposable Host lifecycle is covered by
+[Workbench Cordis Model-Draft Runtime](WORKBENCH_CORDIS_MODEL_DRAFT_RUNTIME.md).

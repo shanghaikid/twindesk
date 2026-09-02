@@ -7,6 +7,7 @@ import test from 'node:test'
 import {
   createHarnessModelDraftRunner,
   HarnessModelDraftRunError,
+  inspectHarnessModelDraftRoute,
 } from '../packages/harness-adapter/dist/index.js'
 import { probeHarnessModelDraftRun } from '../packages/harness-adapter/dist/testing.js'
 import { apply, inject, name } from '../packages/plugin-work-hub/dist/index.js'
@@ -103,6 +104,142 @@ test('Harness model Draft runner rejects invalid contexts before inspecting requ
       !error.message.includes(PROMPT),
   )
   assert.equal(accessed, true)
+})
+
+test('Harness model Draft route inspection proves one mounted route without model I/O', async () => {
+  let resolutions = 0
+  const context = {
+    llm: {
+      listProviders() {
+        return [{ id: 'synthetic-provider', name: 'Synthetic' }]
+      },
+      /** @param {string} provider @param {string} model @param {AbortSignal | undefined} signal */
+      async resolveModelInfo(provider, model, signal) {
+        signal?.throwIfAborted()
+        resolutions += 1
+        return { provider, id: model, name: model }
+      },
+    },
+  }
+  assert.deepEqual(
+    await inspectHarnessModelDraftRoute(context, {
+      provider: 'synthetic-provider',
+      model: 'synthetic-model',
+    }),
+    { provider: 'synthetic-provider', model: 'synthetic-model' },
+  )
+  assert.equal(resolutions, 1)
+  await assert.rejects(
+    inspectHarnessModelDraftRoute(context, {
+      provider: 'missing-provider',
+      model: 'synthetic-model',
+    }),
+    (error) => error instanceof HarnessModelDraftRunError && error.code === 'runtime_unavailable',
+  )
+  assert.equal(resolutions, 1)
+})
+
+test('Harness model Draft route inspection rejects hostile input and cancellation', async () => {
+  let accessed = false
+  const hostile = Object.defineProperty({ provider: 'synthetic-provider' }, 'model', {
+    enumerable: true,
+    get() {
+      accessed = true
+      return 'synthetic-private-model'
+    },
+  })
+  await assert.rejects(
+    inspectHarnessModelDraftRoute(
+      { llm: { listProviders() {}, resolveModelInfo() {} } },
+      /** @type {any} */ (hostile),
+    ),
+    (error) => error instanceof HarnessModelDraftRunError && error.code === 'invalid_request',
+  )
+  assert.equal(accessed, false)
+
+  let serviceValueAccessed = false
+  const hostileProvider = Object.defineProperty({}, 'id', {
+    enumerable: true,
+    get() {
+      serviceValueAccessed = true
+      return 'synthetic-provider'
+    },
+  })
+  await assert.rejects(
+    inspectHarnessModelDraftRoute(
+      {
+        llm: {
+          listProviders() {
+            return [hostileProvider]
+          },
+          resolveModelInfo() {},
+        },
+      },
+      { provider: 'synthetic-provider', model: 'synthetic-model' },
+    ),
+    (error) => error instanceof HarnessModelDraftRunError && error.code === 'runtime_unavailable',
+  )
+  assert.equal(serviceValueAccessed, false)
+
+  let arrayValueAccessed = false
+  /** @type {unknown[]} */
+  const hostileProviders = []
+  Object.defineProperty(hostileProviders, '0', {
+    enumerable: true,
+    get() {
+      arrayValueAccessed = true
+      return { id: 'synthetic-provider' }
+    },
+  })
+  hostileProviders.length = 1
+  await assert.rejects(
+    inspectHarnessModelDraftRoute(
+      {
+        llm: {
+          listProviders() {
+            return hostileProviders
+          },
+          resolveModelInfo() {},
+        },
+      },
+      { provider: 'synthetic-provider', model: 'synthetic-model' },
+    ),
+    (error) => error instanceof HarnessModelDraftRunError && error.code === 'runtime_unavailable',
+  )
+  assert.equal(arrayValueAccessed, false)
+
+  await assert.rejects(
+    inspectHarnessModelDraftRoute(
+      {
+        llm: {
+          listProviders() {
+            return new Array(1)
+          },
+          resolveModelInfo() {},
+        },
+      },
+      { provider: 'synthetic-provider', model: 'synthetic-model' },
+    ),
+    (error) => error instanceof HarnessModelDraftRunError && error.code === 'runtime_unavailable',
+  )
+
+  const cancelled = new AbortController()
+  cancelled.abort()
+  await assert.rejects(
+    inspectHarnessModelDraftRoute(
+      {
+        llm: {
+          listProviders() {
+            return [{ id: 'synthetic-provider', name: 'Synthetic' }]
+          },
+          resolveModelInfo() {},
+        },
+      },
+      { provider: 'synthetic-provider', model: 'synthetic-model' },
+      cancelled.signal,
+    ),
+    (error) => error instanceof HarnessModelDraftRunError && error.code === 'cancelled',
+  )
 })
 
 test('Harness model Draft runner rejects hostile requests and signals before persistence', async () => {

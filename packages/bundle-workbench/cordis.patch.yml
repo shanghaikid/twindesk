@@ -10,5 +10,14 @@
           CODEX_HOME: !!js dshHomePath('twindesk-codex-readonly')
     - id: twindesk-work-hub
       name: '@twindesk/plugin-work-hub'
+    - id: twindesk-workbench-runtime
+      name: '@twindesk/bundle-workbench/cordis-runtime'
+      config:
+        version: 1
+        homeDirectory: !!js "process.env.TWINDESK_HOME_DIRECTORY || process.getBuiltinModule('node:os').homedir()"
+        databasePath: !!js "process.getBuiltinModule('node:path').resolve(process.env.TWINDESK_DATABASE_PATH || '.twindesk/twindesk.sqlite3')"
+        port: !!js "Number(process.env.TWINDESK_WEB_PORT || '4173')"
+        provider: !!js "process.env.TWINDESK_MODEL_PROVIDER || 'deepseek-official'"
+        model: !!js "process.env.TWINDESK_MODEL || 'deepseek-v4-flash'"
     - id: twindesk-ui
       name: '@twindesk/plugin-ui'
