@@ -122,6 +122,7 @@ test('a new database receives the isolated TwinDesk schema and durable settings'
       { version: 6, name: 'action_dispatch_journal' },
       { version: 7, name: 'connector_audit_references' },
       { version: 8, name: 'connector_maintenance_audit' },
+      { version: 9, name: 'creation_record_shape_compatibility' },
     ],
   )
   for (const { checksum, applied_at: appliedAt } of migrations) {
@@ -389,6 +390,149 @@ test('migration history tampering is detected before the database is used', asyn
       return true
     },
   )
+})
+
+test('the known schema 3 preview shape upgrades forward without losing creation evidence', async (context) => {
+  const path = await temporaryDatabase(context)
+  const preview = new DatabaseSync(path, { enableForeignKeyConstraints: true })
+  for (const migration of SQLITE_MIGRATIONS.filter(({ version }) => version <= 3)) {
+    preview.exec('BEGIN IMMEDIATE')
+    preview.exec(migration.sql)
+    preview
+      .prepare(
+        `INSERT INTO twindesk_schema_migrations (version, name, checksum, applied_at)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .run(
+        migration.version,
+        migration.name,
+        createHash('sha256').update(migration.sql, 'utf8').digest('hex'),
+        '2026-08-27T01:37:41.836Z',
+      )
+    preview.exec(`PRAGMA application_id = ${TWIN_DESK_SQLITE_APPLICATION_ID}`)
+    preview.exec(`PRAGMA user_version = ${migration.version}`)
+    preview.exec('COMMIT')
+  }
+  preview.exec(`
+    INSERT INTO external_events (
+      kind, schema_version, id, idempotency_key, connector_id, account_id,
+      object_type, external_id, event_type, occurred_at, received_at,
+      context_status, normalized_json
+    ) VALUES (
+      'external_event', 1, 'preview-event', 'preview:event:v1', 'fixture',
+      'synthetic-account', 'message', 'preview-message', 'message.received',
+      '2026-08-27T01:38:00Z', '2026-08-27T01:38:00Z', 'complete', '{}'
+    );
+    INSERT INTO external_threads (
+      kind, schema_version, id, subject, created_at, updated_at
+    ) VALUES (
+      'external_thread', 1, 'preview-thread', 'Synthetic preview',
+      '2026-08-27T01:38:00Z', '2026-08-27T01:38:00Z'
+    );
+    INSERT INTO work_items (
+      kind, schema_version, id, thread_id, inbox_state, title, summary,
+      attention_reason, selected_persona_id, created_at, updated_at
+    ) VALUES (
+      'work_item', 1, 'preview-work-item', 'preview-thread', 'needs_reply',
+      'Synthetic preview', 'Synthetic summary', 'Synthetic attention',
+      'communication', '2026-08-27T01:38:00Z', '2026-08-27T01:38:00Z'
+    );
+    INSERT INTO drafts (
+      kind, schema_version, id, work_item_id, persona_id, revision, state,
+      media_type, content_text, created_at, updated_at
+    ) VALUES (
+      'draft', 1, 'preview-draft', 'preview-work-item', 'communication', 1,
+      'editing', 'text/plain', 'Synthetic preview Draft.',
+      '2026-08-27T01:39:00Z', '2026-08-27T01:39:00Z'
+    );
+    INSERT INTO draft_creation_records (
+      kind, schema_version, draft_id, initial_state, initial_updated_at
+    ) VALUES (
+      'draft_creation_record', 1, 'preview-draft', 'editing',
+      '2026-08-27T01:39:00Z'
+    );
+    INSERT INTO action_proposals (
+      kind, schema_version, id, work_item_id, draft_id, action_type, risk,
+      identity_connector_id, identity_account_id, identity_type, identity_display_name,
+      target_connector_id, target_account_id, target_object_type, target_external_id,
+      target_source_timestamp, media_type, content_text, content_digest, idempotency_key,
+      state, created_at, updated_at
+    ) VALUES (
+      'action_proposal', 1, 'preview-proposal', 'preview-work-item', 'preview-draft',
+      'fixture.reply.preview', 'write', 'fixture', 'synthetic-account', 'user',
+      'Synthetic User', 'fixture', 'synthetic-account', 'message', 'preview-message',
+      '2026-08-27T01:38:00Z', 'text/plain', 'Synthetic preview Draft.',
+      'sha256:0000000000000000000000000000000000000000000000000000000000000000',
+      'fixture:preview:proposal:v1', 'proposed',
+      '2026-08-27T01:40:00Z', '2026-08-27T01:40:00Z'
+    );
+    INSERT INTO action_proposal_creation_records (
+      kind, schema_version, proposal_id, initial_state, initial_updated_at
+    ) VALUES (
+      'action_proposal_creation_record', 1, 'preview-proposal', 'proposed',
+      '2026-08-27T01:40:00Z'
+    );
+    ALTER TABLE draft_creation_records DROP COLUMN kind;
+    ALTER TABLE draft_creation_records DROP COLUMN schema_version;
+    ALTER TABLE action_proposal_creation_records DROP COLUMN kind;
+    ALTER TABLE action_proposal_creation_records DROP COLUMN schema_version;
+    UPDATE twindesk_schema_migrations
+    SET checksum = '75074642b46134dfd70a696854dba91c8c4d08b0dbff3aec523743f3aec1480a'
+    WHERE version = 3;
+  `)
+  preview.close()
+
+  const upgraded = openTwinDeskDatabase(path)
+  assert.equal(upgraded.schemaVersion, LATEST_TWIN_DESK_SQLITE_SCHEMA_VERSION)
+  assert.equal(
+    upgraded.getDraft(/** @type {any} */ ('preview-draft'))?.content.text,
+    'Synthetic preview Draft.',
+  )
+  upgraded.close()
+
+  const inspection = new DatabaseSync(path, { readOnly: true })
+  context.after(() => inspection.close())
+  assert.deepEqual(
+    inspection
+      .prepare(`PRAGMA table_info(draft_creation_records)`)
+      .all()
+      .map(({ name }) => name),
+    ['kind', 'schema_version', 'draft_id', 'initial_state', 'initial_updated_at'],
+  )
+  assert.deepEqual(
+    Object.fromEntries(
+      Object.entries(
+        inspection
+          .prepare(`SELECT kind, schema_version, draft_id FROM draft_creation_records`)
+          .get() ?? {},
+      ),
+    ),
+    { kind: 'draft_creation_record', schema_version: 1, draft_id: 'preview-draft' },
+  )
+  assert.equal(
+    inspection.prepare(`SELECT checksum FROM twindesk_schema_migrations WHERE version = 3`).get()
+      ?.checksum,
+    '75074642b46134dfd70a696854dba91c8c4d08b0dbff3aec523743f3aec1480a',
+  )
+  assert.deepEqual(
+    {
+      ...inspection
+        .prepare(
+          `SELECT kind, schema_version AS schemaVersion, proposal_id AS proposalId
+           FROM action_proposal_creation_records`,
+        )
+        .get(),
+    },
+    {
+      kind: 'action_proposal_creation_record',
+      schemaVersion: 1,
+      proposalId: 'preview-proposal',
+    },
+  )
+  const restarted = openTwinDeskDatabase(path)
+  assert.equal(restarted.schemaVersion, LATEST_TWIN_DESK_SQLITE_SCHEMA_VERSION)
+  assert.equal(restarted.getDraft(/** @type {any} */ ('preview-draft'))?.state, 'editing')
+  restarted.close()
 })
 
 test('the Connector Audit migration rejects unknown pre-existing reference kinds', async (context) => {

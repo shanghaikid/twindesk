@@ -330,10 +330,19 @@ action. Cordis activation remains open. See
 [ADR 0004](decisions/0004-feishu-oauth-recovery-journal-path.md). The Stage 2
 exit remains open until the
 production runtime hosts ingestion, polling, and credential-recovery
-lifecycles, and passes product editing/approval UI, model-run linkage, and
+lifecycles, binds the Workbench model-Draft product entry to a credential-healthy
+Harness provider, and passes product editing/approval UI and
 live-account acceptance boundaries. See
 [Workbench Feishu OAuth Reauthorization Runtime](WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_RUNTIME.md)
 and [Stage 2 Exit Gate](STAGE_2_EXIT_GATE.md).
+
+The model-Draft product entry keeps runtime selection on the Host side. Web
+submits only a bounded opaque Work Item ID; Workbench resolves the durable Work
+Item and Persona, applies model-context redaction, constructs the fixed prompt
+and deterministic Session identity, and supplies the configured provider/model
+route to the adapter. The minimized result contains local Draft state and no
+provider, prompt, credential, Tool, approval, or authority data. See
+[Workbench Model Draft Product Entry](WORKBENCH_MODEL_DRAFT_PRODUCT_ENTRY.md).
 
 ### `@twindesk/plugin-jira`
 

@@ -35,6 +35,12 @@ import {
   type FeishuReauthorizationRecovery,
   type FeishuReauthorizationSnapshot,
 } from './feishu-reauthorization-contract.ts'
+import {
+  parseModelDraftCreateSnapshot,
+  parseModelDraftStatusSnapshot,
+  type ModelDraftCreateSnapshot,
+  type ModelDraftStatusSnapshot,
+} from './model-draft-contract.ts'
 
 const INBOX_STATES: readonly { readonly id: InboxState; readonly label: string }[] = [
   { id: 'needs_reply', label: 'Needs reply' },
@@ -58,6 +64,14 @@ let selectedWorkItemId: string | undefined
 let inboxLoading = false
 let inboxError: string | undefined
 let inboxRequest = 0
+let modelDraftStatus: ModelDraftStatusSnapshot | undefined
+let modelDraftCsrfToken: string | undefined
+let modelDraftStatusLoading = false
+let modelDraftStatusError: string | undefined
+let modelDraftStatusRequest = 0
+let modelDraftCreating = false
+let modelDraftCreateError: string | undefined
+let modelDraftResult: ModelDraftCreateSnapshot | undefined
 let auditSnapshot: AuditSnapshot | undefined
 let auditLoading = false
 let auditError: string | undefined
@@ -184,6 +198,22 @@ function workItemDetails(item: InboxItem | undefined): string {
     item.context.status === 'complete'
       ? 'Complete fixture context'
       : `Partial — missing ${item.context.missing.join(', ')}`
+  const generated = modelDraftResult?.draft.workItemId === item.id ? modelDraftResult : undefined
+  const canCreate =
+    item.personaId !== undefined &&
+    modelDraftStatus?.capability === 'ready' &&
+    modelDraftCsrfToken !== undefined &&
+    !modelDraftCreating
+  const modelDraftMessage =
+    item.personaId === undefined
+      ? 'Select a Persona before generating a Draft.'
+      : modelDraftStatusLoading
+        ? 'Checking the local Agent Runtime…'
+        : modelDraftStatusError !== undefined
+          ? modelDraftStatusError
+          : modelDraftStatus?.capability !== 'ready'
+            ? 'The product Agent Runtime is not connected.'
+            : 'The selected Persona will create one local editing Draft. Provider, model, prompt, and authority stay Host-controlled.'
   return `<article class="detail-card">
     <div class="detail-title"><span class="badge">${escapeHtml(stateLabel(item.inboxState))}</span><h2>${escapeHtml(item.title)}</h2><p>${escapeHtml(item.summary)}</p></div>
     <dl class="detail-list">
@@ -193,6 +223,16 @@ function workItemDetails(item: InboxItem | undefined): string {
       <div><dt>Context</dt><dd>${escapeHtml(contextText)}</dd></div>
       <div><dt>Updated</dt><dd>${escapeHtml(formatTimestamp(item.updatedAt))}</dd></div>
     </dl>
+    <section class="draft-entry" aria-label="Model Draft">
+      <div><h3>Local Draft</h3><p>${escapeHtml(modelDraftMessage)}</p></div>
+      <button class="primary-button" type="button" data-model-draft-create${canCreate ? '' : ' disabled'}>${modelDraftCreating ? 'Generating…' : 'Generate Draft'}</button>
+      ${modelDraftCreateError === undefined ? '' : `<p class="form-message error">${escapeHtml(modelDraftCreateError)}</p>`}
+      ${
+        generated === undefined
+          ? ''
+          : `<div class="draft-preview"><div><strong>${escapeHtml(generated.draft.personaLabel)}</strong><span>Revision ${generated.draft.revision} · ${escapeHtml(generated.draft.state.replaceAll('_', ' '))}</span></div><pre>${escapeHtml(generated.draft.content.text)}</pre><p>Local Draft only. This result does not prove approval or delivery.</p></div>`
+      }
+    </section>
     <div class="notice"><strong>Fixture only.</strong> This page reads local synthetic data and cannot perform an external write.</div>
   </article>`
 }
@@ -654,6 +694,77 @@ async function loadInbox(state: InboxState): Promise<void> {
       inboxLoading = false
       render()
     }
+  }
+}
+
+async function loadModelDraftStatus(): Promise<void> {
+  const request = ++modelDraftStatusRequest
+  modelDraftStatusLoading = true
+  modelDraftStatusError = undefined
+  render()
+  try {
+    const response = await fetch('/api/model-drafts', { headers: { accept: 'application/json' } })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseModelDraftStatusSnapshot(await response.json())
+    const csrfToken = response.headers.get('x-twindesk-model-draft-csrf-token')
+    if (
+      (snapshot.capability === 'ready' &&
+        (csrfToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(csrfToken))) ||
+      (snapshot.capability === 'unavailable' && csrfToken !== null)
+    ) {
+      throw new Error('Local API returned an invalid model Draft capability.')
+    }
+    if (request !== modelDraftStatusRequest) return
+    modelDraftStatus = snapshot
+    modelDraftCsrfToken = csrfToken ?? undefined
+  } catch (error) {
+    if (request !== modelDraftStatusRequest) return
+    modelDraftStatus = undefined
+    modelDraftCsrfToken = undefined
+    modelDraftStatusError =
+      error instanceof Error ? error.message : 'The local Agent Runtime check failed.'
+  } finally {
+    if (request === modelDraftStatusRequest) {
+      modelDraftStatusLoading = false
+      render()
+    }
+  }
+}
+
+async function createModelDraft(): Promise<void> {
+  const workItemId = selectedWorkItemId
+  const csrfToken = modelDraftCsrfToken
+  if (workItemId === undefined || csrfToken === undefined || modelDraftCreating) return
+  modelDraftCreating = true
+  modelDraftCreateError = undefined
+  render()
+  try {
+    const response = await fetch('/api/model-drafts/create', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'x-twindesk-model-draft-csrf-token': csrfToken,
+      },
+      body: JSON.stringify({ version: 1, workItemId }),
+    })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const result = parseModelDraftCreateSnapshot(await response.json())
+    if (result.draft.workItemId !== workItemId) {
+      throw new Error('Local API returned a Draft for another Work Item.')
+    }
+    const nextToken = response.headers.get('x-twindesk-model-draft-csrf-token')
+    if (nextToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(nextToken)) {
+      throw new Error('Local API returned an invalid model Draft capability.')
+    }
+    modelDraftResult = result
+    modelDraftCsrfToken = nextToken
+  } catch (error) {
+    modelDraftCreateError =
+      error instanceof Error ? error.message : 'The local model Draft request failed.'
+  } finally {
+    modelDraftCreating = false
+    render()
   }
 }
 
@@ -1172,7 +1283,10 @@ async function saveFeishuOAuthSettings(update: FeishuOAuthSettingsUpdate): Promi
 function renderRouteAndLoad(): void {
   render()
   const route = currentRoute()
-  if (route.id === 'inbox') void loadInbox(activeInboxState)
+  if (route.id === 'inbox') {
+    void loadInbox(activeInboxState)
+    void loadModelDraftStatus()
+  }
   if (route.id === 'audit') void loadAudit()
   if (route.id === 'connectors') {
     void loadFeishuSettings()
@@ -1206,7 +1320,12 @@ document.addEventListener('click', (event) => {
   const itemButton = target.closest<HTMLButtonElement>('button[data-work-item-id]')
   if (itemButton?.dataset.workItemId !== undefined) {
     selectedWorkItemId = itemButton.dataset.workItemId
+    modelDraftCreateError = undefined
     render()
+    return
+  }
+  if (target.closest('[data-model-draft-create]') !== null) {
+    void createModelDraft()
     return
   }
   if (target.closest('[data-inbox-retry]') !== null) void loadInbox(activeInboxState)

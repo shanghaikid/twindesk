@@ -121,12 +121,15 @@ and never converts reconciliation evidence into an automatic retry. Work Hub
 now composes one Persona-mapped pinned Harness Agent run through a required
 Session flush and cold persisted-turn validation into one bounded `editing`
 Draft and restart-repairable business Audit. Exact Session replay recovers with
-zero model calls and grants no approval or write authority. Product entry and
-production provider configuration remain open.
+zero model calls and grants no approval or write authority. The product Web
+shell now adds a strict Work Item-only Draft intent while Workbench owns the
+redacted prompt, runtime identities, and explicit provider/model route. The standalone launcher
+advertises this capability as unavailable until a Harness Host injects that
+runtime; no browser field can select or credential a provider.
 Cordis activation, existing-identity replacement, Bot identity creation,
 credential repair/removal, live authorization and
 reauthorization acceptance, interactive Draft and
-approval UI, product model-Draft entry, and a real Feishu send remain missing. See the
+approval UI, production provider activation, and a real Feishu send remain missing. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).
 
 ## Stage 3: Jira Context

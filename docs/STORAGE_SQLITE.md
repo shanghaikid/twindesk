@@ -55,7 +55,9 @@ resource management through `Symbol.dispose`.
 Migrations are append-only and numbered consecutively. Opening a database:
 
 1. verifies ownership and rejects a future schema version;
-2. verifies names and SHA-256 checksums for every recorded migration;
+2. verifies names and SHA-256 checksums for every recorded migration, accepting
+   only explicitly listed development-preview checksums that a later forward
+   migration repairs;
 3. applies each missing migration inside its own `BEGIN IMMEDIATE` transaction;
 4. records migration history and advances `application_id` and `user_version`
    in the same transaction;
@@ -128,6 +130,15 @@ settlement to its result Audit. A partial result write rolls back without hiding
 the pending repair state. See
 [Connector Maintenance Audit Protocol](CONNECTOR_MAINTENANCE_AUDIT.md).
 
+Migration 9 reconstructs the two creation-record tables into their canonical
+versioned shape. It preserves every Draft and ActionProposal creation snapshot
+while adding the fixed `kind` and `schema_version` discriminators when absent.
+This migration supports one exact schema-3 checksum emitted by the August 27
+local preview before its migration was committed. No other checksum mismatch is
+accepted, the historical checksum remains recorded, and all unknown or tampered
+history still fails closed. Fresh and already-canonical databases pass through
+the same reconstruction so the resulting schema is identical.
+
 ## Privacy and Retention Review
 
 The schema contains no token, API key, cookie, private-key, or credential
@@ -159,6 +170,7 @@ modified or claimed deleted.
 - restart recovery without duplicate migration application or data loss;
 - rejection of a Harness-like or otherwise unowned SQLite file without mutation;
 - rejection of future schema versions and tampered migration history;
+- forward recovery of the exact schema-3 preview shape without data loss;
 - rollback of an interrupted or conflicting migration;
 - immutable external events and safe open-option validation.
 

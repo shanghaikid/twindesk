@@ -80,6 +80,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Feishu OAuth Verified Initial Persistence](docs/FEISHU_OAUTH_INITIAL_PERSISTENCE.md): verified User token snapshot, exact initial Keychain replacement, and uncertain-write recovery.
 - [Feishu OAuth Reauthorization Replacement](docs/FEISHU_OAUTH_REAUTHORIZATION.md): explicit blocked-state replacement, journal migration, and restart reconciliation.
 - [Workbench Feishu OAuth Reauthorization Runtime](docs/WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_RUNTIME.md): lease-held blocked-state callback, exchange, verified replacement, and restart-loaded production composition.
+- [Workbench Model Draft Product Entry](docs/WORKBENCH_MODEL_DRAFT_PRODUCT_ENTRY.md): Work Item-only browser intent with Host-owned redacted prompt, provider/model route, and durable local Draft recovery.
 - [Feishu Operation Scope Authorization](docs/FEISHU_OPERATION_SCOPE_AUTHORIZATION.md): fixed Bot/User operation policies and fresh fail-closed scope evidence.
 - [Feishu User Credential Scope Probe](docs/FEISHU_USER_CREDENTIAL_SCOPE_PROBE.md): exact Keychain OAuth scope observation, refresh gating, and transient-secret cleanup.
 - [Feishu Bot Tenant Token Acquisition](docs/FEISHU_BOT_TENANT_TOKEN_ACQUISITION.md): fixed-endpoint bounded token acquisition, callback-scoped cleanup, and the separate scope-observation boundary.
@@ -119,9 +120,11 @@ explicit shared-event, cursor, deletion-receipt, and Harness Session retention
 behavior. The Audit page shows four synthetic routing records plus two
 deterministic Persona Draft records. The fixture flow reaches `ready_for_review`
 across restart with no model call, approval, Connector execution, or external
-write. User-driven or model-backed Draft generation, Draft editing UI, approval
-decisions, product-composed secret-store resolution, user-created Personas, and
-hosted Connector subscriptions are not implemented.
+write. Draft editing UI, approval decisions, product-composed secret-store
+resolution, user-created Personas, and hosted Connector subscriptions are not
+implemented. A Host-controlled model-Draft entry covers initial generation
+synthetically, but the default launcher has no live provider route and remains
+unavailable by design.
 Stage 2 identity configuration now distinguishes Feishu Bot application
 credentials from User OAuth credentials and persists only opaque secret
 references. The Feishu plugin now verifies and decrypts Bot direct-message and
@@ -220,10 +223,12 @@ The local TD-209 contract acceptance path now composes verified-message
 normalization, bounded context, an edited Draft revision, exact approval,
 idempotent execution, receipt persistence, restart verification, and a complete local
 Audit trace. The restart evidence is a deterministic acceptance completion,
-not an automatic repair service. Stage 2 is not declared complete: hosted
-ingestion or polling, Keychain/rotation reconciliation actions and Cordis wiring,
-interactive Draft/approval UI, model-backed Draft linkage, and a live-account
-send remain unimplemented.
+not an automatic repair service. The Inbox now has a Host-controlled model-Draft
+entry, but the standalone launcher correctly reports its Agent Runtime as
+unavailable until Cordis injects a configured provider route. Stage 2 is not
+declared complete: hosted ingestion or polling, remaining Connector lifecycle
+wiring, production provider activation, interactive Draft/approval UI, and a
+live-account send remain unimplemented.
 Versioned domain records and the product-owned Connector contract are
 implemented. The pinned Harness Profile,
 two draft-only Personas, JSONL restart recovery, and bounded Codex specialist

@@ -19,6 +19,16 @@ export {
   type FeishuReauthorizationSnapshot,
 } from './feishu-reauthorization-contract.ts'
 export {
+  parseModelDraftCreateRequest,
+  parseModelDraftCreateSnapshot,
+  parseModelDraftStatusSnapshot,
+  type ModelDraftCapability,
+  type ModelDraftCreateRequest,
+  type ModelDraftCreateSnapshot,
+  type ModelDraftStatusSnapshot,
+  type ModelDraftView,
+} from './model-draft-contract.ts'
+export {
   startTwinDeskWebServer,
   type RunningTwinDeskWebServer,
   type TwinDeskWebServerOptions,

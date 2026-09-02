@@ -5,6 +5,8 @@ export interface SqliteMigration {
   readonly version: number
   readonly name: string
   readonly sql: string
+  /** Exact historical development checksums whose resulting schema is repaired by a later migration. */
+  readonly compatibleChecksums?: readonly string[]
 }
 
 const INITIAL_SCHEMA_SQL = `
@@ -709,6 +711,64 @@ BEGIN
 END;
 `
 
+const CREATION_RECORD_SHAPE_COMPATIBILITY_SQL = `
+ALTER TABLE draft_creation_records RENAME TO draft_creation_records_v8;
+
+CREATE TABLE draft_creation_records (
+  kind TEXT NOT NULL CHECK (kind = 'draft_creation_record'),
+  schema_version INTEGER NOT NULL CHECK (schema_version = 1),
+  draft_id TEXT PRIMARY KEY REFERENCES drafts(id) ON DELETE CASCADE,
+  initial_state TEXT NOT NULL CHECK (
+    initial_state IN ('editing', 'ready_for_review', 'superseded', 'cancelled')
+  ),
+  initial_updated_at TEXT NOT NULL CHECK (julianday(initial_updated_at) IS NOT NULL)
+) STRICT;
+
+INSERT INTO draft_creation_records (
+  kind, schema_version, draft_id, initial_state, initial_updated_at
+)
+SELECT 'draft_creation_record', 1, draft_id, initial_state, initial_updated_at
+FROM draft_creation_records_v8;
+
+DROP TABLE draft_creation_records_v8;
+
+CREATE TRIGGER draft_creation_records_no_update
+BEFORE UPDATE ON draft_creation_records
+BEGIN
+  SELECT RAISE(ABORT, 'Draft creation records are immutable');
+END;
+
+ALTER TABLE action_proposal_creation_records
+  RENAME TO action_proposal_creation_records_v8;
+
+CREATE TABLE action_proposal_creation_records (
+  kind TEXT NOT NULL CHECK (kind = 'action_proposal_creation_record'),
+  schema_version INTEGER NOT NULL CHECK (schema_version = 1),
+  proposal_id TEXT PRIMARY KEY REFERENCES action_proposals(id) ON DELETE CASCADE,
+  initial_state TEXT NOT NULL CHECK (
+    initial_state IN (
+      'proposed', 'awaiting_approval', 'approved', 'rejected', 'cancelled',
+      'executing', 'succeeded', 'failed', 'uncertain'
+    )
+  ),
+  initial_updated_at TEXT NOT NULL CHECK (julianday(initial_updated_at) IS NOT NULL)
+) STRICT;
+
+INSERT INTO action_proposal_creation_records (
+  kind, schema_version, proposal_id, initial_state, initial_updated_at
+)
+SELECT 'action_proposal_creation_record', 1, proposal_id, initial_state, initial_updated_at
+FROM action_proposal_creation_records_v8;
+
+DROP TABLE action_proposal_creation_records_v8;
+
+CREATE TRIGGER action_proposal_creation_records_no_update
+BEFORE UPDATE ON action_proposal_creation_records
+BEGIN
+  SELECT RAISE(ABORT, 'ActionProposal creation records are immutable');
+END;
+`
+
 export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
   Object.freeze({
     version: 1,
@@ -724,6 +784,12 @@ export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
     version: 3,
     name: 'local_draft_action_transitions',
     sql: LOCAL_DRAFT_ACTION_TRANSITIONS_SQL,
+    // An August 27 pre-commit preview created the same transition boundary
+    // without kind/schema_version on its two creation-record tables. Migration
+    // 9 reconstructs both tables before product code can use them.
+    compatibleChecksums: Object.freeze([
+      '75074642b46134dfd70a696854dba91c8c4d08b0dbff3aec523743f3aec1480a',
+    ]),
   }),
   Object.freeze({
     version: 4,
@@ -749,6 +815,11 @@ export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = Object.freeze([
     version: 8,
     name: 'connector_maintenance_audit',
     sql: CONNECTOR_MAINTENANCE_AUDIT_SQL,
+  }),
+  Object.freeze({
+    version: 9,
+    name: 'creation_record_shape_compatibility',
+    sql: CREATION_RECORD_SHAPE_COMPATIBILITY_SQL,
   }),
 ])
 

@@ -9,10 +9,11 @@ maps one installed Persona to its immutable Agent Preset, invokes the runner,
 and persists only the bounded visible result as a local `editing` Draft plus
 the existing business Audit.
 
-This boundary does not expose a browser or Workbench command yet. It does not
-select a production model provider, grant a Tool, create an ActionProposal,
-request approval, or perform an external write. Persona selection changes
-behavior only; it does not change authority.
+The separate Workbench product entry now calls this boundary from a strict
+Work Item-only browser intent. This runtime still does not select or credential
+a production model provider, grant a Tool, create an ActionProposal, request
+approval, or perform an external write. Persona selection changes behavior
+only; it does not change authority.
 
 ## Durability ordering
 
@@ -82,5 +83,7 @@ and JSONL persistence with a deterministic keyless LLM adapter. They verify one
 model call, durable cold inspection, cold-Host recovery with zero model calls,
 empty-output refusal, installed-Persona mapping, target preflight, cancellation,
 malformed result rejection, local Draft/Audit persistence, and Audit privacy.
-They do not prove a live provider, real Feishu message, product UI flow, or
-authorized external send.
+They do not prove a live provider, real Feishu message, credential-healthy
+Cordis lifecycle, or authorized external send. The product-entry contract and
+its Host-owned provider/model route are covered separately by
+[Workbench Model Draft Product Entry](WORKBENCH_MODEL_DRAFT_PRODUCT_ENTRY.md).

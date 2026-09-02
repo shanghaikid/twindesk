@@ -244,6 +244,66 @@ test('Workbench Web composition rejects unknown and hostile options before local
     (error) => error instanceof TypeError && !error.message.includes('synthetic-private'),
   )
   assert.equal(getterCalls, 0)
+
+  let nestedGetterCalls = 0
+  const hostileRuntime = Object.defineProperty({}, 'runner', {
+    enumerable: true,
+    get() {
+      nestedGetterCalls += 1
+      throw new Error('synthetic-private-hostile-model-runtime')
+    },
+  })
+  await assert.rejects(
+    startWorkbenchWebServer(
+      /** @type {never} */ ({
+        port: 0,
+        modelDraftRuntime: hostileRuntime,
+      }),
+    ),
+    (error) => error instanceof TypeError && !error.message.includes('synthetic-private'),
+  )
+  assert.equal(nestedGetterCalls, 0)
+})
+
+test('Workbench injects only a Host-owned model Draft route into the Web capability', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'twindesk-workbench-model-draft-web-'))
+  context.after(() => rm(root, { force: true, recursive: true }))
+  const homeDirectory = join(root, 'synthetic-home')
+  await mkdir(homeDirectory, { mode: 0o700 })
+  let runnerCalls = 0
+  const running = await startWorkbenchWebServer({
+    platform: 'darwin',
+    homeDirectory,
+    databasePath: join(root, 'twindesk.sqlite3'),
+    port: 0,
+    modelDraftRuntime: {
+      runner: /** @type {any} */ ({
+        run() {
+          runnerCalls += 1
+        },
+      }),
+      provider: 'host-provider-not-for-browser',
+      model: 'host-model-not-for-browser',
+    },
+  })
+  try {
+    const response = await fetch(`${running.url}/api/model-drafts`)
+    assert.equal(response.status, 200)
+    const body = await response.text()
+    assert.deepEqual(JSON.parse(body), {
+      version: 1,
+      capability: 'ready',
+      autonomy: 'draft_only',
+    })
+    assert.doesNotMatch(body, /host-provider|host-model/u)
+    assert.match(
+      response.headers.get('x-twindesk-model-draft-csrf-token') ?? '',
+      /^[A-Za-z0-9_-]{43}$/u,
+    )
+    assert.equal(runnerCalls, 0)
+  } finally {
+    await running.close()
+  }
 })
 
 test('Workbench Web bootstraps a User identity from empty Settings and recovers it', async (context) => {

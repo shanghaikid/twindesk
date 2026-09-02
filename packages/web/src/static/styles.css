@@ -429,6 +429,58 @@ p {
   line-height: 1.5;
 }
 
+.draft-entry {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding: 16px 20px;
+}
+
+.draft-entry h3 {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.draft-entry p {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.draft-entry > .form-message,
+.draft-preview {
+  grid-column: 1 / -1;
+}
+
+.draft-preview {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fafbfa;
+  padding: 12px;
+}
+
+.draft-preview > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+}
+
+.draft-preview > div span {
+  color: var(--muted);
+}
+
+.draft-preview pre {
+  margin: 12px 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 .secondary-button {
   border: 1px solid var(--border);
   border-radius: 5px;

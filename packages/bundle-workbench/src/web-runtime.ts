@@ -16,11 +16,17 @@ import { createWorkbenchFeishuOAuthReconciliationService } from './feishu-oauth-
 import { createDefaultWorkbenchFeishuOAuthReauthorizationController } from './feishu-oauth-reauthorization-controller.ts'
 import { createWorkbenchFeishuSettingsPresentation } from './feishu-settings-presentation.ts'
 import { createWorkbenchFeishuUserIdentityBootstrapper } from './feishu-user-identity-bootstrap.ts'
+import {
+  createWorkbenchModelDraftController,
+  type WorkbenchModelDraftControllerOptions,
+} from './model-draft-controller.ts'
 
 export interface WorkbenchWebServerOptions extends WorkbenchLocalDataPathOptions {
   readonly host?: TwinDeskWebServerOptions['host']
   readonly port?: number
   readonly databasePath?: string
+  /** Host-owned Harness route. Credentials remain in the configured provider. */
+  readonly modelDraftRuntime?: Omit<WorkbenchModelDraftControllerOptions, 'database'>
 }
 
 type UnknownRecord = Readonly<Record<string, unknown>>
@@ -29,12 +35,43 @@ function invalid(): TypeError {
   return new TypeError('The Workbench Web server options are invalid.')
 }
 
+function modelDraftRuntimeAt(
+  value: unknown,
+): Omit<WorkbenchModelDraftControllerOptions, 'database'> | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError()
+  const prototype = Object.getPrototypeOf(value) as unknown
+  const descriptors = Object.getOwnPropertyDescriptors(value)
+  const keys = ['runner', 'provider', 'model']
+  if (
+    (prototype !== Object.prototype && prototype !== null) ||
+    Object.getOwnPropertySymbols(value).length !== 0 ||
+    Object.keys(descriptors).length !== keys.length ||
+    keys.some((key) => !Object.hasOwn(descriptors, key)) ||
+    Object.values(descriptors).some((descriptor) => !Object.hasOwn(descriptor, 'value'))
+  ) {
+    throw new TypeError()
+  }
+  return Object.freeze({
+    runner: descriptors.runner?.value as WorkbenchModelDraftControllerOptions['runner'],
+    provider: descriptors.provider?.value as string,
+    model: descriptors.model?.value as string,
+  })
+}
+
 function readOptions(value: unknown): WorkbenchWebServerOptions {
   try {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError()
     const prototype = Object.getPrototypeOf(value) as unknown
     const descriptors = Object.getOwnPropertyDescriptors(value)
-    const allowed = ['platform', 'homeDirectory', 'host', 'port', 'databasePath']
+    const allowed = [
+      'platform',
+      'homeDirectory',
+      'host',
+      'port',
+      'databasePath',
+      'modelDraftRuntime',
+    ]
     if (
       (prototype !== Object.prototype && prototype !== null) ||
       Object.getOwnPropertySymbols(value).length !== 0 ||
@@ -59,7 +96,12 @@ function readOptions(value: unknown): WorkbenchWebServerOptions {
     ) {
       throw new TypeError()
     }
-    return Object.freeze(record) as WorkbenchWebServerOptions
+    return Object.freeze({
+      ...record,
+      ...(record.modelDraftRuntime === undefined
+        ? {}
+        : { modelDraftRuntime: modelDraftRuntimeAt(record.modelDraftRuntime) }),
+    }) as WorkbenchWebServerOptions
   } catch {
     throw invalid()
   }
@@ -104,6 +146,15 @@ export async function startWorkbenchWebServer(
       authorizationStore: stores.authorizationStore,
       journal: stores.rotationJournal,
     })
+    const modelDraft =
+      options.modelDraftRuntime === undefined
+        ? undefined
+        : createWorkbenchModelDraftController({
+            database: maintenanceDatabase,
+            runner: options.modelDraftRuntime.runner,
+            provider: options.modelDraftRuntime.provider,
+            model: options.modelDraftRuntime.model,
+          })
     await feishuOAuthReconciliation.recoverPending(new AbortController().signal)
     let pendingSettingsUpdate: Promise<void> = Promise.resolve()
     const running = await startTwinDeskWebServer({
@@ -149,6 +200,7 @@ export async function startWorkbenchWebServer(
         start: feishuReauthorization.start,
         cancel: feishuReauthorization.cancel,
       },
+      ...(modelDraft === undefined ? {} : { modelDraft }),
     })
     let closing: Promise<void> | undefined
     return Object.freeze({

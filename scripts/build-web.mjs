@@ -22,6 +22,7 @@ for (const compiledEntry of [
   'feishu-reauthorization-contract.js',
   'feishu-settings-contract.js',
   'inbox-contract.js',
+  'model-draft-contract.js',
   'index.js',
   'routes.js',
   'server.js',

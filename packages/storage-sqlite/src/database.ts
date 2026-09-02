@@ -586,11 +586,18 @@ function migrationChecksum(migration: SqliteMigration): string {
 function validateMigrationPlan(): void {
   for (let index = 0; index < SQLITE_MIGRATIONS.length; index += 1) {
     const migration = SQLITE_MIGRATIONS[index]
+    const compatibleChecksums = migration?.compatibleChecksums ?? []
     if (
       migration === undefined ||
       migration.version !== index + 1 ||
       migration.name.length === 0 ||
-      migration.sql.length === 0
+      migration.sql.length === 0 ||
+      compatibleChecksums.some(
+        (checksum, checksumIndex) =>
+          !/^[a-f0-9]{64}$/u.test(checksum) ||
+          checksum === migrationChecksum(migration) ||
+          compatibleChecksums.indexOf(checksum) !== checksumIndex,
+      )
     ) {
       throw new StorageSchemaError(
         'invalid_migration_plan',
@@ -674,7 +681,8 @@ function verifyMigrationHistory(database: DatabaseSync, currentVersion: number):
       row === undefined ||
       row.version !== migration.version ||
       row.name !== migration.name ||
-      row.checksum !== migrationChecksum(migration)
+      (row.checksum !== migrationChecksum(migration) &&
+        !migration.compatibleChecksums?.includes(row.checksum))
     ) {
       throw new StorageSchemaError(
         'migration_history_mismatch',
