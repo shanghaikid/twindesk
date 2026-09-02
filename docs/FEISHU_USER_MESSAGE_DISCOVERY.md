@@ -113,15 +113,21 @@ reply, send request, or other Feishu write.
 
 ## Remaining Work
 
-- A concrete Feishu HTTP/SDK search adapter, OAuth secret resolution, and
-  polling scheduler are not wired yet.
+- The Workbench now owns a supervised polling loop that holds the Host lease,
+  restores the durable cursor for every page, atomically commits normalized
+  events/projections/cursors, and applies bounded retry. A concrete Feishu
+  HTTP/SDK search adapter, OAuth secret resolution, and Cordis activation are
+  not wired yet. See
+  [Workbench Feishu User Polling Runtime](WORKBENCH_FEISHU_USER_POLLING_RUNTIME.md).
 - The fixed operation scope gate and User Keychain credential probe exist, but
   they are not composed with polling or a production search client yet.
 - TD-203 now defines bounded conversation, document-excerpt, and attachment
   context retrieval; its concrete SDK/HTTP adapter is not wired yet.
 - TD-204 now normalizes Bot and User sources into durable ExternalEvents and
   Work Items and atomically commits User events, projections, and candidate
-  cursors; polling/runtime composition remains unwired.
+  cursors; the Workbench polling lifecycle composes this path through an
+  injected search client, but the production adapter and activation remain
+  unwired.
 - TD-208 now exposes the runtime identity, scope, cursor, rate-limit, and health
   diagnostics contract. Its concrete Feishu/SQLite probe remains unwired. See
   [Feishu Connector Diagnostics](FEISHU_CONNECTOR_DIAGNOSTICS.md).
@@ -133,4 +139,6 @@ overlap, exact identity binding, multi-page restart, final-page watermark
 advance, expired-token replay, out-of-order messages, missing detail retry,
 malformed and hostile responses, cursor conflicts, cancellation, typed adapter
 failures, clock regression, immutability, and the caught-up no-request path. All
-fixtures are synthetic.
+fixtures are synthetic. The separate Workbench runtime test covers durable
+page restart, bounded retry, cancellation, lease loss checks, and atomic commit
+interruption.

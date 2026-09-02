@@ -124,6 +124,28 @@ const FEISHU_USER_IDENTITY_CREATION_HEADER = 'x-twindesk-user-identity-creation'
 const FEISHU_OAUTH_RECONCILIATION_HEADER = 'x-twindesk-oauth-reconciliation'
 const UTF8_DECODER = new TextDecoder('utf-8', { fatal: true })
 
+type LoadedAsset = Readonly<{ body: Buffer; type: string }>
+
+async function loadStaticContent(): Promise<
+  Readonly<{ assets: ReadonlyMap<string, LoadedAsset>; index: Buffer }>
+> {
+  const entries = await Promise.all(
+    [...ASSETS.entries()].map(async ([pathname, asset]) =>
+      Object.freeze([
+        pathname,
+        Object.freeze({
+          body: await readFile(join(outputRoot, asset.file)),
+          type: asset.type,
+        }),
+      ] as const),
+    ),
+  )
+  return Object.freeze({
+    assets: new Map(entries),
+    index: await readFile(join(outputRoot, 'index.html')),
+  })
+}
+
 /** Options for the local-only TwinDesk product Web server. */
 export interface TwinDeskWebServerOptions {
   readonly host?: '127.0.0.1' | '::1'
@@ -2075,24 +2097,23 @@ async function serveFeishuReplyFlowApi(
 
 async function serveAsset(
   response: ServerResponse,
+  assets: ReadonlyMap<string, LoadedAsset>,
   pathname: string,
   headOnly: boolean,
 ): Promise<void> {
-  const asset = ASSETS.get(pathname)
+  const asset = assets.get(pathname)
   if (asset === undefined) {
     send(response, 404, 'Not found.\n', 'text/plain; charset=utf-8')
     return
   }
-  const body = await readFile(join(outputRoot, asset.file))
   response.writeHead(200, {
     ...commonHeaders(asset.type),
-    'content-length': String(body.byteLength),
+    'content-length': String(asset.body.byteLength),
   })
-  response.end(headOnly ? undefined : body)
+  response.end(headOnly ? undefined : asset.body)
 }
 
-async function serveIndex(response: ServerResponse, headOnly: boolean): Promise<void> {
-  const body = await readFile(join(outputRoot, 'index.html'))
+function serveIndex(response: ServerResponse, body: Buffer, headOnly: boolean): void {
   response.writeHead(200, {
     ...commonHeaders('text/html; charset=utf-8'),
     'content-length': String(body.byteLength),
@@ -2139,6 +2160,7 @@ export async function startTwinDeskWebServer(
   const feishuReplyApproval = normalizeFeishuReplyApprovalService(options.feishuReplyApproval)
   const feishuReplyExecution = normalizeFeishuReplyExecutionService(options.feishuReplyExecution)
   const feishuReplyFlow = normalizeFeishuReplyFlowService(options.feishuReplyFlow)
+  const staticContent = await loadStaticContent()
 
   const inboxOptions = { includeAudit: true, includeDraftFlow: true }
   const inbox =
@@ -2460,12 +2482,12 @@ export async function startTwinDeskWebServer(
         )
         return
       }
-      if (ASSETS.has(requestUrl.pathname)) {
-        await serveAsset(response, requestUrl.pathname, method === 'HEAD')
+      if (staticContent.assets.has(requestUrl.pathname)) {
+        await serveAsset(response, staticContent.assets, requestUrl.pathname, method === 'HEAD')
         return
       }
       if (resolveTwinDeskRoute(requestUrl.pathname) !== undefined) {
-        await serveIndex(response, method === 'HEAD')
+        serveIndex(response, staticContent.index, method === 'HEAD')
         return
       }
       send(response, 404, 'Not found.\n', 'text/plain; charset=utf-8')

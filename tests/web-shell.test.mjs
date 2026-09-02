@@ -147,6 +147,18 @@ test('the local Web server serves product routes and restarts on the same port',
   assert.match(appSource, /method: 'POST'/u)
   assert.match(appSource, /function escapeHtml/u)
 
+  const localModulePaths = [
+    ...new Set(
+      [...appSource.matchAll(/from\s+['"]\.\/([^'"]+)['"]/gu)].map((match) => `/${match[1]}`),
+    ),
+  ]
+  assert.ok(localModulePaths.length > 0)
+  for (const modulePath of localModulePaths) {
+    const moduleResponse = await request(`${running.url}${modulePath}`)
+    assert.equal(moduleResponse.status, 200, `${modulePath} must be served with app.js`)
+    assert.match(moduleResponse.headers.get('content-type') ?? '', /^text\/javascript/u)
+  }
+
   const contractResponse = await request(`${running.url}/inbox-contract.js`)
   assert.equal(contractResponse.status, 200)
   assert.match(await contractResponse.text(), /function parseInboxSnapshot/u)

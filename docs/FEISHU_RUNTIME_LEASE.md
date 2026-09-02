@@ -69,5 +69,10 @@ credential, Keychain item, or external network request.
 The Workbench reply composition now holds this lease across durable approval,
 User rotation, dispatch reservation, scope and credential checks, reply HTTP,
 receipt, and Audit, with `assertHeld()` at the adapter's operation boundaries.
-Remaining TD-209 work includes hosting authorization, recovery, ingestion, or
-polling lifecycles and passing live-account acceptance.
+The injected-client User polling runtime separately proves one long-lived lease
+across restart-safe page commits and bounded retry. These two compositions are
+not activated concurrently: the production Cordis runtime must acquire the
+Host lease once and place polling, authorization, recovery, diagnostics, and
+external writes beneath that owner instead of letting each operation reacquire
+it. Remaining TD-209 work includes that shared activation, hosted ingestion,
+the concrete polling adapter, and live-account acceptance.
