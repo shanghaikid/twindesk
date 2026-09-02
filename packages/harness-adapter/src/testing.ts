@@ -31,6 +31,10 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 
 import type { HarnessHostContext, HarnessJsonValue } from './index.js'
+import {
+  createHarnessModelDraftRunner,
+  type HarnessModelDraftRunResult,
+} from './model-draft-run.ts'
 
 const require = createRequire(import.meta.url)
 const { SlotCore } = require('@deepseek-ai/dsh-client-ui-slots') as {
@@ -171,6 +175,28 @@ export interface HarnessJsonlSessionRecoveryResult {
   readonly firstRunModelCalls: number
   readonly modelCallsAfterRestart: number
   readonly tornTailRecovered: boolean | undefined
+}
+
+/** Input for the durable model-Draft run and cold-recovery probe. */
+export interface HarnessModelDraftRunProbeOptions {
+  readonly storageRoot: string
+  readonly presetRoot: string
+  readonly plugin: HarnessHostPlugin
+  readonly presetId: string
+  readonly sessionId: string
+  readonly prompt: string
+  readonly response: string
+  readonly refuseFlush?: boolean
+  readonly recoveryPrompt?: string
+}
+
+/** Observable evidence that a completed model turn is recovered without rerun. */
+export interface HarnessModelDraftRunProbeResult {
+  readonly first: HarnessModelDraftRunResult
+  readonly recovered: HarnessModelDraftRunResult
+  readonly firstRuntimeModelCalls: number
+  readonly recoveryRuntimeModelCalls: number
+  readonly storedTurnEndCount: number
 }
 
 interface ErasedClientSlotEntry {
@@ -1034,5 +1060,99 @@ export async function probeHarnessBooleanSettingPlugin(
     }
   } finally {
     await disposeFileSettingsPlugin(secondPluginFiber, second.serviceFibers)
+  }
+}
+
+class ModelDraftProbeAdapter extends LlmAdapter {
+  readonly requests: GenerateOptions[] = []
+  private readonly response: string
+
+  constructor(response: string) {
+    super()
+    this.response = response
+  }
+
+  override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+    return Promise.resolve({ provider, id: model, name: model })
+  }
+
+  async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+    this.requests.push(options)
+    for (const chunk of textResponse(this.response)) {
+      options.signal?.throwIfAborted()
+      yield chunk
+    }
+  }
+}
+
+/**
+ * Run one actual pinned Harness Agent turn, cross the public flush checkpoint,
+ * tear down the live Agent, and recover the same result after a cold Host
+ * restart while a generation-forbidden adapter proves no model rerun occurs.
+ */
+export async function probeHarnessModelDraftRun(
+  options: HarnessModelDraftRunProbeOptions,
+): Promise<HarnessModelDraftRunProbeResult> {
+  const runtimeOptions: HarnessJsonlSessionRecoveryProbeOptions = {
+    storageRoot: options.storageRoot,
+    presetRoot: options.presetRoot,
+    plugin: options.plugin,
+    presetId: options.presetId,
+    toolName: 'twindesk_status',
+    fixtureRequest: options.prompt,
+  }
+  const request = Object.freeze({
+    kind: 'harness_model_draft_run_request',
+    schemaVersion: 1,
+    sessionId: options.sessionId,
+    presetId: options.presetId,
+    provider: 'twindesk-model-draft-probe',
+    model: 'deterministic',
+    prompt: options.prompt,
+    mode: 'create_or_recover',
+  } as const)
+  let firstRuntime: PersistentPresetProbeRuntime | undefined
+  let recoveredRuntime: PersistentPresetProbeRuntime | undefined
+  let first: HarnessModelDraftRunResult
+  let firstRuntimeModelCalls: number
+
+  try {
+    firstRuntime = await bootPersistentPresetProbeRuntime(runtimeOptions)
+    const adapter = new ModelDraftProbeAdapter(options.response)
+    firstRuntime.ctx.llm.registerAdapter(['twindesk-model-draft-probe'], adapter)
+    const runnerContext = options.refuseFlush
+      ? {
+          agents: firstRuntime.ctx.agents,
+          sessions: { flush: () => Promise.resolve(false) },
+          sessionPersistence: firstRuntime.ctx.sessionPersistence,
+          agentPresets: firstRuntime.ctx.agentPresets,
+        }
+      : firstRuntime.ctx
+    first = await createHarnessModelDraftRunner(runnerContext).run(request)
+    firstRuntimeModelCalls = adapter.requests.length
+  } finally {
+    await disposePersistentPresetProbeRuntime(firstRuntime)
+  }
+
+  try {
+    recoveredRuntime = await bootPersistentPresetProbeRuntime(runtimeOptions)
+    const forbidden = new ForbiddenGenerationAdapter()
+    recoveredRuntime.ctx.llm.registerAdapter(['twindesk-model-draft-probe'], forbidden)
+    const recovered = await createHarnessModelDraftRunner(recoveredRuntime.ctx).run({
+      ...request,
+      prompt: options.recoveryPrompt ?? request.prompt,
+    })
+    const stored = await recoveredRuntime.ctx.sessionPersistence.inspect(
+      SessionId(options.sessionId),
+    )
+    return Object.freeze({
+      first,
+      recovered,
+      firstRuntimeModelCalls,
+      recoveryRuntimeModelCalls: forbidden.requests.length,
+      storedTurnEndCount: stored.events.filter((event) => event.type === 'turn/end').length,
+    })
+  } finally {
+    await disposePersistentPresetProbeRuntime(recoveredRuntime)
   }
 }

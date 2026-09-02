@@ -60,9 +60,11 @@ protocol and restart-visible pending state. The Workbench Feishu composition
 now binds it to current rotation-journal evidence and repairs interruption
 without repeating the local reconciliation effect. See
 [Connector Maintenance Audit Protocol](CONNECTOR_MAINTENANCE_AUDIT.md).
-The Work Hub model Draft linkage now also records a complete opaque
-WorkItem -> Session -> Run chain after the caller has durably flushed Harness,
-with exact replay repairing a missing Audit without repeating a model Run. See
+The Work Hub model Draft runtime now records a complete opaque
+WorkItem -> Session -> Run chain only after the pinned Harness adapter has
+flushed and cold-validated the completed turn, with exact replay repairing a
+missing Audit without repeating a model Run. See
+[Harness Model Draft Runtime](HARNESS_MODEL_DRAFT_RUNTIME.md) and
 [Model-Backed Draft Linkage](MODEL_BACKED_DRAFT_LINKAGE.md). The tests use
 synthetic rows and cause no external side effect.
 

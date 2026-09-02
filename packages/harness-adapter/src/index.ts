@@ -31,6 +31,8 @@ import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import z from '@deepseek-ai/schemastery'
 
+export * from './model-draft-run.ts'
+
 export const SUPPORTED_CORDIS_VERSION = '4.0.1'
 export const SUPPORTED_CORDIS_INCLUDE_VERSION = '1.0.6'
 export const SUPPORTED_CORDIS_LOADER_VERSION = '1.0.2'

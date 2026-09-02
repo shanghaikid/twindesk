@@ -61,7 +61,8 @@ chains, unsafe identifiers, bounded content, closed or malformed storage,
 conflicting Audit evidence, hostile accessors, payload-free errors, and omission
 of model output from Audit.
 
-Production Harness invocation and Session-flush composition remain open. Until
-that composition exists, this protocol must not be presented as proof that a
-model generated a product Draft. Interactive Draft editing, exact approval UI,
-production Feishu polling, and live-account acceptance also remain open.
+The pinned Harness invocation and Session-flush boundary now composes with this
+protocol; see [Harness Model Draft Runtime](HARNESS_MODEL_DRAFT_RUNTIME.md). Its
+tests use a deterministic keyless adapter and do not prove a live model
+provider or product entry. Interactive Draft editing, exact approval UI,
+production Feishu polling, and live-account acceptance remain open.

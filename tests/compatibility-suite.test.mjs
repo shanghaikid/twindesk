@@ -20,6 +20,7 @@ test('the Harness compatibility suite covers every TD-050 boundary', async () =>
       'tests/profile-bundle.test.mjs',
       'tests/agent-presets.test.mjs',
       'tests/session-persistence.test.mjs',
+      'tests/harness-model-draft-run.test.mjs',
       'tests/codex-subagent.test.mjs',
       'tests/compatibility-suite.test.mjs',
       'tests/compatibility-report.test.mjs',

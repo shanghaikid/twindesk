@@ -162,6 +162,15 @@ chunk packing; another repairs a deliberately incomplete raw tail during cold
 resume. Both verify stable Preset identity, scoped Tools, derived messages,
 Tool trace, contiguous sequence numbers, and zero model calls during resumes.
 
+The Stage 2 model-Draft runtime extends this same pinned boundary without a
+Harness core patch. `createHarnessModelDraftRunner()` creates one Agent with an
+installed Preset, waits for its completed turn, requires a participating
+`SessionStore.flush()` durability listener, disposes the live Agent, and only
+then reads the completed visible text from cold Session persistence. Reusing
+the same exact Session identity recovers the stored result with zero additional
+model calls; incomplete, conflicting, non-text, unflushed, cancelled, or
+malformed results fail closed. Harness types remain private to the adapter.
+
 TD-042 adds exact `0.1.1-rc.2` pins for the Subagent service, Codex provider,
 local subprocess provider, and model-facing Subagent Tool. The provider carries
 the package-local official `@openai/codex@0.147.0` wrapper. The adapter checks

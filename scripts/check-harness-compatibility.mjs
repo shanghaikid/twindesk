@@ -32,6 +32,10 @@ export const HARNESS_COMPATIBILITY_TESTS = Object.freeze([
     capability: 'Session persistence and duplicate-free cold resume',
   }),
   Object.freeze({
+    file: 'tests/harness-model-draft-run.test.mjs',
+    capability: 'model Draft invocation, flush, cold inspection, and recovery',
+  }),
+  Object.freeze({
     file: 'tests/codex-subagent.test.mjs',
     capability: 'read-only Codex delegation, cancellation, and attribution',
   }),

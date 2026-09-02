@@ -118,14 +118,15 @@ default Web composition now exposes that runtime through a separate
 recovery-gated controller and CSRF-bound local API. The Connectors page requires
 an explicit click, polls only minimized memory state, supports cancellation,
 and never converts reconciliation evidence into an automatic retry. Work Hub
-now has a restart-repairable persistence boundary for linking caller-supplied
-Harness Session and Run identities, after a required durable flush, to one bounded `editing` Draft and business
-Audit without copying runtime payloads or granting approval. Production Harness
-invocation and Session-flush composition remain open.
+now composes one Persona-mapped pinned Harness Agent run through a required
+Session flush and cold persisted-turn validation into one bounded `editing`
+Draft and restart-repairable business Audit. Exact Session replay recovers with
+zero model calls and grants no approval or write authority. Product entry and
+production provider configuration remain open.
 Cordis activation, existing-identity replacement, Bot identity creation,
 credential repair/removal, live authorization and
 reauthorization acceptance, interactive Draft and
-approval UI, model-backed linkage, and a real Feishu send remain missing. See the
+approval UI, product model-Draft entry, and a real Feishu send remain missing. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).
 
 ## Stage 3: Jira Context

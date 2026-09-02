@@ -42,6 +42,7 @@ test.
 | Profile composition | Ordered Bundles, formally installed Host and Client plugins, fail-closed Preset and Codex configuration |
 | Persona selection | Distinct technical and communication Presets, prompts, Skills, scoped Tools, disposal |
 | Session resume | Default compressed JSONL and torn-tail recovery across two cold restarts without duplicate events |
+| Model Draft run | One real Agent turn, required Session flush, cold persisted-output inspection, exact retry recovery with zero additional model calls |
 | Codex delegation | Real package-local app server, synthetic repository read, denied write, cancellation, capability rejection, result attribution |
 | Built adapter boundary | Expected exports, exact versions, and no upstream types in declarations |
 | Real Profile boot | Effective config, one TwinDesk Codex provider, loopback Web startup, stable Client boot graph and artifacts, normal shutdown |

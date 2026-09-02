@@ -22,7 +22,8 @@ if (
   typeof adapter.SUPPORTED_CORDIS_INCLUDE_VERSION !== 'string' ||
   typeof adapter.SUPPORTED_CORDIS_LOADER_VERSION !== 'string' ||
   typeof adapter.SUPPORTED_HARNESS_VERSION !== 'string' ||
-  typeof adapter.SUPPORTED_SCHEMASTERY_VERSION !== 'string'
+  typeof adapter.SUPPORTED_SCHEMASTERY_VERSION !== 'string' ||
+  typeof adapter.createHarnessModelDraftRunner !== 'function'
 ) {
   throw new Error('Built Harness adapter is missing its public compatibility contract.')
 }
@@ -33,6 +34,7 @@ if (
   typeof adapterTesting.probeHarnessClientInboxSlots !== 'function' ||
   typeof adapterTesting.probeHarnessAgentPresets !== 'function' ||
   typeof adapterTesting.probeHarnessJsonlSessionRecovery !== 'function' ||
+  typeof adapterTesting.probeHarnessModelDraftRun !== 'function' ||
   typeof adapterCodexTesting.probeHarnessCodexSubagent !== 'function'
 ) {
   throw new Error('Built Harness adapter is missing its public testing contract.')
