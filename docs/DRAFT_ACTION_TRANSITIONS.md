@@ -84,6 +84,13 @@ a create retry can be compared with the original request after the current
 record advances. Current state and its transition history commit atomically.
 An interrupted update rolls both back.
 
+The Workbench editing path uses `reviseDraft()` to supersede one active source
+and create its next sequential active revision in the same SQLite transaction.
+Exact replay validates both immutable records and returns the stored revision;
+a conflicting identity, content, Persona, chronology, or partial pair fails
+closed. See
+[Workbench Model Draft Editing](WORKBENCH_MODEL_DRAFT_EDITING.md).
+
 ## Privacy and Retention Review
 
 Draft text, rationale, identity display names, targets, and proposal content
@@ -116,6 +123,7 @@ normalized ActionReceipt rather than a model-authored local transition. See
 - Persona, Work Item, Draft, digest, chronology, and stale-state failures;
 - rejection of approval and execution states without evidence;
 - sequential revisions and active-Draft exclusion;
+- atomic source supersession plus next-revision creation and restart replay;
 - rollback after an injected interruption between transition history and the
   current projection update;
 - closed handles, accessor rejection, and payload-free errors;

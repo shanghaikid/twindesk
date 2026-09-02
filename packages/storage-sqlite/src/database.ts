@@ -83,11 +83,14 @@ import {
   createDraft as storeDraft,
   readActionProposal,
   readDraft,
+  reviseDraft as storeDraftRevision,
   transitionActionProposal as storeActionProposalTransition,
   transitionDraft as storeDraftTransition,
   type ActionProposalTransitionWriteResult,
   type ActionProposalWriteResult,
   type DraftTransitionWriteResult,
+  type DraftRevisionWrite,
+  type DraftRevisionWriteResult,
   type DraftWriteResult,
 } from './draft-action-state.ts'
 
@@ -180,6 +183,7 @@ export interface TwinDeskDatabase {
   queryInbox(query?: InboxQuery): InboxPage
   createDraft(draft: Draft): DraftWriteResult
   transitionDraft(transition: DraftStateTransition): DraftTransitionWriteResult
+  reviseDraft(revision: DraftRevisionWrite): DraftRevisionWriteResult
   getDraft(id: DraftId): Draft | undefined
   createActionProposal(proposal: ActionProposal): ActionProposalWriteResult
   transitionActionProposal(
@@ -316,6 +320,14 @@ class TwinDeskDatabaseHandle implements TwinDeskDatabase {
       throw new DraftActionStateError('database_closed', 'The TwinDesk database is closed.')
     }
     return storeDraftTransition(database, transition)
+  }
+
+  reviseDraft(revision: DraftRevisionWrite): DraftRevisionWriteResult {
+    const database = this.#database
+    if (database === undefined) {
+      throw new DraftActionStateError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return storeDraftRevision(database, revision)
   }
 
   getDraft(id: DraftId): Draft | undefined {

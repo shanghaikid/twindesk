@@ -57,6 +57,8 @@ export {
 export {
   DraftActionStateError,
   computeDraftContentDigest,
+  type DraftRevisionWrite,
+  type DraftRevisionWriteResult,
   type ActionProposalTransitionWriteResult,
   type ActionProposalWriteResult,
   type DraftActionStateErrorCode,

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import test from 'node:test'
 
 import {
@@ -99,6 +100,7 @@ test('Workbench model Draft controller owns provider, prompt, identities, persis
     runner,
     provider: 'host-provider',
     model: 'host-model',
+    now: () => Date.parse('2026-09-02T09:02:00.000Z'),
   })
   assert.deepEqual(await controller.read(), {
     version: 1,
@@ -124,14 +126,80 @@ test('Workbench model Draft controller owns provider, prompt, identities, persis
   assert.doesNotMatch(requests[0].prompt, new RegExp(TOKEN, 'u'))
   assert.match(requests[0].prompt, /\[REDACTED\]/u)
 
+  const edited = /** @type {any} */ (
+    await controller.edit(
+      {
+        version: 1,
+        workItemId: WORK_ITEM_ID,
+        sourceRevision: 1,
+        content: { mediaType: 'text/plain', text: 'A user-edited local Draft.' },
+        submitForReview: false,
+      },
+      new AbortController().signal,
+    )
+  )
+  assert.equal(edited.disposition, 'saved')
+  assert.equal(edited.draft.revision, 2)
+  assert.equal(edited.draft.state, 'editing')
+  assert.equal(database.getDraft(requests[0].sessionId)?.state, 'superseded')
+  const submitted = /** @type {any} */ (
+    await controller.edit(
+      {
+        version: 1,
+        workItemId: WORK_ITEM_ID,
+        sourceRevision: 2,
+        content: edited.draft.content,
+        submitForReview: true,
+      },
+      new AbortController().signal,
+    )
+  )
+  assert.equal(submitted.disposition, 'submitted')
+  assert.equal(submitted.draft.revision, 2)
+  assert.equal(submitted.draft.state, 'ready_for_review')
+  const invalidClockController = createWorkbenchModelDraftController({
+    database,
+    runner,
+    provider: 'host-provider',
+    model: 'host-model',
+    now: () => 9_000_000_000_000_000,
+  })
+  await assert.rejects(
+    invalidClockController.edit(
+      {
+        version: 1,
+        workItemId: WORK_ITEM_ID,
+        sourceRevision: 2,
+        content: { mediaType: 'text/plain', text: 'This invalid-clock edit must not persist.' },
+        submitForReview: false,
+      },
+      new AbortController().signal,
+    ),
+    (error) => error instanceof WorkbenchModelDraftError && error.code === 'runtime_unavailable',
+  )
+  const refreshed = /** @type {any} */ (
+    await controller.create(WORK_ITEM_ID, new AbortController().signal)
+  )
+  assert.equal(refreshed.disposition, 'recovered')
+  assert.equal(refreshed.draft.revision, 2)
+  assert.equal(refreshed.draft.state, 'ready_for_review')
+  assert.equal(requests.at(-1).mode, 'recover_only')
+
   const audit = JSON.stringify(database.queryAuditTimeline({ limit: 20 }).records)
   assert.doesNotMatch(audit, /host-provider|host-model|Create one concise|synthetic-bearer/u)
   database.close()
 
   const restarted = openTwinDeskDatabase(path)
   try {
-    assert.equal(restarted.getDraft(requests[0].sessionId)?.content.text, first.draft.content.text)
-    assert.equal(restarted.queryAuditTimeline({ limit: 20 }).records.length, 1)
+    assert.equal(restarted.getDraft(requests[0].sessionId)?.state, 'superseded')
+    assert.equal(
+      restarted.getDraft(/** @type {any} */ (`${requests[0].sessionId}-revision-2`))?.state,
+      'ready_for_review',
+    )
+    const records = restarted.queryAuditTimeline({ limit: 20 }).records
+    assert.equal(records.length, 3)
+    assert.equal(records.filter(({ actor }) => actor.type === 'user').length, 2)
+    assert.doesNotMatch(JSON.stringify(records), /A user-edited local Draft/u)
   } finally {
     restarted.close()
   }
@@ -166,4 +234,83 @@ test('Workbench model Draft controller fails closed without a selected installed
     (error) => error instanceof WorkbenchModelDraftError && error.code === 'target_unavailable',
   )
   assert.equal(calls, 0)
+})
+
+test('Workbench model Draft editing repairs interrupted Audit without another model run', async (context) => {
+  const { database, path } = await databaseWithWorkItem(context)
+  let modelCalls = 0
+  const controller = createWorkbenchModelDraftController({
+    database,
+    runner: /** @type {any} */ ({
+      async run(/** @type {any} */ request) {
+        modelCalls += 1
+        return {
+          kind: 'harness_model_draft_run_result',
+          schemaVersion: 1,
+          disposition: 'completed',
+          sessionId: request.sessionId,
+          runId: `${request.sessionId}:turn-1`,
+          presetId: request.presetId,
+          text: 'Synthetic Draft before a local edit.',
+          completedAt: '2026-09-02T09:01:00.000Z',
+        }
+      },
+    }),
+    provider: 'host-provider',
+    model: 'host-model',
+    now: () => Date.parse('2026-09-02T09:02:00.000Z'),
+  })
+  const created = /** @type {any} */ (
+    await controller.create(WORK_ITEM_ID, new AbortController().signal)
+  )
+  const inspection = new DatabaseSync(path)
+  context.after(() => inspection.close())
+  inspection.exec(`
+    CREATE TRIGGER interrupt_user_draft_audit
+    BEFORE INSERT ON audit_records
+    WHEN NEW.category = 'draft' AND NEW.actor_type = 'user'
+    BEGIN
+      SELECT RAISE(ABORT, 'synthetic private audit interruption');
+    END;
+  `)
+  const request = {
+    version: 1,
+    workItemId: WORK_ITEM_ID,
+    sourceRevision: 1,
+    content: { mediaType: 'text/plain', text: 'A recovered user edit.' },
+    submitForReview: true,
+  }
+  await assert.rejects(
+    controller.edit(/** @type {any} */ (request), new AbortController().signal),
+    (error) =>
+      error instanceof WorkbenchModelDraftError &&
+      error.code === 'runtime_unavailable' &&
+      !error.message.includes('synthetic private'),
+  )
+  assert.equal(created.draft.revision, 1)
+  assert.deepEqual(
+    inspection
+      .prepare('SELECT revision, state FROM drafts ORDER BY revision')
+      .all()
+      .map((row) => ({ ...row })),
+    [
+      { revision: 1, state: 'superseded' },
+      { revision: 2, state: 'ready_for_review' },
+    ],
+  )
+  inspection.exec('DROP TRIGGER interrupt_user_draft_audit')
+
+  const recovered = /** @type {any} */ (
+    await controller.edit(/** @type {any} */ (request), new AbortController().signal)
+  )
+  assert.equal(recovered.disposition, 'recovered')
+  assert.equal(recovered.draft.revision, 2)
+  assert.equal(recovered.draft.state, 'ready_for_review')
+  assert.equal(modelCalls, 1)
+  assert.equal(
+    database
+      .queryAuditTimeline({ workItemId: /** @type {any} */ (WORK_ITEM_ID), limit: 20 })
+      .records.filter(({ actor }) => actor.type === 'user').length,
+    1,
+  )
 })

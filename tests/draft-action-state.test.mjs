@@ -252,6 +252,126 @@ test('Draft and ActionProposal transitions are idempotent and recover across res
   )
 })
 
+test('a Draft revision atomically supersedes its source and replays across restart', async (context) => {
+  const path = await temporaryDatabase(context)
+  const database = openTwinDeskDatabase(path)
+  const source = draft('draft-atomic-revision-1')
+  database.createDraft(source)
+  const occurredAt = '2026-08-26T09:17:00Z'
+  const revision = /** @type {SourceDraft} */ (
+    /** @type {unknown} */ (
+      parseDraft({
+        kind: 'draft',
+        schemaVersion: 1,
+        id: 'draft-atomic-revision-2',
+        workItemId: source.workItemId,
+        personaId: source.personaId,
+        revision: 2,
+        state: 'ready_for_review',
+        content: { mediaType: 'text/plain', text: 'A locally edited synthetic Draft.' },
+        rationale: 'Edited locally by the user.',
+        createdAt: occurredAt,
+        updatedAt: occurredAt,
+      })
+    )
+  )
+  const transition = draftTransition(
+    'draft-atomic-revision-transition-1',
+    source.id,
+    'editing',
+    'superseded',
+    occurredAt,
+  )
+  assert.deepEqual(database.reviseDraft({ transition, draft: revision }), {
+    disposition: 'inserted',
+    source: { ...source, state: 'superseded', updatedAt: occurredAt },
+    draft: revision,
+  })
+  assert.equal(database.reviseDraft({ transition, draft: revision }).disposition, 'duplicate')
+  let accessed = false
+  const hostile = Object.defineProperty({ draft: revision }, 'transition', {
+    enumerable: true,
+    get() {
+      accessed = true
+      return transition
+    },
+  })
+  assert.throws(
+    () => database.reviseDraft(/** @type {any} */ (hostile)),
+    (error) => error instanceof DraftActionStateError && error.code === 'invalid_request',
+  )
+  assert.equal(accessed, false)
+  database.close()
+
+  const restarted = openTwinDeskDatabase(path)
+  assert.equal(restarted.getDraft(source.id)?.state, 'superseded')
+  assert.deepEqual(restarted.getDraft(revision.id), revision)
+  assert.equal(restarted.reviseDraft({ transition, draft: revision }).disposition, 'duplicate')
+  restarted.close()
+})
+
+test('an interrupted atomic Draft revision rolls back source, history, and child', async (context) => {
+  const path = await temporaryDatabase(context)
+  const source = draft('draft-atomic-interrupted-1')
+  const setup = openTwinDeskDatabase(path)
+  setup.createDraft(source)
+  setup.close()
+  const faultInjector = new DatabaseSync(path)
+  faultInjector.exec(`
+    CREATE TRIGGER interrupt_atomic_draft_revision
+    BEFORE INSERT ON draft_creation_records
+    WHEN NEW.draft_id = 'draft-atomic-interrupted-2'
+    BEGIN
+      SELECT RAISE(ABORT, 'synthetic private revision interruption');
+    END;
+  `)
+  faultInjector.close()
+  const occurredAt = '2026-08-26T09:17:00Z'
+  const revision = /** @type {SourceDraft} */ (
+    /** @type {unknown} */ (
+      parseDraft({
+        kind: 'draft',
+        schemaVersion: 1,
+        id: 'draft-atomic-interrupted-2',
+        workItemId: source.workItemId,
+        personaId: source.personaId,
+        revision: 2,
+        state: 'editing',
+        content: { mediaType: 'text/plain', text: 'An interrupted local edit.' },
+        createdAt: occurredAt,
+        updatedAt: occurredAt,
+      })
+    )
+  )
+  const database = openTwinDeskDatabase(path)
+  assert.throws(
+    () =>
+      database.reviseDraft({
+        transition: draftTransition(
+          'draft-atomic-interrupted-transition',
+          source.id,
+          'editing',
+          'superseded',
+          occurredAt,
+        ),
+        draft: revision,
+      }),
+    (error) =>
+      error instanceof DraftActionStateError &&
+      error.code === 'storage_error' &&
+      !error.message.includes('synthetic private'),
+  )
+  assert.equal(database.getDraft(source.id)?.state, 'editing')
+  assert.equal(database.getDraft(revision.id), undefined)
+  database.close()
+  const inspection = new DatabaseSync(path, { readOnly: true })
+  context.after(() => inspection.close())
+  assert.equal(
+    inspection.prepare('SELECT count(*) AS count FROM draft_state_transitions').get()?.count,
+    0,
+  )
+})
+
 test('local transitions fail closed on identity, content, chronology, and unsafe states', async (context) => {
   const path = await temporaryDatabase(context)
   const database = openTwinDeskDatabase(path)

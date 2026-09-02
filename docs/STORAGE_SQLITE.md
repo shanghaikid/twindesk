@@ -98,7 +98,11 @@ recreate the existing projection, Thread, event, Draft, or audit tables.
 Migration 3 adds versioned, immutable Draft and ActionProposal creation
 snapshots plus their local transition histories. Existing rows are snapshotted
 at their current state during migration; new writes preserve their true initial
-state. The transition API updates history and current state in one transaction.
+state. The product editing path uses the same tables to atomically supersede an
+active Draft and insert its next sequential revision; it requires no schema
+change and never overwrites prior content.
+
+The transition API updates history and current state in one transaction.
 See [Draft and ActionProposal Transitions](DRAFT_ACTION_TRANSITIONS.md).
 
 Migration 4 adds the Audit reference lookup index, prevents Audit reference

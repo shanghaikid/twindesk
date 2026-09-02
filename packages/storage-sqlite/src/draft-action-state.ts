@@ -58,6 +58,17 @@ export interface DraftTransitionWriteResult {
   readonly draft: Draft
 }
 
+export interface DraftRevisionWrite {
+  readonly transition: DraftStateTransition
+  readonly draft: Draft
+}
+
+export interface DraftRevisionWriteResult {
+  readonly disposition: 'inserted' | 'duplicate'
+  readonly source: Draft
+  readonly draft: Draft
+}
+
 export interface ActionProposalWriteResult {
   readonly disposition: 'inserted' | 'duplicate'
   readonly proposal: ActionProposal
@@ -572,6 +583,193 @@ export function transitionDraft(
     rollback(database)
     if (error instanceof DraftActionStateError) throw error
     throw new DraftActionStateError('storage_error', 'The Draft transition could not be stored.')
+  }
+}
+
+function revisionWriteAt(value: DraftRevisionWrite): DraftRevisionWrite {
+  try {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError()
+    const prototype = Object.getPrototypeOf(value) as unknown
+    const descriptors = Object.getOwnPropertyDescriptors(value)
+    if (
+      (prototype !== Object.prototype && prototype !== null) ||
+      Object.getOwnPropertySymbols(value).length !== 0 ||
+      Object.keys(descriptors).length !== 2 ||
+      !Object.hasOwn(descriptors, 'transition') ||
+      !Object.hasOwn(descriptors, 'draft') ||
+      Object.values(descriptors).some((descriptor) => !Object.hasOwn(descriptor, 'value'))
+    ) {
+      throw new TypeError()
+    }
+    const transition = parseDraftStateTransition(descriptors.transition?.value)
+    const draft = parseDraft(descriptors.draft?.value)
+    if (
+      transition.toState !== 'superseded' ||
+      (draft.state !== 'editing' && draft.state !== 'ready_for_review') ||
+      draft.createdAt !== transition.occurredAt ||
+      draft.updatedAt !== transition.occurredAt
+    ) {
+      throw new TypeError()
+    }
+    return Object.freeze({ transition, draft })
+  } catch {
+    throw new DraftActionStateError('invalid_request', 'The Draft revision request is invalid.')
+  }
+}
+
+/** Supersede one active Draft and create its next revision atomically. */
+export function reviseDraft(
+  database: DatabaseSync,
+  input: DraftRevisionWrite,
+): DraftRevisionWriteResult {
+  const { transition, draft } = revisionWriteAt(input)
+  try {
+    database.exec('BEGIN IMMEDIATE')
+  } catch {
+    throw new DraftActionStateError('storage_error', 'The Draft revision could not start.')
+  }
+  try {
+    const source = readDraft(database, transition.draftId)
+    if (source === undefined) {
+      throw new DraftActionStateError('missing_draft', 'The source Draft is missing.')
+    }
+    if (
+      draft.workItemId !== source.workItemId ||
+      draft.personaId !== source.personaId ||
+      draft.revision !== source.revision + 1
+    ) {
+      throw new DraftActionStateError('revision_conflict', 'The Draft revision is not next.')
+    }
+    const existingTransition = database
+      .prepare(
+        `SELECT kind, schema_version, id, draft_id AS record_id, from_state, to_state, occurred_at
+         FROM draft_state_transitions WHERE id = ?`,
+      )
+      .get(transition.id) as TransitionRow | undefined
+    const existingDraftRows = database
+      .prepare(
+        `SELECT ${DRAFT_COLUMNS} FROM drafts WHERE id = ? OR (work_item_id = ? AND revision = ?)`,
+      )
+      .all(draft.id, draft.workItemId, draft.revision) as unknown as DraftRow[]
+    if (existingTransition !== undefined || existingDraftRows.length > 0) {
+      const storedDraft =
+        existingDraftRows.length === 1
+          ? parseStoredDraft(existingDraftRows[0] as DraftRow)
+          : undefined
+      const creation =
+        storedDraft === undefined
+          ? undefined
+          : (database
+              .prepare(
+                `SELECT initial_state, initial_updated_at
+                 FROM draft_creation_records WHERE draft_id = ?`,
+              )
+              .get(storedDraft.id) as CreationStateRow | undefined)
+      if (
+        existingTransition === undefined ||
+        storedDraft === undefined ||
+        !sameDraftTransition(existingTransition, transition) ||
+        !sameDraftCreation(storedDraft, creation, draft) ||
+        source.state !== 'superseded'
+      ) {
+        throw new DraftActionStateError('draft_conflict', 'The Draft revision conflicts.')
+      }
+      database.exec('COMMIT')
+      return Object.freeze({ disposition: 'duplicate', source, draft: storedDraft })
+    }
+    if (source.state !== transition.fromState) {
+      throw new DraftActionStateError('stale_state', 'The source Draft state is stale.')
+    }
+    let superseded: Draft
+    try {
+      superseded = applyDraftStateTransition(source, transition)
+    } catch {
+      throw new DraftActionStateError('stale_state', 'The source Draft state is stale.')
+    }
+    const latest = database
+      .prepare(`SELECT id FROM drafts WHERE work_item_id = ? ORDER BY revision DESC LIMIT 1`)
+      .get(source.workItemId) as { readonly id: unknown } | undefined
+    if (latest?.id !== source.id) {
+      throw new DraftActionStateError('revision_conflict', 'The Draft revision is not next.')
+    }
+    const workItem = database
+      .prepare(`SELECT selected_persona_id, updated_at FROM work_items WHERE id = ?`)
+      .get(draft.workItemId) as
+      { readonly selected_persona_id: unknown; readonly updated_at: unknown } | undefined
+    if (workItem === undefined) {
+      throw new DraftActionStateError('missing_work_item', 'The Draft Work Item is missing.')
+    }
+    if (workItem.selected_persona_id !== draft.personaId) {
+      throw new DraftActionStateError('persona_mismatch', 'The Draft Persona does not match.')
+    }
+    if (
+      typeof workItem.updated_at !== 'string' ||
+      Date.parse(draft.createdAt) < Date.parse(workItem.updated_at)
+    ) {
+      throw new DraftActionStateError('invalid_request', 'The Draft chronology is invalid.')
+    }
+    const transitionInserted = database
+      .prepare(
+        `INSERT INTO draft_state_transitions
+           (kind, schema_version, id, draft_id, from_state, to_state, occurred_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        transition.kind,
+        transition.schemaVersion,
+        transition.id,
+        transition.draftId,
+        transition.fromState,
+        transition.toState,
+        transition.occurredAt,
+      )
+    const sourceUpdated = database
+      .prepare(`UPDATE drafts SET state = ?, updated_at = ? WHERE id = ?`)
+      .run(superseded.state, superseded.updatedAt, superseded.id)
+    const draftInserted = database
+      .prepare(
+        `INSERT INTO drafts (
+           kind, schema_version, id, work_item_id, persona_id, session_id, run_id,
+           revision, state, media_type, content_text, rationale, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        draft.kind,
+        draft.schemaVersion,
+        draft.id,
+        draft.workItemId,
+        draft.personaId,
+        draft.sessionId ?? null,
+        draft.runId ?? null,
+        draft.revision,
+        draft.state,
+        draft.content.mediaType,
+        draft.content.text,
+        draft.rationale ?? null,
+        draft.createdAt,
+        draft.updatedAt,
+      )
+    const creationInserted = database
+      .prepare(
+        `INSERT INTO draft_creation_records
+           (kind, schema_version, draft_id, initial_state, initial_updated_at)
+         VALUES ('draft_creation_record', 1, ?, ?, ?)`,
+      )
+      .run(draft.id, draft.state, draft.updatedAt)
+    if (
+      transitionInserted.changes !== 1 ||
+      sourceUpdated.changes !== 1 ||
+      draftInserted.changes !== 1 ||
+      creationInserted.changes !== 1
+    ) {
+      throw new DraftActionStateError('storage_error', 'The Draft revision was not stored.')
+    }
+    database.exec('COMMIT')
+    return Object.freeze({ disposition: 'inserted', source: superseded, draft })
+  } catch (error) {
+    rollback(database)
+    if (error instanceof DraftActionStateError) throw error
+    throw new DraftActionStateError('storage_error', 'The Draft revision could not be stored.')
   }
 }
 

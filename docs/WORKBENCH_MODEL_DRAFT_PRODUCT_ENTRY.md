@@ -8,8 +8,10 @@ opaque Work Item ID. The Workbench Host resolves the persisted Work Item,
 selected built-in Persona, pinned Agent Preset, prompt, deterministic
 Session/Draft identities, and configured provider/model route.
 
-This entry creates or recovers a Draft. It does not edit the Draft, construct an
-ActionProposal, request approval, call a Connector, or perform an external
+This entry creates or recovers a Draft. The separate
+[local editing boundary](WORKBENCH_MODEL_DRAFT_EDITING.md) now creates revisioned
+user edits and `ready_for_review` state, but neither path constructs an
+ActionProposal, requests approval, calls a Connector, or performs an external
 write. The returned capability and result both state `draft_only`; a result
 also states that external writes are unavailable.
 
@@ -58,5 +60,5 @@ durable Draft/Audit recovery, and missing-Persona failure without a live model
 or external account.
 
 This does not prove a live production model provider. Provider credential
-health, interactive Draft editing, exact approval UI, polling, and live Feishu
-acceptance remain open Stage 2 work.
+health, proposal and exact approval UI, polling, and live Feishu acceptance
+remain open Stage 2 work.

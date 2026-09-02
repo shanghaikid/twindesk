@@ -21,10 +21,15 @@ export {
 export {
   parseModelDraftCreateRequest,
   parseModelDraftCreateSnapshot,
+  parseModelDraftEditRequest,
+  parseModelDraftEditSnapshot,
   parseModelDraftStatusSnapshot,
+  MAX_MODEL_DRAFT_REVISION,
   type ModelDraftCapability,
   type ModelDraftCreateRequest,
   type ModelDraftCreateSnapshot,
+  type ModelDraftEditRequest,
+  type ModelDraftEditSnapshot,
   type ModelDraftStatusSnapshot,
   type ModelDraftView,
 } from './model-draft-contract.ts'

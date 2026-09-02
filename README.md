@@ -82,6 +82,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Workbench Feishu OAuth Reauthorization Runtime](docs/WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_RUNTIME.md): lease-held blocked-state callback, exchange, verified replacement, and restart-loaded production composition.
 - [Workbench Model Draft Product Entry](docs/WORKBENCH_MODEL_DRAFT_PRODUCT_ENTRY.md): Work Item-only browser intent with Host-owned redacted prompt, provider/model route, and durable local Draft recovery.
 - [Workbench Cordis Model-Draft Runtime](docs/WORKBENCH_CORDIS_MODEL_DRAFT_RUNTIME.md): Cordis-owned product Web and Harness runner lifecycle with Host-only route configuration and normal shutdown.
+- [Workbench Model Draft Editing](docs/WORKBENCH_MODEL_DRAFT_EDITING.md): atomic local revisions, explicit ready-for-review state, user Audit, and restart repair without approval authority.
 - [Feishu Operation Scope Authorization](docs/FEISHU_OPERATION_SCOPE_AUTHORIZATION.md): fixed Bot/User operation policies and fresh fail-closed scope evidence.
 - [Feishu User Credential Scope Probe](docs/FEISHU_USER_CREDENTIAL_SCOPE_PROBE.md): exact Keychain OAuth scope observation, refresh gating, and transient-secret cleanup.
 - [Feishu Bot Tenant Token Acquisition](docs/FEISHU_BOT_TENANT_TOKEN_ACQUISITION.md): fixed-endpoint bounded token acquisition, callback-scoped cleanup, and the separate scope-observation boundary.
@@ -121,13 +122,15 @@ explicit shared-event, cursor, deletion-receipt, and Harness Session retention
 behavior. The Audit page shows four synthetic routing records plus two
 deterministic Persona Draft records. The fixture flow reaches `ready_for_review`
 across restart with no model call, approval, Connector execution, or external
-write. Draft editing UI, approval decisions, product-composed secret-store
-resolution, user-created Personas, and hosted Connector subscriptions are not
-implemented. A Host-controlled model-Draft entry covers initial generation
+write. Exact proposal/approval UI, approval decisions, product-composed
+secret-store resolution, user-created Personas, and hosted Connector
+subscriptions are not implemented. A Host-controlled model-Draft entry covers initial generation
 synthetically. The standalone `web:start` launcher remains unavailable by
 design, while the Workbench Harness Profile now owns the product Web and
 configured model route through a disposable Cordis lifecycle. Credential health
-and live generation are not yet proven.
+and live generation are not yet proven. The Profile-owned Inbox can preserve
+the model output, create user-edited revisions, and mark a Draft
+`ready_for_review` without granting approval or write authority.
 Stage 2 identity configuration now distinguishes Feishu Bot application
 credentials from User OAuth credentials and persists only opaque secret
 references. The Feishu plugin now verifies and decrypts Bot direct-message and

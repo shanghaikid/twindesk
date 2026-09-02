@@ -67,6 +67,7 @@ test('the Workbench Bundle declares and mounts the TwinDesk Host and Client plug
   assert.equal(manifest.dsh.bundle.patch, './cordis.patch.yml')
   assert.equal(manifest.dependencies['@twindesk/plugin-work-hub'], 'workspace:*')
   assert.equal(manifest.dependencies['@twindesk/plugin-ui'], 'workspace:*')
+  assert.equal(manifest.dependencies['@twindesk/domain'], 'workspace:*')
   assert.equal(manifest.dependencies['@twindesk/harness-adapter'], 'workspace:*')
   assert.equal(manifest.exports['./cordis-runtime'].default, './dist/cordis-runtime.js')
   assert.deepEqual(manifest.files, ['agent-presets', 'cordis.patch.yml', 'dist'])

@@ -18,8 +18,21 @@ const RESULT = Object.freeze({
   }),
 })
 
+const EDITED_RESULT = Object.freeze({
+  ...RESULT,
+  disposition: 'submitted',
+  draft: Object.freeze({
+    ...RESULT.draft,
+    revision: 2,
+    state: 'ready_for_review',
+    content: Object.freeze({ mediaType: 'text/plain', text: 'User-edited local Draft.' }),
+    updatedAt: '2026-09-02T09:02:00.000Z',
+  }),
+})
+
 test('model Draft API binds one Work Item-only intent to same-origin CSRF', async () => {
   let calls = 0
+  let editCalls = 0
   /** @type {unknown} */
   let observedWorkItemId
   const running = await startTwinDeskWebServer({
@@ -33,6 +46,18 @@ test('model Draft API binds one Work Item-only intent to same-origin CSRF', asyn
         calls += 1
         observedWorkItemId = workItemId
         return RESULT
+      },
+      async edit(request, signal) {
+        signal.throwIfAborted()
+        editCalls += 1
+        assert.deepEqual(request, {
+          version: 1,
+          workItemId: RESULT.draft.workItemId,
+          sourceRevision: 1,
+          content: EDITED_RESULT.draft.content,
+          submitForReview: true,
+        })
+        return EDITED_RESULT
       },
     },
   })
@@ -62,6 +87,65 @@ test('model Draft API binds one Work Item-only intent to same-origin CSRF', asyn
     assert.deepEqual(await response.json(), RESULT)
     assert.equal(observedWorkItemId, RESULT.draft.workItemId)
     assert.equal(calls, 1)
+
+    const edited = await fetch(`${running.url}/api/model-drafts/edit`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: running.url,
+        'sec-fetch-site': 'same-origin',
+        'x-twindesk-model-draft-csrf-token': token,
+      },
+      body: JSON.stringify({
+        version: 1,
+        workItemId: RESULT.draft.workItemId,
+        sourceRevision: 1,
+        content: EDITED_RESULT.draft.content,
+        submitForReview: true,
+      }),
+    })
+    assert.equal(edited.status, 200)
+    assert.deepEqual(await edited.json(), EDITED_RESULT)
+    assert.equal(editCalls, 1)
+
+    const injectedEdit = await fetch(`${running.url}/api/model-drafts/edit`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: running.url,
+        'sec-fetch-site': 'same-origin',
+        'x-twindesk-model-draft-csrf-token': token,
+      },
+      body: JSON.stringify({
+        version: 1,
+        workItemId: RESULT.draft.workItemId,
+        sourceRevision: 1,
+        content: EDITED_RESULT.draft.content,
+        submitForReview: true,
+        approved: true,
+      }),
+    })
+    assert.equal(injectedEdit.status, 400)
+    assert.equal(editCalls, 1)
+
+    const forgedEdit = await fetch(`${running.url}/api/model-drafts/edit`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: 'http://127.0.0.1:9',
+        'sec-fetch-site': 'cross-site',
+        'x-twindesk-model-draft-csrf-token': token,
+      },
+      body: JSON.stringify({
+        version: 1,
+        workItemId: RESULT.draft.workItemId,
+        sourceRevision: 1,
+        content: EDITED_RESULT.draft.content,
+        submitForReview: true,
+      }),
+    })
+    assert.equal(forgedEdit.status, 403)
+    assert.equal(editCalls, 1)
 
     const injection = await fetch(`${running.url}/api/model-drafts/create`, {
       method: 'POST',

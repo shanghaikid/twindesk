@@ -1,4 +1,5 @@
 export type ModelDraftCapability = 'unavailable' | 'ready'
+export const MAX_MODEL_DRAFT_REVISION = 100
 
 export interface ModelDraftStatusSnapshot {
   readonly version: 1
@@ -9,6 +10,17 @@ export interface ModelDraftStatusSnapshot {
 export interface ModelDraftCreateRequest {
   readonly version: 1
   readonly workItemId: string
+}
+
+export interface ModelDraftEditRequest {
+  readonly version: 1
+  readonly workItemId: string
+  readonly sourceRevision: number
+  readonly content: {
+    readonly mediaType: 'text/plain' | 'text/markdown'
+    readonly text: string
+  }
+  readonly submitForReview: boolean
 }
 
 export interface ModelDraftView {
@@ -26,6 +38,14 @@ export interface ModelDraftView {
 export interface ModelDraftCreateSnapshot {
   readonly version: 1
   readonly disposition: 'created' | 'recovered' | 'repaired'
+  readonly autonomy: 'draft_only'
+  readonly externalWritesAvailable: false
+  readonly draft: ModelDraftView
+}
+
+export interface ModelDraftEditSnapshot {
+  readonly version: 1
+  readonly disposition: 'saved' | 'submitted' | 'recovered'
   readonly autonomy: 'draft_only'
   readonly externalWritesAvailable: false
   readonly draft: ModelDraftView
@@ -111,8 +131,43 @@ export function parseModelDraftCreateRequest(value: unknown): ModelDraftCreateRe
   return Object.freeze({ version: 1, workItemId: identifierAt(record.workItemId, message) })
 }
 
-/** Parse a minimized local Draft result before it crosses the browser boundary. */
-export function parseModelDraftCreateSnapshot(value: unknown): ModelDraftCreateSnapshot {
+/** Parse one exact local edit intent; it grants no approval or execution authority. */
+export function parseModelDraftEditRequest(value: unknown): ModelDraftEditRequest {
+  const message = 'The model Draft edit request is invalid.'
+  const record = recordAt(value, message)
+  exactKeys(
+    record,
+    ['version', 'workItemId', 'sourceRevision', 'content', 'submitForReview'],
+    message,
+  )
+  const content = recordAt(record.content, message)
+  exactKeys(content, ['mediaType', 'text'], message)
+  if (
+    record.version !== 1 ||
+    !Number.isSafeInteger(record.sourceRevision) ||
+    (record.sourceRevision as number) < 1 ||
+    (record.sourceRevision as number) >= MAX_MODEL_DRAFT_REVISION ||
+    (content.mediaType !== 'text/plain' && content.mediaType !== 'text/markdown') ||
+    typeof content.text !== 'string' ||
+    content.text.trim().length === 0 ||
+    new TextEncoder().encode(content.text).byteLength > 64 * 1_024 ||
+    typeof record.submitForReview !== 'boolean'
+  ) {
+    return invalid(message)
+  }
+  return Object.freeze({
+    version: 1,
+    workItemId: identifierAt(record.workItemId, message),
+    sourceRevision: record.sourceRevision as number,
+    content: Object.freeze({ mediaType: content.mediaType, text: content.text }),
+    submitForReview: record.submitForReview,
+  })
+}
+
+function parseModelDraftSnapshot(
+  value: unknown,
+  dispositions: readonly string[],
+): ModelDraftCreateSnapshot | ModelDraftEditSnapshot {
   const message = 'Local API returned an invalid model Draft result.'
   const record = recordAt(value, message)
   exactKeys(
@@ -130,9 +185,8 @@ export function parseModelDraftCreateSnapshot(value: unknown): ModelDraftCreateS
   exactKeys(content, ['mediaType', 'text'], message)
   if (
     record.version !== 1 ||
-    (record.disposition !== 'created' &&
-      record.disposition !== 'recovered' &&
-      record.disposition !== 'repaired') ||
+    typeof record.disposition !== 'string' ||
+    !dispositions.includes(record.disposition) ||
     record.autonomy !== 'draft_only' ||
     record.externalWritesAvailable !== false ||
     typeof draft.personaLabel !== 'string' ||
@@ -140,6 +194,7 @@ export function parseModelDraftCreateSnapshot(value: unknown): ModelDraftCreateS
     draft.personaLabel.length > 160 ||
     !Number.isSafeInteger(draft.revision) ||
     (draft.revision as number) < 1 ||
+    (draft.revision as number) > MAX_MODEL_DRAFT_REVISION ||
     (draft.state !== 'editing' &&
       draft.state !== 'ready_for_review' &&
       draft.state !== 'superseded' &&
@@ -164,5 +219,23 @@ export function parseModelDraftCreateSnapshot(value: unknown): ModelDraftCreateS
       content: Object.freeze({ mediaType: content.mediaType, text: content.text }),
       updatedAt: timestampAt(draft.updatedAt, message),
     }),
-  })
+  }) as ModelDraftCreateSnapshot | ModelDraftEditSnapshot
+}
+
+/** Parse a minimized model-generation result before it crosses the browser boundary. */
+export function parseModelDraftCreateSnapshot(value: unknown): ModelDraftCreateSnapshot {
+  return parseModelDraftSnapshot(value, [
+    'created',
+    'recovered',
+    'repaired',
+  ]) as ModelDraftCreateSnapshot
+}
+
+/** Parse a minimized local-edit result without accepting model-generation dispositions. */
+export function parseModelDraftEditSnapshot(value: unknown): ModelDraftEditSnapshot {
+  return parseModelDraftSnapshot(value, [
+    'saved',
+    'submitted',
+    'recovered',
+  ]) as ModelDraftEditSnapshot
 }

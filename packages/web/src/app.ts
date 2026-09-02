@@ -37,8 +37,11 @@ import {
 } from './feishu-reauthorization-contract.ts'
 import {
   parseModelDraftCreateSnapshot,
+  parseModelDraftEditRequest,
+  parseModelDraftEditSnapshot,
   parseModelDraftStatusSnapshot,
   type ModelDraftCreateSnapshot,
+  type ModelDraftEditSnapshot,
   type ModelDraftStatusSnapshot,
 } from './model-draft-contract.ts'
 
@@ -71,7 +74,10 @@ let modelDraftStatusError: string | undefined
 let modelDraftStatusRequest = 0
 let modelDraftCreating = false
 let modelDraftCreateError: string | undefined
-let modelDraftResult: ModelDraftCreateSnapshot | undefined
+let modelDraftResult: ModelDraftCreateSnapshot | ModelDraftEditSnapshot | undefined
+let modelDraftEditing = false
+let modelDraftEditError: string | undefined
+let modelDraftEditorText: string | undefined
 let auditSnapshot: AuditSnapshot | undefined
 let auditLoading = false
 let auditError: string | undefined
@@ -230,7 +236,7 @@ function workItemDetails(item: InboxItem | undefined): string {
       ${
         generated === undefined
           ? ''
-          : `<div class="draft-preview"><div><strong>${escapeHtml(generated.draft.personaLabel)}</strong><span>Revision ${generated.draft.revision} · ${escapeHtml(generated.draft.state.replaceAll('_', ' '))}</span></div><pre>${escapeHtml(generated.draft.content.text)}</pre><p>Local Draft only. This result does not prove approval or delivery.</p></div>`
+          : `<div class="draft-preview"><div><strong>${escapeHtml(generated.draft.personaLabel)}</strong><span>Revision ${generated.draft.revision} · ${escapeHtml(generated.draft.state.replaceAll('_', ' '))}</span></div><label class="draft-editor"><span>Draft content</span><textarea data-model-draft-text maxlength="65536" spellcheck="true"${modelDraftEditing ? ' disabled' : ''}>${escapeHtml(modelDraftEditorText ?? generated.draft.content.text)}</textarea></label><div class="settings-form-actions"><button class="secondary-button" type="button" data-model-draft-save${modelDraftEditing ? ' disabled' : ''}>${modelDraftEditing ? 'Saving…' : 'Save editing revision'}</button><button class="primary-button" type="button" data-model-draft-review${modelDraftEditing ? ' disabled' : ''}>${modelDraftEditing ? 'Saving…' : 'Ready for review'}</button></div>${modelDraftEditError === undefined ? '' : `<p class="form-message error" role="alert">${escapeHtml(modelDraftEditError)}</p>`}<p>Local Draft only. Ready for review is not approval and cannot deliver content.</p></div>`
       }
     </section>
     <div class="notice"><strong>Fixture only.</strong> This page reads local synthetic data and cannot perform an external write.</div>
@@ -758,12 +764,75 @@ async function createModelDraft(): Promise<void> {
       throw new Error('Local API returned an invalid model Draft capability.')
     }
     modelDraftResult = result
+    modelDraftEditError = undefined
+    modelDraftEditorText = result.draft.content.text
     modelDraftCsrfToken = nextToken
   } catch (error) {
     modelDraftCreateError =
       error instanceof Error ? error.message : 'The local model Draft request failed.'
   } finally {
     modelDraftCreating = false
+    render()
+  }
+}
+
+async function editModelDraft(submitForReview: boolean): Promise<void> {
+  const result = modelDraftResult
+  const csrfToken = modelDraftCsrfToken
+  const editor = document.querySelector<HTMLTextAreaElement>('[data-model-draft-text]')
+  if (result === undefined || csrfToken === undefined || editor === null || modelDraftEditing)
+    return
+  let request: ReturnType<typeof parseModelDraftEditRequest>
+  try {
+    modelDraftEditorText = editor.value
+    request = parseModelDraftEditRequest({
+      version: 1,
+      workItemId: result.draft.workItemId,
+      sourceRevision: result.draft.revision,
+      content: { mediaType: result.draft.content.mediaType, text: modelDraftEditorText },
+      submitForReview,
+    })
+  } catch (error) {
+    modelDraftEditError =
+      error instanceof Error ? error.message : 'The local Draft edit is invalid.'
+    render()
+    return
+  }
+  modelDraftEditing = true
+  modelDraftEditError = undefined
+  render()
+  try {
+    const response = await fetch('/api/model-drafts/edit', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'x-twindesk-model-draft-csrf-token': csrfToken,
+      },
+      body: JSON.stringify(request),
+    })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseModelDraftEditSnapshot(await response.json())
+    if (
+      snapshot.draft.workItemId !== request.workItemId ||
+      snapshot.draft.revision < request.sourceRevision ||
+      snapshot.draft.revision > request.sourceRevision + 1 ||
+      (submitForReview && snapshot.draft.state !== 'ready_for_review')
+    ) {
+      throw new Error('Local API returned an invalid edited Draft.')
+    }
+    const nextToken = response.headers.get('x-twindesk-model-draft-csrf-token')
+    if (nextToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(nextToken)) {
+      throw new Error('Local API returned an invalid model Draft capability.')
+    }
+    modelDraftResult = snapshot
+    modelDraftEditorText = snapshot.draft.content.text
+    modelDraftCsrfToken = nextToken
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'The local Draft edit failed.'
+    modelDraftEditError = `${message} Refresh or retry the same edit before making another revision.`
+  } finally {
+    modelDraftEditing = false
     render()
   }
 }
@@ -1321,11 +1390,21 @@ document.addEventListener('click', (event) => {
   if (itemButton?.dataset.workItemId !== undefined) {
     selectedWorkItemId = itemButton.dataset.workItemId
     modelDraftCreateError = undefined
+    modelDraftEditError = undefined
+    modelDraftEditorText = undefined
     render()
     return
   }
   if (target.closest('[data-model-draft-create]') !== null) {
     void createModelDraft()
+    return
+  }
+  if (target.closest('[data-model-draft-save]') !== null) {
+    void editModelDraft(false)
+    return
+  }
+  if (target.closest('[data-model-draft-review]') !== null) {
+    void editModelDraft(true)
     return
   }
   if (target.closest('[data-inbox-retry]') !== null) void loadInbox(activeInboxState)
@@ -1380,6 +1459,13 @@ document.addEventListener('click', (event) => {
     feishuSettingsDraft = undefined
     feishuSettingsSaveError = undefined
     render()
+  }
+})
+
+document.addEventListener('input', (event) => {
+  const target = event.target
+  if (target instanceof HTMLTextAreaElement && target.matches('[data-model-draft-text]')) {
+    modelDraftEditorText = target.value
   }
 })
 document.addEventListener('submit', (event) => {

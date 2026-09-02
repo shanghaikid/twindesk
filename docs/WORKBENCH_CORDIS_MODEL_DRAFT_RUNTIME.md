@@ -64,6 +64,8 @@ and two ephemeral loopback ports. It verifies both the Harness Client artifact
 and the product model-Draft capability, then requests normal shutdown and
 removes the temporary product data.
 
-No test invokes a live model. Provider credential health, authenticated remote
-generation, interactive Draft editing and approval, production data paths,
-Connector polling, and live Feishu acceptance remain open Stage 2 work.
+No test invokes a live model. Local editing is documented separately in
+[Workbench Model Draft Editing](WORKBENCH_MODEL_DRAFT_EDITING.md). Provider
+credential health, authenticated remote generation, proposal and approval UI,
+production data paths, Connector polling, and live Feishu acceptance remain
+open Stage 2 work.

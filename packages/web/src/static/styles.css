@@ -472,13 +472,31 @@ p {
   color: var(--muted);
 }
 
-.draft-preview pre {
-  margin: 12px 0 0;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-  font: inherit;
+.draft-editor {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  color: #36413b;
   font-size: 12px;
+  font-weight: 500;
+}
+
+.draft-editor textarea {
+  min-height: 150px;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  padding: 9px;
+  color: #18201c;
+  font: inherit;
+  font-weight: 400;
   line-height: 1.55;
+}
+
+.draft-preview > .settings-form-actions {
+  justify-content: flex-end;
 }
 
 .secondary-button {

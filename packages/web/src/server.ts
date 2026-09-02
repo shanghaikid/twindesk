@@ -26,6 +26,8 @@ import { parseFeishuReauthorizationSnapshot } from './feishu-reauthorization-con
 import {
   parseModelDraftCreateRequest,
   parseModelDraftCreateSnapshot,
+  parseModelDraftEditRequest,
+  parseModelDraftEditSnapshot,
   parseModelDraftStatusSnapshot,
 } from './model-draft-contract.ts'
 
@@ -76,6 +78,7 @@ const CONTENT_SECURITY_POLICY = [
 const FEISHU_SETTINGS_BODY_MAX_BYTES = 16 * 1024
 const FEISHU_CLIENT_SECRET_MAX_BYTES = 512
 const MODEL_DRAFT_BODY_MAX_BYTES = 1_024
+const MODEL_DRAFT_EDIT_BODY_MAX_BYTES = 66 * 1_024
 const FEISHU_SETTINGS_CSRF_HEADER = 'x-twindesk-csrf-token'
 const MODEL_DRAFT_CSRF_HEADER = 'x-twindesk-model-draft-csrf-token'
 const FEISHU_USER_IDENTITY_CREATION_HEADER = 'x-twindesk-user-identity-creation'
@@ -120,6 +123,7 @@ export interface TwinDeskWebServerOptions {
   readonly modelDraft?: {
     read(): Promise<unknown> | unknown
     create(workItemId: string, signal: AbortSignal): Promise<unknown>
+    edit?(request: unknown, signal: AbortSignal): Promise<unknown>
   }
 }
 
@@ -142,9 +146,10 @@ function normalizeModelDraftService(value: unknown): ModelDraftService | undefin
     if (
       (prototype !== Object.prototype && prototype !== null) ||
       Object.getOwnPropertySymbols(value).length !== 0 ||
-      Object.keys(descriptors).length !== 2 ||
+      (Object.keys(descriptors).length !== 2 && Object.keys(descriptors).length !== 3) ||
       !Object.hasOwn(descriptors, 'read') ||
       !Object.hasOwn(descriptors, 'create') ||
+      (Object.hasOwn(descriptors, 'edit') && typeof descriptors.edit?.value !== 'function') ||
       Object.values(descriptors).some(
         (descriptor) =>
           !Object.hasOwn(descriptor, 'value') || typeof descriptor.value !== 'function',
@@ -157,10 +162,18 @@ function normalizeModelDraftService(value: unknown): ModelDraftService | undefin
       workItemId: string,
       signal: AbortSignal,
     ) => Promise<unknown>
+    const edit = descriptors.edit?.value as
+      ((request: unknown, signal: AbortSignal) => Promise<unknown>) | undefined
     return Object.freeze({
       read: () => Promise.resolve(Reflect.apply(read, value, [])),
       create: (workItemId: string, signal: AbortSignal) =>
         Reflect.apply(create, value, [workItemId, signal]),
+      ...(edit === undefined
+        ? {}
+        : {
+            edit: (request: unknown, signal: AbortSignal) =>
+              Reflect.apply(edit, value, [request, signal]),
+          }),
     })
   } catch {
     throw new TypeError('TwinDesk Web model Draft service is invalid.')
@@ -1284,6 +1297,91 @@ async function serveModelDraftCreateApi(
   }
 }
 
+async function serveModelDraftEditApi(
+  request: IncomingMessage,
+  response: ServerResponse,
+  requestUrl: URL,
+  service: ModelDraftService | undefined,
+  expectedOrigin: string,
+  csrfToken: string,
+  activeControllers: Set<AbortController>,
+): Promise<void> {
+  if (requestUrl.search.length > 0) {
+    request.resume()
+    send(response, 400, 'Invalid model Draft edit request.\n', 'text/plain; charset=utf-8')
+    return
+  }
+  try {
+    assertLocalWriteHeaders(
+      request,
+      expectedOrigin,
+      csrfToken,
+      'application/json',
+      MODEL_DRAFT_EDIT_BODY_MAX_BYTES,
+      MODEL_DRAFT_CSRF_HEADER,
+    )
+  } catch (error) {
+    request.resume()
+    const status = error instanceof FeishuSettingsRequestError ? error.status : 403
+    const message =
+      status === 403
+        ? 'Model Draft edit forbidden.\n'
+        : status === 413
+          ? 'Model Draft edit request too large.\n'
+          : status === 415
+            ? 'Model Draft edit content type unsupported.\n'
+            : 'Invalid model Draft edit request.\n'
+    send(response, status, message, 'text/plain; charset=utf-8')
+    return
+  }
+  if (service?.edit === undefined) {
+    request.resume()
+    send(response, 503, 'Model Draft editing unavailable.\n', 'text/plain; charset=utf-8')
+    return
+  }
+  let edit: ReturnType<typeof parseModelDraftEditRequest>
+  try {
+    const body = await readBoundedBody(request, MODEL_DRAFT_EDIT_BODY_MAX_BYTES)
+    try {
+      edit = parseModelDraftEditRequest(JSON.parse(UTF8_DECODER.decode(body)) as unknown)
+    } finally {
+      body.fill(0)
+    }
+  } catch (error) {
+    if (!request.complete) request.resume()
+    const status = error instanceof FeishuSettingsRequestError ? error.status : 400
+    send(
+      response,
+      status,
+      status === 413
+        ? 'Model Draft edit request too large.\n'
+        : 'Invalid model Draft edit request.\n',
+      'text/plain; charset=utf-8',
+    )
+    return
+  }
+  const controller = new AbortController()
+  const abort = (): void => controller.abort()
+  activeControllers.add(controller)
+  request.once('aborted', abort)
+  try {
+    const snapshot = parseModelDraftEditSnapshot(await service.edit(edit, controller.signal))
+    if (snapshot.draft.workItemId !== edit.workItemId) throw new TypeError()
+    const body = JSON.stringify(snapshot)
+    response.writeHead(200, {
+      ...commonHeaders('application/json; charset=utf-8'),
+      'content-length': String(Buffer.byteLength(body)),
+      [MODEL_DRAFT_CSRF_HEADER]: csrfToken,
+    })
+    response.end(body)
+  } catch {
+    send(response, 503, 'Model Draft editing unavailable.\n', 'text/plain; charset=utf-8')
+  } finally {
+    request.off('aborted', abort)
+    activeControllers.delete(controller)
+  }
+}
+
 async function serveAsset(
   response: ServerResponse,
   pathname: string,
@@ -1380,6 +1478,7 @@ export async function startTwinDeskWebServer(
         method === 'POST' && requestUrl.pathname === '/api/recovery/feishu/oauth/reconcile'
       const modelDraftCreate =
         method === 'POST' && requestUrl.pathname === '/api/model-drafts/create'
+      const modelDraftEdit = method === 'POST' && requestUrl.pathname === '/api/model-drafts/edit'
       const supportedMutation =
         oauthSettingsUpdate ||
         userIdentityCreate ||
@@ -1388,7 +1487,8 @@ export async function startTwinDeskWebServer(
         reauthorizationStart ||
         reauthorizationCancel ||
         oauthReconciliation ||
-        modelDraftCreate
+        modelDraftCreate ||
+        modelDraftEdit
       if (method !== 'GET' && method !== 'HEAD' && !supportedMutation) {
         response.setHeader(
           'allow',
@@ -1404,7 +1504,8 @@ export async function startTwinDeskWebServer(
                   ? 'POST'
                   : requestUrl.pathname === '/api/recovery/feishu/oauth/reconcile'
                     ? 'POST'
-                    : requestUrl.pathname === '/api/model-drafts/create'
+                    : requestUrl.pathname === '/api/model-drafts/create' ||
+                        requestUrl.pathname === '/api/model-drafts/edit'
                       ? 'POST'
                       : 'GET, HEAD',
         )
@@ -1470,6 +1571,19 @@ export async function startTwinDeskWebServer(
       if (modelDraftCreate) {
         if (boundOrigin === undefined) throw new Error('TwinDesk Web origin is unavailable')
         await serveModelDraftCreateApi(
+          request,
+          response,
+          requestUrl,
+          modelDraft,
+          boundOrigin,
+          modelDraftCsrfToken,
+          activeModelDraftControllers,
+        )
+        return
+      }
+      if (modelDraftEdit) {
+        if (boundOrigin === undefined) throw new Error('TwinDesk Web origin is unavailable')
+        await serveModelDraftEditApi(
           request,
           response,
           requestUrl,

@@ -44,6 +44,9 @@ importers:
       '@deepseek-ai/dsh-tool-subagent':
         specifier: 0.1.1-rc.2
         version: 0.1.1-rc.2(fff99afb66eb5f78f92e1168a4be0359)
+      '@twindesk/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@twindesk/harness-adapter':
         specifier: workspace:*
         version: link:../harness-adapter
