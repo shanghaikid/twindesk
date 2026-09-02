@@ -499,6 +499,19 @@ p {
   justify-content: flex-end;
 }
 
+.proposal-content {
+  margin-top: 12px;
+  border-left: 2px solid var(--border);
+  padding-left: 10px;
+  color: #36413b;
+  font-size: 12px;
+}
+
+.proposal-content p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .secondary-button {
   border: 1px solid var(--border);
   border-radius: 5px;

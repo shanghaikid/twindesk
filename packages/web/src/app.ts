@@ -36,6 +36,13 @@ import {
   type FeishuReauthorizationSnapshot,
 } from './feishu-reauthorization-contract.ts'
 import {
+  parseFeishuReplyProposalCreateRequest,
+  parseFeishuReplyProposalSnapshot,
+  parseFeishuReplyProposalStatusSnapshot,
+  type FeishuReplyProposalSnapshot,
+  type FeishuReplyProposalStatusSnapshot,
+} from './feishu-reply-proposal-contract.ts'
+import {
   parseModelDraftCreateSnapshot,
   parseModelDraftEditRequest,
   parseModelDraftEditSnapshot,
@@ -78,6 +85,14 @@ let modelDraftResult: ModelDraftCreateSnapshot | ModelDraftEditSnapshot | undefi
 let modelDraftEditing = false
 let modelDraftEditError: string | undefined
 let modelDraftEditorText: string | undefined
+let feishuReplyProposalStatus: FeishuReplyProposalStatusSnapshot | undefined
+let feishuReplyProposalCsrfToken: string | undefined
+let feishuReplyProposalStatusLoading = false
+let feishuReplyProposalStatusError: string | undefined
+let feishuReplyProposalStatusRequest = 0
+let feishuReplyProposalCreating = false
+let feishuReplyProposalError: string | undefined
+let feishuReplyProposalResult: FeishuReplyProposalSnapshot | undefined
 let auditSnapshot: AuditSnapshot | undefined
 let auditLoading = false
 let auditError: string | undefined
@@ -205,11 +220,17 @@ function workItemDetails(item: InboxItem | undefined): string {
       ? 'Complete fixture context'
       : `Partial — missing ${item.context.missing.join(', ')}`
   const generated = modelDraftResult?.draft.workItemId === item.id ? modelDraftResult : undefined
+  const replyPreview =
+    feishuReplyProposalResult?.proposal.workItemId === item.id
+      ? feishuReplyProposalResult
+      : undefined
   const canCreate =
     item.personaId !== undefined &&
     modelDraftStatus?.capability === 'ready' &&
     modelDraftCsrfToken !== undefined &&
-    !modelDraftCreating
+    !modelDraftCreating &&
+    !modelDraftEditing &&
+    !feishuReplyProposalCreating
   const modelDraftMessage =
     item.personaId === undefined
       ? 'Select a Persona before generating a Draft.'
@@ -220,6 +241,29 @@ function workItemDetails(item: InboxItem | undefined): string {
           : modelDraftStatus?.capability !== 'ready'
             ? 'The product Agent Runtime is not connected.'
             : 'The selected Persona will create one local editing Draft. Provider, model, prompt, and authority stay Host-controlled.'
+  const canCreateReplyPreview =
+    generated?.draft.state === 'ready_for_review' &&
+    generated.draft.content.mediaType === 'text/plain' &&
+    (modelDraftEditorText ?? generated.draft.content.text) === generated.draft.content.text &&
+    feishuReplyProposalStatus?.capability === 'ready' &&
+    feishuReplyProposalCsrfToken !== undefined &&
+    !modelDraftCreating &&
+    !modelDraftEditing &&
+    !feishuReplyProposalCreating
+  const replyPreviewMessage =
+    generated?.draft.state !== 'ready_for_review'
+      ? 'Mark the local Draft ready for review before creating an exact reply preview.'
+      : generated.draft.content.mediaType !== 'text/plain'
+        ? 'Feishu reply preview currently requires a plain-text Draft.'
+        : (modelDraftEditorText ?? generated.draft.content.text) !== generated.draft.content.text
+          ? 'Save the local edit and mark that exact revision ready for review first.'
+          : feishuReplyProposalStatusLoading
+            ? 'Checking the Feishu reply preview boundary…'
+            : feishuReplyProposalStatusError !== undefined
+              ? feishuReplyProposalStatusError
+              : feishuReplyProposalStatus?.capability !== 'ready'
+                ? 'A configured Feishu User identity is required for reply preview.'
+                : 'TwinDesk will bind the current Draft to the Host-selected Feishu User identity and latest unique message target.'
   return `<article class="detail-card">
     <div class="detail-title"><span class="badge">${escapeHtml(stateLabel(item.inboxState))}</span><h2>${escapeHtml(item.title)}</h2><p>${escapeHtml(item.summary)}</p></div>
     <dl class="detail-list">
@@ -236,7 +280,17 @@ function workItemDetails(item: InboxItem | undefined): string {
       ${
         generated === undefined
           ? ''
-          : `<div class="draft-preview"><div><strong>${escapeHtml(generated.draft.personaLabel)}</strong><span>Revision ${generated.draft.revision} · ${escapeHtml(generated.draft.state.replaceAll('_', ' '))}</span></div><label class="draft-editor"><span>Draft content</span><textarea data-model-draft-text maxlength="65536" spellcheck="true"${modelDraftEditing ? ' disabled' : ''}>${escapeHtml(modelDraftEditorText ?? generated.draft.content.text)}</textarea></label><div class="settings-form-actions"><button class="secondary-button" type="button" data-model-draft-save${modelDraftEditing ? ' disabled' : ''}>${modelDraftEditing ? 'Saving…' : 'Save editing revision'}</button><button class="primary-button" type="button" data-model-draft-review${modelDraftEditing ? ' disabled' : ''}>${modelDraftEditing ? 'Saving…' : 'Ready for review'}</button></div>${modelDraftEditError === undefined ? '' : `<p class="form-message error" role="alert">${escapeHtml(modelDraftEditError)}</p>`}<p>Local Draft only. Ready for review is not approval and cannot deliver content.</p></div>`
+          : `<div class="draft-preview"><div><strong>${escapeHtml(generated.draft.personaLabel)}</strong><span>Revision ${generated.draft.revision} · ${escapeHtml(generated.draft.state.replaceAll('_', ' '))}</span></div><label class="draft-editor"><span>Draft content</span><textarea data-model-draft-text maxlength="65536" spellcheck="true"${modelDraftEditing || feishuReplyProposalCreating ? ' disabled' : ''}>${escapeHtml(modelDraftEditorText ?? generated.draft.content.text)}</textarea></label><div class="settings-form-actions"><button class="secondary-button" type="button" data-model-draft-save${modelDraftEditing || feishuReplyProposalCreating ? ' disabled' : ''}>${modelDraftEditing ? 'Saving…' : 'Save editing revision'}</button><button class="primary-button" type="button" data-model-draft-review${modelDraftEditing || feishuReplyProposalCreating ? ' disabled' : ''}>${modelDraftEditing ? 'Saving…' : 'Ready for review'}</button></div>${modelDraftEditError === undefined ? '' : `<p class="form-message error" role="alert">${escapeHtml(modelDraftEditError)}</p>`}<p>Local Draft only. Ready for review is not approval and cannot deliver content.</p></div>`
+      }
+    </section>
+    <section class="draft-entry" aria-label="Feishu reply preview">
+      <div><h3>Feishu reply preview</h3><p>${escapeHtml(replyPreviewMessage)}</p></div>
+      <button class="primary-button" type="button" data-feishu-reply-proposal-create${canCreateReplyPreview ? '' : ' disabled'}>${feishuReplyProposalCreating ? 'Creating…' : 'Create exact preview'}</button>
+      ${feishuReplyProposalError === undefined ? '' : `<p class="form-message error" role="alert">${escapeHtml(feishuReplyProposalError)}</p>`}
+      ${
+        replyPreview === undefined
+          ? ''
+          : `<div class="draft-preview"><div><strong>${escapeHtml(replyPreview.proposal.identity.displayName)}</strong><span>Feishu ${escapeHtml(replyPreview.proposal.identity.identityType)} · ${escapeHtml(replyPreview.proposal.state)}</span></div><dl class="detail-list"><div><dt>Account</dt><dd>${escapeHtml(replyPreview.proposal.identity.accountId)}</dd></div><div><dt>Target</dt><dd>${escapeHtml(replyPreview.proposal.target.externalId)} · ${escapeHtml(formatTimestamp(replyPreview.proposal.target.sourceTimestamp))}</dd></div><div><dt>Risk</dt><dd>${escapeHtml(replyPreview.proposal.risk)}</dd></div><div><dt>Draft</dt><dd>Revision ${replyPreview.proposal.draftRevision}</dd></div></dl><section class="proposal-content"><strong>Exact content</strong><p>${escapeHtml(replyPreview.proposal.content.text)}</p></section><p>Preview only. Approval and execution are unavailable; no Feishu message was sent.</p></div>`
       }
     </section>
     <div class="notice"><strong>Fixture only.</strong> This page reads local synthetic data and cannot perform an external write.</div>
@@ -737,10 +791,53 @@ async function loadModelDraftStatus(): Promise<void> {
   }
 }
 
+async function loadFeishuReplyProposalStatus(): Promise<void> {
+  const request = ++feishuReplyProposalStatusRequest
+  feishuReplyProposalStatusLoading = true
+  feishuReplyProposalStatusError = undefined
+  render()
+  try {
+    const response = await fetch('/api/action-proposals/feishu-reply', {
+      headers: { accept: 'application/json' },
+    })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseFeishuReplyProposalStatusSnapshot(await response.json())
+    const csrfToken = response.headers.get('x-twindesk-action-proposal-csrf-token')
+    if (
+      (snapshot.capability === 'ready' &&
+        (csrfToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(csrfToken))) ||
+      (snapshot.capability === 'unavailable' && csrfToken !== null)
+    ) {
+      throw new Error('Local API returned an invalid reply preview capability.')
+    }
+    if (request !== feishuReplyProposalStatusRequest) return
+    feishuReplyProposalStatus = snapshot
+    feishuReplyProposalCsrfToken = csrfToken ?? undefined
+  } catch (error) {
+    if (request !== feishuReplyProposalStatusRequest) return
+    feishuReplyProposalStatus = undefined
+    feishuReplyProposalCsrfToken = undefined
+    feishuReplyProposalStatusError =
+      error instanceof Error ? error.message : 'The local reply preview check failed.'
+  } finally {
+    if (request === feishuReplyProposalStatusRequest) {
+      feishuReplyProposalStatusLoading = false
+      render()
+    }
+  }
+}
+
 async function createModelDraft(): Promise<void> {
   const workItemId = selectedWorkItemId
   const csrfToken = modelDraftCsrfToken
-  if (workItemId === undefined || csrfToken === undefined || modelDraftCreating) return
+  if (
+    workItemId === undefined ||
+    csrfToken === undefined ||
+    modelDraftCreating ||
+    modelDraftEditing ||
+    feishuReplyProposalCreating
+  )
+    return
   modelDraftCreating = true
   modelDraftCreateError = undefined
   render()
@@ -767,6 +864,8 @@ async function createModelDraft(): Promise<void> {
     modelDraftEditError = undefined
     modelDraftEditorText = result.draft.content.text
     modelDraftCsrfToken = nextToken
+    feishuReplyProposalResult = undefined
+    feishuReplyProposalError = undefined
   } catch (error) {
     modelDraftCreateError =
       error instanceof Error ? error.message : 'The local model Draft request failed.'
@@ -780,7 +879,13 @@ async function editModelDraft(submitForReview: boolean): Promise<void> {
   const result = modelDraftResult
   const csrfToken = modelDraftCsrfToken
   const editor = document.querySelector<HTMLTextAreaElement>('[data-model-draft-text]')
-  if (result === undefined || csrfToken === undefined || editor === null || modelDraftEditing)
+  if (
+    result === undefined ||
+    csrfToken === undefined ||
+    editor === null ||
+    modelDraftEditing ||
+    feishuReplyProposalCreating
+  )
     return
   let request: ReturnType<typeof parseModelDraftEditRequest>
   try {
@@ -828,11 +933,85 @@ async function editModelDraft(submitForReview: boolean): Promise<void> {
     modelDraftResult = snapshot
     modelDraftEditorText = snapshot.draft.content.text
     modelDraftCsrfToken = nextToken
+    feishuReplyProposalResult = undefined
+    feishuReplyProposalError = undefined
   } catch (error) {
     const message = error instanceof Error ? error.message : 'The local Draft edit failed.'
     modelDraftEditError = `${message} Refresh or retry the same edit before making another revision.`
   } finally {
     modelDraftEditing = false
+    render()
+  }
+}
+
+async function createFeishuReplyProposal(): Promise<void> {
+  const draft = modelDraftResult?.draft
+  const csrfToken = feishuReplyProposalCsrfToken
+  if (
+    draft === undefined ||
+    draft.state !== 'ready_for_review' ||
+    draft.content.mediaType !== 'text/plain' ||
+    feishuReplyProposalStatus?.capability !== 'ready' ||
+    csrfToken === undefined ||
+    modelDraftCreating ||
+    modelDraftEditing ||
+    feishuReplyProposalCreating
+  ) {
+    return
+  }
+  if ((modelDraftEditorText ?? draft.content.text) !== draft.content.text) {
+    feishuReplyProposalError =
+      'Save the local edit and mark that exact revision ready for review first.'
+    render()
+    return
+  }
+  let request: ReturnType<typeof parseFeishuReplyProposalCreateRequest>
+  try {
+    request = parseFeishuReplyProposalCreateRequest({
+      version: 1,
+      workItemId: draft.workItemId,
+      draftRevision: draft.revision,
+    })
+  } catch (error) {
+    feishuReplyProposalError =
+      error instanceof Error ? error.message : 'The local reply preview request is invalid.'
+    render()
+    return
+  }
+  feishuReplyProposalCreating = true
+  feishuReplyProposalError = undefined
+  render()
+  try {
+    const response = await fetch('/api/action-proposals/feishu-reply/create', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'x-twindesk-action-proposal-csrf-token': csrfToken,
+      },
+      body: JSON.stringify(request),
+    })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseFeishuReplyProposalSnapshot(await response.json())
+    if (
+      snapshot.proposal.workItemId !== request.workItemId ||
+      snapshot.proposal.draftRevision !== request.draftRevision ||
+      snapshot.proposal.content.mediaType !== draft.content.mediaType ||
+      snapshot.proposal.content.text !== draft.content.text
+    ) {
+      throw new Error('Local API returned a reply preview for another Draft.')
+    }
+    const nextToken = response.headers.get('x-twindesk-action-proposal-csrf-token')
+    if (nextToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(nextToken)) {
+      throw new Error('Local API returned an invalid reply preview capability.')
+    }
+    feishuReplyProposalResult = snapshot
+    feishuReplyProposalCsrfToken = nextToken
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'The local reply preview failed.'
+    feishuReplyProposalError = `${message} Refresh or retry the exact Draft before editing it again.`
+  } finally {
+    feishuReplyProposalCreating = false
     render()
   }
 }
@@ -1355,6 +1534,7 @@ function renderRouteAndLoad(): void {
   if (route.id === 'inbox') {
     void loadInbox(activeInboxState)
     void loadModelDraftStatus()
+    void loadFeishuReplyProposalStatus()
   }
   if (route.id === 'audit') void loadAudit()
   if (route.id === 'connectors') {
@@ -1392,6 +1572,8 @@ document.addEventListener('click', (event) => {
     modelDraftCreateError = undefined
     modelDraftEditError = undefined
     modelDraftEditorText = undefined
+    feishuReplyProposalResult = undefined
+    feishuReplyProposalError = undefined
     render()
     return
   }
@@ -1405,6 +1587,10 @@ document.addEventListener('click', (event) => {
   }
   if (target.closest('[data-model-draft-review]') !== null) {
     void editModelDraft(true)
+    return
+  }
+  if (target.closest('[data-feishu-reply-proposal-create]') !== null) {
+    void createFeishuReplyProposal()
     return
   }
   if (target.closest('[data-inbox-retry]') !== null) void loadInbox(activeInboxState)
@@ -1466,6 +1652,22 @@ document.addEventListener('input', (event) => {
   const target = event.target
   if (target instanceof HTMLTextAreaElement && target.matches('[data-model-draft-text]')) {
     modelDraftEditorText = target.value
+    const proposalButton = document.querySelector<HTMLButtonElement>(
+      '[data-feishu-reply-proposal-create]',
+    )
+    if (proposalButton !== null) {
+      const draft = modelDraftResult?.draft
+      proposalButton.disabled =
+        draft === undefined ||
+        draft.state !== 'ready_for_review' ||
+        draft.content.mediaType !== 'text/plain' ||
+        target.value !== draft.content.text ||
+        feishuReplyProposalStatus?.capability !== 'ready' ||
+        feishuReplyProposalCsrfToken === undefined ||
+        modelDraftCreating ||
+        modelDraftEditing ||
+        feishuReplyProposalCreating
+    }
   }
 })
 document.addEventListener('submit', (event) => {

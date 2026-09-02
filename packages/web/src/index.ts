@@ -19,6 +19,15 @@ export {
   type FeishuReauthorizationSnapshot,
 } from './feishu-reauthorization-contract.ts'
 export {
+  parseFeishuReplyProposalCreateRequest,
+  parseFeishuReplyProposalSnapshot,
+  parseFeishuReplyProposalStatusSnapshot,
+  type FeishuReplyProposalCapability,
+  type FeishuReplyProposalCreateRequest,
+  type FeishuReplyProposalSnapshot,
+  type FeishuReplyProposalStatusSnapshot,
+} from './feishu-reply-proposal-contract.ts'
+export {
   parseModelDraftCreateRequest,
   parseModelDraftCreateSnapshot,
   parseModelDraftEditRequest,

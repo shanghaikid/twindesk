@@ -629,6 +629,7 @@ test('closed database handles reject every Draft and ActionProposal operation', 
   const operations = [
     () => database.createDraft(firstDraft),
     () => database.getDraft(firstDraft.id),
+    () => database.getDraftByWorkItemRevision(firstDraft.workItemId, firstDraft.revision),
     () =>
       database.transitionDraft(
         draftTransition(

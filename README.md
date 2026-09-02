@@ -122,7 +122,7 @@ explicit shared-event, cursor, deletion-receipt, and Harness Session retention
 behavior. The Audit page shows four synthetic routing records plus two
 deterministic Persona Draft records. The fixture flow reaches `ready_for_review`
 across restart with no model call, approval, Connector execution, or external
-write. Exact proposal/approval UI, approval decisions, product-composed
+write. Exact approval UI, approval decisions, product-composed
 secret-store resolution, user-created Personas, and hosted Connector
 subscriptions are not implemented. A Host-controlled model-Draft entry covers initial generation
 synthetically. The standalone `web:start` launcher remains unavailable by
@@ -131,6 +131,10 @@ configured model route through a disposable Cordis lifecycle. Credential health
 and live generation are not yet proven. The Profile-owned Inbox can preserve
 the model output, create user-edited revisions, and mark a Draft
 `ready_for_review` without granting approval or write authority.
+For a persisted Feishu Work Item, the Inbox can now turn that exact Draft into
+a restart-safe User-identity reply preview. The Host selects the configured
+account and latest unique message target; the page displays account, identity,
+target, risk, and exact content while keeping approval and execution unavailable.
 Stage 2 identity configuration now distinguishes Feishu Bot application
 credentials from User OAuth credentials and persists only opaque secret
 references. The Feishu plugin now verifies and decrypts Bot direct-message and
@@ -234,7 +238,7 @@ entry. The standalone launcher correctly reports its Agent Runtime as
 unavailable, while `profile:start` injects the pinned Harness runner and
 Host-selected route. Stage 2 is not
 declared complete: hosted ingestion or polling, remaining Connector lifecycle
-wiring, production provider activation, interactive Draft/approval UI, and a
+wiring, production provider activation, exact approval UI, and a
 live-account send remain unimplemented.
 Versioned domain records and the product-owned Connector contract are
 implemented. The pinned Harness Profile,

@@ -49,6 +49,8 @@ Synthetic tests cover atomic revision creation, state transition, exact replay,
 cold restart, Audit interruption and repair, same-origin CSRF, forged fields,
 bounded browser contracts, and the absence of another model invocation.
 
-`ready_for_review` is not approval. Exact proposal preview, approval request and
-decision UI, execution confirmation, credential-healthy provider acceptance,
+`ready_for_review` is not approval. Exact Feishu User reply preview is now a
+separate product action documented in
+[Workbench Feishu Reply Proposal UI](WORKBENCH_FEISHU_REPLY_PROPOSAL_UI.md).
+Approval request and decision UI, execution confirmation, credential-healthy provider acceptance,
 Connector polling, and live Feishu delivery remain separate Stage 2 work.

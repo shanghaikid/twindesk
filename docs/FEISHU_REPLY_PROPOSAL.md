@@ -79,12 +79,23 @@ policies. Credentials and SecretReference locators are never accepted by this
 boundary. The proposal ID and idempotency key contain hashes only, not message,
 Draft, Work Item, principal, or content values.
 
+## Product Integration
+
+The Workbench composition now resolves one exact `ready_for_review` Draft by
+Work Item and revision, reads the configured Feishu User identity, selects the
+latest unique timestamped Feishu message reference from the durable Thread,
+invokes `propose`, and persists the result. The Inbox displays the exact
+account, identity label and type, target, risk, Draft revision, and content.
+The browser cannot supply any of those bound values.
+
+The product operation uses a configuration-, Draft-, and target-bound stable
+nonce. Exact retry therefore recovers the same proposal after restart and can
+repair a missing content-free user Audit record without creating another
+preview. See
+[Workbench Feishu Reply Proposal UI](WORKBENCH_FEISHU_REPLY_PROPOSAL_UI.md).
+
 ## Remaining Integration Work
 
-- Draft generation/editing and the product detail UI are not implemented by
-  this boundary.
-- A composed Feishu Connector and Work Hub service still need to retrieve the
-  current Thread target, invoke `propose`, and persist the returned proposal.
 - TD-206 now binds one-time approval to the exact proposal identity, target,
   content digest, responder, and expiration.
 - TD-207 now defines and tests the credential-resolving client contract,
@@ -103,3 +114,7 @@ missing Draft rejection, unsupported content, identity spoofing, hostile
 accessors, and payload-free errors. Existing Draft/ActionProposal storage tests
 continue to cover stale or mismatched Drafts and targets, exact replay,
 interrupted persistence, and forbidden approval/execution transitions.
+The Workbench controller and Web tests additionally cover Host-owned target and
+User identity selection, same-origin CSRF, restart replay, Audit recovery,
+forged authority fields, cancellation, and the absence of approval or receipt
+rows.

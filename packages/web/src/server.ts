@@ -24,6 +24,11 @@ import { parseFeishuOAuthRecoverySnapshot } from './feishu-oauth-recovery-contra
 import { parseFeishuOAuthReconciliationSnapshot } from './feishu-oauth-reconciliation-contract.ts'
 import { parseFeishuReauthorizationSnapshot } from './feishu-reauthorization-contract.ts'
 import {
+  parseFeishuReplyProposalCreateRequest,
+  parseFeishuReplyProposalSnapshot,
+  parseFeishuReplyProposalStatusSnapshot,
+} from './feishu-reply-proposal-contract.ts'
+import {
   parseModelDraftCreateRequest,
   parseModelDraftCreateSnapshot,
   parseModelDraftEditRequest,
@@ -50,6 +55,10 @@ const ASSETS = new Map([
   [
     '/feishu-reauthorization-contract.js',
     { file: 'feishu-reauthorization-contract.js', type: 'text/javascript; charset=utf-8' },
+  ],
+  [
+    '/feishu-reply-proposal-contract.js',
+    { file: 'feishu-reply-proposal-contract.js', type: 'text/javascript; charset=utf-8' },
   ],
   [
     '/feishu-settings-contract.js',
@@ -79,8 +88,10 @@ const FEISHU_SETTINGS_BODY_MAX_BYTES = 16 * 1024
 const FEISHU_CLIENT_SECRET_MAX_BYTES = 512
 const MODEL_DRAFT_BODY_MAX_BYTES = 1_024
 const MODEL_DRAFT_EDIT_BODY_MAX_BYTES = 66 * 1_024
+const FEISHU_REPLY_PROPOSAL_BODY_MAX_BYTES = 1_024
 const FEISHU_SETTINGS_CSRF_HEADER = 'x-twindesk-csrf-token'
 const MODEL_DRAFT_CSRF_HEADER = 'x-twindesk-model-draft-csrf-token'
+const FEISHU_REPLY_PROPOSAL_CSRF_HEADER = 'x-twindesk-action-proposal-csrf-token'
 const FEISHU_USER_IDENTITY_CREATION_HEADER = 'x-twindesk-user-identity-creation'
 const FEISHU_OAUTH_RECONCILIATION_HEADER = 'x-twindesk-oauth-reconciliation'
 const UTF8_DECODER = new TextDecoder('utf-8', { fatal: true })
@@ -125,6 +136,11 @@ export interface TwinDeskWebServerOptions {
     create(workItemId: string, signal: AbortSignal): Promise<unknown>
     edit?(request: unknown, signal: AbortSignal): Promise<unknown>
   }
+  /** Host-controlled exact Feishu User reply preview; it cannot approve or execute. */
+  readonly feishuReplyProposal?: {
+    read(): Promise<unknown> | unknown
+    create(request: unknown, signal: AbortSignal): Promise<unknown>
+  }
 }
 
 type FeishuSettingsService = NonNullable<TwinDeskWebServerOptions['feishuSettings']>
@@ -136,6 +152,43 @@ type FeishuOAuthReconciliationService = NonNullable<
 >
 type FeishuReauthorizationService = NonNullable<TwinDeskWebServerOptions['feishuReauthorization']>
 type ModelDraftService = NonNullable<TwinDeskWebServerOptions['modelDraft']>
+type FeishuReplyProposalService = NonNullable<TwinDeskWebServerOptions['feishuReplyProposal']>
+
+function normalizeFeishuReplyProposalService(
+  value: unknown,
+): FeishuReplyProposalService | undefined {
+  if (value === undefined) return undefined
+  try {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError()
+    const prototype = Object.getPrototypeOf(value) as unknown
+    const descriptors = Object.getOwnPropertyDescriptors(value)
+    const keys = ['read', 'create']
+    if (
+      (prototype !== Object.prototype && prototype !== null) ||
+      Object.getOwnPropertySymbols(value).length !== 0 ||
+      Object.keys(descriptors).length !== keys.length ||
+      keys.some((key) => !Object.hasOwn(descriptors, key)) ||
+      Object.values(descriptors).some(
+        (descriptor) =>
+          !Object.hasOwn(descriptor, 'value') || typeof descriptor.value !== 'function',
+      )
+    ) {
+      throw new TypeError()
+    }
+    const read = descriptors.read?.value as () => unknown
+    const create = descriptors.create?.value as (
+      request: unknown,
+      signal: AbortSignal,
+    ) => Promise<unknown>
+    return Object.freeze({
+      read: () => Promise.resolve(Reflect.apply(read, value, [])),
+      create: (request: unknown, signal: AbortSignal) =>
+        Reflect.apply(create, value, [request, signal]),
+    })
+  } catch {
+    throw new TypeError('TwinDesk Web Feishu reply proposal service is invalid.')
+  }
+}
 
 function normalizeModelDraftService(value: unknown): ModelDraftService | undefined {
   if (value === undefined) return undefined
@@ -1382,6 +1435,143 @@ async function serveModelDraftEditApi(
   }
 }
 
+async function serveFeishuReplyProposalStatusApi(
+  response: ServerResponse,
+  requestUrl: URL,
+  headOnly: boolean,
+  service: FeishuReplyProposalService | undefined,
+  csrfToken: string,
+): Promise<void> {
+  if (requestUrl.search.length > 0) {
+    send(
+      response,
+      400,
+      headOnly ? '' : 'Invalid reply preview query.\n',
+      'text/plain; charset=utf-8',
+    )
+    return
+  }
+  if (service === undefined) {
+    const body = JSON.stringify({
+      version: 1,
+      capability: 'unavailable',
+      actionType: 'feishu.reply',
+    })
+    response.writeHead(200, {
+      ...commonHeaders('application/json; charset=utf-8'),
+      'content-length': String(Buffer.byteLength(body)),
+    })
+    response.end(headOnly ? undefined : body)
+    return
+  }
+  let snapshot: ReturnType<typeof parseFeishuReplyProposalStatusSnapshot>
+  try {
+    snapshot = parseFeishuReplyProposalStatusSnapshot(await service.read())
+  } catch {
+    send(response, 503, headOnly ? '' : 'Reply preview unavailable.\n', 'text/plain; charset=utf-8')
+    return
+  }
+  const body = JSON.stringify(snapshot)
+  response.writeHead(200, {
+    ...commonHeaders('application/json; charset=utf-8'),
+    'content-length': String(Buffer.byteLength(body)),
+    ...(snapshot.capability === 'ready' ? { [FEISHU_REPLY_PROPOSAL_CSRF_HEADER]: csrfToken } : {}),
+  })
+  response.end(headOnly ? undefined : body)
+}
+
+async function serveFeishuReplyProposalCreateApi(
+  request: IncomingMessage,
+  response: ServerResponse,
+  requestUrl: URL,
+  service: FeishuReplyProposalService | undefined,
+  expectedOrigin: string,
+  csrfToken: string,
+  activeControllers: Set<AbortController>,
+): Promise<void> {
+  if (requestUrl.search.length > 0) {
+    request.resume()
+    send(response, 400, 'Invalid reply preview request.\n', 'text/plain; charset=utf-8')
+    return
+  }
+  try {
+    assertLocalWriteHeaders(
+      request,
+      expectedOrigin,
+      csrfToken,
+      'application/json',
+      FEISHU_REPLY_PROPOSAL_BODY_MAX_BYTES,
+      FEISHU_REPLY_PROPOSAL_CSRF_HEADER,
+    )
+  } catch (error) {
+    request.resume()
+    const status = error instanceof FeishuSettingsRequestError ? error.status : 403
+    const message =
+      status === 403
+        ? 'Reply preview request forbidden.\n'
+        : status === 413
+          ? 'Reply preview request too large.\n'
+          : status === 415
+            ? 'Reply preview content type unsupported.\n'
+            : 'Invalid reply preview request.\n'
+    send(response, status, message, 'text/plain; charset=utf-8')
+    return
+  }
+  if (service === undefined) {
+    request.resume()
+    send(response, 503, 'Reply preview unavailable.\n', 'text/plain; charset=utf-8')
+    return
+  }
+  let create: ReturnType<typeof parseFeishuReplyProposalCreateRequest>
+  try {
+    const body = await readBoundedBody(request, FEISHU_REPLY_PROPOSAL_BODY_MAX_BYTES)
+    try {
+      create = parseFeishuReplyProposalCreateRequest(
+        JSON.parse(UTF8_DECODER.decode(body)) as unknown,
+      )
+    } finally {
+      body.fill(0)
+    }
+  } catch (error) {
+    if (!request.complete) request.resume()
+    const status = error instanceof FeishuSettingsRequestError ? error.status : 400
+    send(
+      response,
+      status,
+      status === 413 ? 'Reply preview request too large.\n' : 'Invalid reply preview request.\n',
+      'text/plain; charset=utf-8',
+    )
+    return
+  }
+  const controller = new AbortController()
+  const abort = (): void => controller.abort()
+  activeControllers.add(controller)
+  request.once('aborted', abort)
+  try {
+    const snapshot = parseFeishuReplyProposalSnapshot(
+      await service.create(create, controller.signal),
+    )
+    if (
+      snapshot.proposal.workItemId !== create.workItemId ||
+      snapshot.proposal.draftRevision !== create.draftRevision
+    ) {
+      throw new TypeError()
+    }
+    const body = JSON.stringify(snapshot)
+    response.writeHead(200, {
+      ...commonHeaders('application/json; charset=utf-8'),
+      'content-length': String(Buffer.byteLength(body)),
+      [FEISHU_REPLY_PROPOSAL_CSRF_HEADER]: csrfToken,
+    })
+    response.end(body)
+  } catch {
+    send(response, 503, 'Reply preview unavailable.\n', 'text/plain; charset=utf-8')
+  } finally {
+    request.off('aborted', abort)
+    activeControllers.delete(controller)
+  }
+}
+
 async function serveAsset(
   response: ServerResponse,
   pathname: string,
@@ -1444,6 +1634,7 @@ export async function startTwinDeskWebServer(
   )
   const feishuReauthorization = normalizeFeishuReauthorizationService(options.feishuReauthorization)
   const modelDraft = normalizeModelDraftService(options.modelDraft)
+  const feishuReplyProposal = normalizeFeishuReplyProposalService(options.feishuReplyProposal)
 
   const inboxOptions = { includeAudit: true, includeDraftFlow: true }
   const inbox =
@@ -1454,8 +1645,10 @@ export async function startTwinDeskWebServer(
   const reauthorizationCsrfToken = randomBytes(32).toString('base64url')
   const reconciliationCsrfToken = randomBytes(32).toString('base64url')
   const modelDraftCsrfToken = randomBytes(32).toString('base64url')
+  const feishuReplyProposalCsrfToken = randomBytes(32).toString('base64url')
   const activeReconciliationControllers = new Set<AbortController>()
   const activeModelDraftControllers = new Set<AbortController>()
+  const activeFeishuReplyProposalControllers = new Set<AbortController>()
   let boundOrigin: string | undefined
 
   const server = createServer((request, response) => {
@@ -1479,6 +1672,8 @@ export async function startTwinDeskWebServer(
       const modelDraftCreate =
         method === 'POST' && requestUrl.pathname === '/api/model-drafts/create'
       const modelDraftEdit = method === 'POST' && requestUrl.pathname === '/api/model-drafts/edit'
+      const feishuReplyProposalCreate =
+        method === 'POST' && requestUrl.pathname === '/api/action-proposals/feishu-reply/create'
       const supportedMutation =
         oauthSettingsUpdate ||
         userIdentityCreate ||
@@ -1488,7 +1683,8 @@ export async function startTwinDeskWebServer(
         reauthorizationCancel ||
         oauthReconciliation ||
         modelDraftCreate ||
-        modelDraftEdit
+        modelDraftEdit ||
+        feishuReplyProposalCreate
       if (method !== 'GET' && method !== 'HEAD' && !supportedMutation) {
         response.setHeader(
           'allow',
@@ -1507,7 +1703,9 @@ export async function startTwinDeskWebServer(
                     : requestUrl.pathname === '/api/model-drafts/create' ||
                         requestUrl.pathname === '/api/model-drafts/edit'
                       ? 'POST'
-                      : 'GET, HEAD',
+                      : requestUrl.pathname === '/api/action-proposals/feishu-reply/create'
+                        ? 'POST'
+                        : 'GET, HEAD',
         )
         send(response, 405, 'Method not allowed.\n', 'text/plain; charset=utf-8')
         return
@@ -1594,6 +1792,19 @@ export async function startTwinDeskWebServer(
         )
         return
       }
+      if (feishuReplyProposalCreate) {
+        if (boundOrigin === undefined) throw new Error('TwinDesk Web origin is unavailable')
+        await serveFeishuReplyProposalCreateApi(
+          request,
+          response,
+          requestUrl,
+          feishuReplyProposal,
+          boundOrigin,
+          feishuReplyProposalCsrfToken,
+          activeFeishuReplyProposalControllers,
+        )
+        return
+      }
       if (requestUrl.pathname === '/health') {
         const body = JSON.stringify({ service: 'twindesk-web', status: 'ok', version: 1 })
         send(response, 200, method === 'HEAD' ? '' : body, 'application/json; charset=utf-8')
@@ -1614,6 +1825,16 @@ export async function startTwinDeskWebServer(
           method === 'HEAD',
           modelDraft,
           modelDraftCsrfToken,
+        )
+        return
+      }
+      if (requestUrl.pathname === '/api/action-proposals/feishu-reply') {
+        await serveFeishuReplyProposalStatusApi(
+          response,
+          requestUrl,
+          method === 'HEAD',
+          feishuReplyProposal,
+          feishuReplyProposalCsrfToken,
         )
         return
       }
@@ -1709,6 +1930,7 @@ export async function startTwinDeskWebServer(
         try {
           for (const controller of activeReconciliationControllers) controller.abort()
           for (const controller of activeModelDraftControllers) controller.abort()
+          for (const controller of activeFeishuReplyProposalControllers) controller.abort()
           try {
             await feishuAuthorization?.cancel()
           } catch {

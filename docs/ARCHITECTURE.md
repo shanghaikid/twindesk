@@ -331,10 +331,11 @@ action. Cordis activation remains open. See
 exit remains open until the
 production runtime hosts ingestion, polling, and credential-recovery
 lifecycles, binds the Workbench model-Draft product entry to a credential-healthy
-Harness provider, and passes product proposal/approval UI and
+Harness provider, and passes product approval UI and
 live-account acceptance boundaries. See
 [Workbench Feishu OAuth Reauthorization Runtime](WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_RUNTIME.md)
-and [Stage 2 Exit Gate](STAGE_2_EXIT_GATE.md).
+[Workbench Feishu Reply Proposal UI](WORKBENCH_FEISHU_REPLY_PROPOSAL_UI.md), and
+[Stage 2 Exit Gate](STAGE_2_EXIT_GATE.md).
 
 The model-Draft product entry keeps runtime selection on the Host side. Web
 submits only a bounded opaque Work Item ID; Workbench resolves the durable Work

@@ -70,6 +70,18 @@ test('Workbench hosts default-path Feishu Settings in the product Web shell', as
         appMatchesIdentity: true,
       },
     })
+    const replyPreview = await fetch(`${running.url}/api/action-proposals/feishu-reply`, {
+      headers: { connection: 'close' },
+    })
+    assert.deepEqual(await replyPreview.json(), {
+      version: 1,
+      capability: 'ready',
+      actionType: 'feishu.reply',
+    })
+    assert.match(
+      replyPreview.headers.get('x-twindesk-action-proposal-csrf-token') ?? '',
+      /^[A-Za-z0-9_-]{43}$/u,
+    )
     const authorization = await fetch(`${running.url}/api/authorization/feishu`, {
       headers: { connection: 'close' },
     })
@@ -345,6 +357,9 @@ test('Workbench Web bootstraps a User identity from empty Settings and recovers 
       identities: ['user'],
       oauth: null,
     })
+    const replyPreview = await fetch(`${running.url}/api/action-proposals/feishu-reply`)
+    assert.equal((await replyPreview.json()).capability, 'ready')
+    assert.ok(replyPreview.headers.get('x-twindesk-action-proposal-csrf-token') !== null)
   } finally {
     await running.close()
   }

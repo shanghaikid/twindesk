@@ -17,6 +17,7 @@ import {
   type DraftContent,
   type DraftId,
   type DraftStateTransition,
+  type WorkItemId,
 } from '@twindesk/domain'
 
 export type DraftActionStateErrorCode =
@@ -395,6 +396,20 @@ export function computeDraftContentDigest(content: DraftContent): ContentDigest 
 export function readDraft(database: DatabaseSync, id: DraftId): Draft | undefined {
   const row = database.prepare(`SELECT ${DRAFT_COLUMNS} FROM drafts WHERE id = ?`).get(id) as
     DraftRow | undefined
+  return row === undefined ? undefined : parseStoredDraft(row)
+}
+
+export function readDraftByWorkItemRevision(
+  database: DatabaseSync,
+  workItemId: WorkItemId,
+  revision: number,
+): Draft | undefined {
+  if (!Number.isSafeInteger(revision) || revision < 1) {
+    throw new DraftActionStateError('invalid_request', 'The Draft revision is invalid.')
+  }
+  const row = database
+    .prepare(`SELECT ${DRAFT_COLUMNS} FROM drafts WHERE work_item_id = ? AND revision = ?`)
+    .get(workItemId, revision) as DraftRow | undefined
   return row === undefined ? undefined : parseStoredDraft(row)
 }
 
