@@ -10,9 +10,13 @@ import {
   FeishuIdentityConfigurationStore,
   FeishuMessageNormalizer,
 } from '../packages/plugin-feishu/dist/index.js'
-import { openTwinDeskDatabase } from '../packages/storage-sqlite/dist/index.js'
+import {
+  computeApprovalExecutionAttemptId,
+  openTwinDeskDatabase,
+} from '../packages/storage-sqlite/dist/index.js'
 import {
   createWorkbenchFeishuReplyApprovalController,
+  createWorkbenchFeishuReplyExecutionController,
   createWorkbenchFeishuReplyProposalController,
   WorkbenchFeishuReplyApprovalError,
   WorkbenchFeishuReplyProposalError,
@@ -391,6 +395,125 @@ test('Workbench requests and grants exact one-time approval across restart witho
   assert.equal(inspection.prepare('SELECT count(*) AS count FROM action_receipts').get()?.count, 0)
   assert.equal(inspection.prepare('SELECT count(*) AS count FROM audit_records').get()?.count, 3)
   inspection.close()
+})
+
+test('Workbench executes only the exact approved reply through Host-owned identities', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'twindesk-workbench-reply-execution-'))
+  context.after(() => rm(root, { recursive: true, force: true }))
+  let nowMs = Date.parse('2026-09-02T09:04:00.000Z')
+  const database = openTwinDeskDatabase(join(root, 'twindesk.sqlite3'), { now: () => nowMs })
+  context.after(() => database.close())
+  const identityStore = new FeishuIdentityConfigurationStore(join(root, 'identity.json'))
+  await identityStore.write(configuration())
+  const { workItem } = seedReadyDraft(database)
+  const proposalController = createWorkbenchFeishuReplyProposalController({
+    database,
+    identityStore,
+    now: () => nowMs,
+  })
+  const request = { version: /** @type {const} */ (1), workItemId: workItem.id, draftRevision: 1 }
+  await proposalController.create(request, new AbortController().signal)
+  const approvalController = createWorkbenchFeishuReplyApprovalController({
+    database,
+    proposalController,
+    now: () => nowMs,
+  })
+  nowMs = Date.parse('2026-09-02T09:05:00.000Z')
+  await approvalController.request(request, new AbortController().signal)
+
+  let hostCalls = 0
+  let returnInvalidAttemptId = true
+  /** @type {any} */
+  let lastHostRequest
+  const controller = createWorkbenchFeishuReplyExecutionController({
+    database,
+    identityStore,
+    proposalController,
+    createHost(executionConfiguration) {
+      assert.equal(executionConfiguration.bot, undefined)
+      assert.equal(executionConfiguration.user?.principalId, USER_PRINCIPAL)
+      return /** @type {any} */ ({
+        /** @param {any} hostRequest @param {AbortSignal} signal */
+        async execute(hostRequest, signal) {
+          signal.throwIfAborted()
+          hostCalls += 1
+          lastHostRequest = hostRequest
+          const proposal = database.getActionProposal(/** @type {any} */ (hostRequest).proposalId)
+          assert.ok(proposal)
+          return {
+            kind: 'work_hub_action_execution_result',
+            schemaVersion: 1,
+            executionAttemptId: returnInvalidAttemptId
+              ? 'invalid-attempt'
+              : computeApprovalExecutionAttemptId(hostRequest.approvalId),
+            source: 'executed',
+            receipt: {
+              proposalId: proposal.id,
+              connectorId: 'feishu',
+              accountId: proposal.identity.accountId,
+              idempotencyKey: proposal.idempotencyKey,
+              outcome: 'succeeded',
+              attemptedAt: '2026-09-02T09:06:30.000Z',
+              externalReference: {
+                connectorId: 'feishu',
+                accountId: proposal.identity.accountId,
+                objectType: 'message',
+                externalId: 'om_synthetic_execution_result',
+                sourceTimestamp: '2026-09-02T09:06:31.000Z',
+              },
+            },
+            receiptDisposition: 'inserted',
+            auditInsertedCount: 2,
+            auditDuplicateCount: 0,
+          }
+        },
+      })
+    },
+  })
+  assert.deepEqual(await controller.read(), {
+    version: 1,
+    capability: 'ready',
+    actionType: 'feishu.reply',
+  })
+  await assert.rejects(controller.execute(request, new AbortController().signal), {
+    code: 'approval_unavailable',
+  })
+  await approvalController.decide(
+    { ...request, decision: 'approved' },
+    new AbortController().signal,
+  )
+  await assert.rejects(controller.execute(request, new AbortController().signal), {
+    code: 'execution_unavailable',
+  })
+  returnInvalidAttemptId = false
+  const result = /** @type {any} */ (
+    await controller.execute(request, new AbortController().signal)
+  )
+  assert.equal(hostCalls, 2)
+  assert.equal(lastHostRequest.kind, 'work_hub_action_execution_request')
+  assert.equal(lastHostRequest.schemaVersion, 1)
+  assert.match(lastHostRequest.approvalId, /^approval-feishu-reply-/u)
+  assert.match(lastHostRequest.proposalId, /^proposal-feishu-reply-/u)
+  assert.equal(result.execution.outcome, 'succeeded')
+  assert.equal(result.execution.externalReference.externalId, 'om_synthetic_execution_result')
+  assert.equal(result.proposal.identity.displayName, 'Synthetic Preview User')
+  assert.equal(result.proposal.target.externalId, MESSAGE_ID)
+  assert.equal(
+    result.proposal.content.text,
+    'The synthetic rollout can proceed after the final health check.',
+  )
+  assert.doesNotMatch(
+    JSON.stringify(result),
+    /approvalId|proposalId|idempotency|execution-attempt|secret-ref/u,
+  )
+  await assert.rejects(
+    controller.execute(
+      /** @type {any} */ ({ ...request, approvalId: 'forged' }),
+      new AbortController().signal,
+    ),
+    { code: 'invalid_request' },
+  )
+  assert.equal(hostCalls, 2)
 })
 
 for (const decision of /** @type {const} */ (['rejected', 'cancelled', 'expired'])) {

@@ -56,6 +56,9 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [One-Time Action Approval Policy](docs/ACTION_APPROVAL_POLICY.md): exact identity/target/content binding, expiration, responder decisions, one-time consumption, and execution separation.
 - [Work Hub Action Execution Host](docs/ACTION_EXECUTION_HOST.md): exclusive-operation approval consumption, durable dispatch and receipt ordering, and no-resend Audit recovery.
 - [Workbench Feishu Reply Runtime](docs/WORKBENCH_FEISHU_REPLY_RUNTIME.md): production-shaped binding of the durable Host operation, real runtime lease, and concrete Feishu reply stack.
+- [Workbench Feishu Reply Proposal UI](docs/WORKBENCH_FEISHU_REPLY_PROPOSAL_UI.md): exact Host-derived User reply preview with no approval or execution authority.
+- [Workbench Feishu Reply Approval UI](docs/WORKBENCH_FEISHU_REPLY_APPROVAL_UI.md): fixed-lifetime exact approval request and decision controls with content-free Audit.
+- [Workbench Feishu Reply Execution UI](docs/WORKBENCH_FEISHU_REPLY_EXECUTION_UI.md): separate external-write control, Host-only durable ID resolution, and minimized terminal or uncertain results.
 - [Feishu Reply Execution](docs/FEISHU_REPLY_EXECUTION.md): optional exact reconciliation, send-only durable dispatch safety, normalized receipts, restart recovery, and uncertain-result handling.
 - [Feishu Reply Execution Adapter](docs/FEISHU_REPLY_EXECUTION_ADAPTER.md): lease-held Bot/User scope, Keychain, token, and fixed HTTP composition with preflight-safe retry handling.
 - [Feishu Reply HTTP Client](docs/FEISHU_REPLY_HTTP_CLIENT.md): fixed-endpoint plain-text delivery, bounded responses, payload-free errors, and conservative post-send ambiguity.
@@ -122,7 +125,7 @@ explicit shared-event, cursor, deletion-receipt, and Harness Session retention
 behavior. The Audit page shows four synthetic routing records plus two
 deterministic Persona Draft records. The fixture flow reaches `ready_for_review`
 across restart with no model call, approval, Connector execution, or external
-write. Approved-action execution UI, product-composed secret-store resolution,
+write. Browser-refresh restoration of action cards, credential health,
 user-created Personas, and hosted Connector
 subscriptions are not implemented. A Host-controlled model-Draft entry covers initial generation
 synthetically. The standalone `web:start` launcher remains unavailable by
@@ -136,7 +139,9 @@ a restart-safe User-identity reply preview. The Host selects the configured
 account and latest unique message target; the page displays account, identity,
 target, risk, and exact content. It can then request a fixed 15-minute approval
 window and explicitly approve once, reject, or cancel while re-displaying those
-exact fields. Approval is persisted but not consumed, and execution remains unavailable.
+exact fields. A separate execution control then re-displays the exact action,
+consumes the approval once, and reports a minimized durable result; only that
+final click may send.
 Stage 2 identity configuration now distinguishes Feishu Bot application
 credentials from User OAuth credentials and persists only opaque secret
 references. The Feishu plugin now verifies and decrypts Bot direct-message and
@@ -240,8 +245,8 @@ entry. The standalone launcher correctly reports its Agent Runtime as
 unavailable, while `profile:start` injects the pinned Harness runner and
 Host-selected route. Stage 2 is not
 declared complete: hosted ingestion or polling, remaining Connector lifecycle
-wiring, production provider activation, approved-action execution UI, and a
-live-account send remain unimplemented.
+wiring, production provider activation, browser-refresh flow restoration, and
+a live-account send remain unimplemented.
 Versioned domain records and the product-owned Connector contract are
 implemented. The pinned Harness Profile,
 two draft-only Personas, JSONL restart recovery, and bounded Codex specialist

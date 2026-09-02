@@ -45,6 +45,13 @@ import {
   type FeishuReplyApprovalStatusSnapshot,
 } from './feishu-reply-approval-contract.ts'
 import {
+  parseFeishuReplyExecutionRequest,
+  parseFeishuReplyExecutionSnapshot,
+  parseFeishuReplyExecutionStatusSnapshot,
+  type FeishuReplyExecutionSnapshot,
+  type FeishuReplyExecutionStatusSnapshot,
+} from './feishu-reply-execution-contract.ts'
+import {
   parseFeishuReplyProposalCreateRequest,
   parseFeishuReplyProposalSnapshot,
   parseFeishuReplyProposalStatusSnapshot,
@@ -110,6 +117,14 @@ let feishuReplyApprovalStatusRequest = 0
 let feishuReplyApprovalBusy = false
 let feishuReplyApprovalError: string | undefined
 let feishuReplyApprovalResult: FeishuReplyApprovalSnapshot | undefined
+let feishuReplyExecutionStatus: FeishuReplyExecutionStatusSnapshot | undefined
+let feishuReplyExecutionCsrfToken: string | undefined
+let feishuReplyExecutionStatusLoading = false
+let feishuReplyExecutionStatusError: string | undefined
+let feishuReplyExecutionStatusRequest = 0
+let feishuReplyExecuting = false
+let feishuReplyExecutionError: string | undefined
+let feishuReplyExecutionResult: FeishuReplyExecutionSnapshot | undefined
 let auditSnapshot: AuditSnapshot | undefined
 let auditLoading = false
 let auditError: string | undefined
@@ -248,6 +263,18 @@ function workItemDetails(item: InboxItem | undefined): string {
   const replyApprovalLocksDraft =
     replyApproval?.approval.decision === 'pending' ||
     replyApproval?.approval.decision === 'approved'
+  const replyExecution =
+    feishuReplyExecutionResult?.proposal.workItemId === item.id
+      ? feishuReplyExecutionResult
+      : undefined
+  const canExecuteReply =
+    replyApproval?.approval.decision === 'approved' &&
+    feishuReplyExecutionStatus?.capability === 'ready' &&
+    feishuReplyExecutionCsrfToken !== undefined &&
+    !feishuReplyExecuting &&
+    (replyExecution === undefined ||
+      (replyExecution.execution.outcome === 'failed' &&
+        replyExecution.execution.retryDisposition === 'retry_same_key'))
   const canCreate =
     item.personaId !== undefined &&
     modelDraftStatus?.capability === 'ready' &&
@@ -319,8 +346,28 @@ function workItemDetails(item: InboxItem | undefined): string {
               : replyApproval.approval.decision === 'pending'
                 ? `Awaiting your decision until ${formatTimestamp(replyApproval.approval.expiresAt)}.`
                 : replyApproval.approval.decision === 'approved'
-                  ? 'Approved once. The authorization is stored but has not been consumed or sent.'
+                  ? replyExecution === undefined
+                    ? 'Approved once. The authorization is stored but has not been consumed or sent.'
+                    : `Approval consumed by the ${replyExecution.execution.outcome} execution attempt.`
                   : `Approval ${replyApproval.approval.decision}. No message was sent.`
+  const replyExecutionMessage =
+    replyApproval?.approval.decision !== 'approved'
+      ? 'Grant one-time approval before executing this external write.'
+      : feishuReplyExecutionStatusLoading
+        ? 'Checking the Feishu execution boundary…'
+        : feishuReplyExecutionStatusError !== undefined
+          ? feishuReplyExecutionStatusError
+          : feishuReplyExecutionStatus?.capability !== 'ready'
+            ? 'The Host-controlled Feishu execution boundary is unavailable.'
+            : replyExecution === undefined
+              ? 'This separate action will consume the approval once and send the exact content shown below.'
+              : replyExecution.execution.outcome === 'succeeded'
+                ? `Sent at ${formatTimestamp(replyExecution.execution.attemptedAt)}.`
+                : replyExecution.execution.outcome === 'uncertain'
+                  ? 'The external result is uncertain. TwinDesk will not send again automatically.'
+                  : replyExecution.execution.retryDisposition === 'retry_same_key'
+                    ? 'Feishu did not accept the prior attempt. You may retry with the same durable key.'
+                    : 'The reply failed with a terminal result and will not be retried.'
   return `<article class="detail-card">
     <div class="detail-title"><span class="badge">${escapeHtml(stateLabel(item.inboxState))}</span><h2>${escapeHtml(item.title)}</h2><p>${escapeHtml(item.summary)}</p></div>
     <dl class="detail-list">
@@ -366,7 +413,17 @@ function workItemDetails(item: InboxItem | undefined): string {
           : `<div class="draft-preview"><div><strong>${escapeHtml(replyApproval.proposal.identity.displayName)}</strong><span>${escapeHtml(replyApproval.approval.decision)} · expires ${escapeHtml(formatTimestamp(replyApproval.approval.expiresAt))}</span></div><dl class="detail-list"><div><dt>Account</dt><dd>${escapeHtml(replyApproval.proposal.identity.accountId)}</dd></div><div><dt>Identity</dt><dd>Feishu ${escapeHtml(replyApproval.proposal.identity.identityType)}</dd></div><div><dt>Target</dt><dd>${escapeHtml(replyApproval.proposal.target.externalId)} · ${escapeHtml(formatTimestamp(replyApproval.proposal.target.sourceTimestamp))}</dd></div><div><dt>Risk</dt><dd>${escapeHtml(replyApproval.proposal.risk)}</dd></div></dl><section class="proposal-content"><strong>Exact final content</strong><p>${escapeHtml(replyApproval.proposal.content.text)}</p></section><p>This decision does not execute or send the reply.</p></div>`
       }
     </section>
-    <div class="notice"><strong>Fixture only.</strong> This page reads local synthetic data and cannot perform an external write.</div>
+    <section class="draft-entry" aria-label="Feishu reply execution">
+      <div><h3>Execute approved reply</h3><p>${escapeHtml(replyExecutionMessage)}</p></div>
+      <button class="primary-button" type="button" data-feishu-reply-execute${canExecuteReply ? '' : ' disabled'}>${feishuReplyExecuting ? 'Sending…' : replyExecution?.execution.outcome === 'failed' ? 'Retry exact reply' : 'Send approved reply'}</button>
+      ${feishuReplyExecutionError === undefined ? '' : `<p class="form-message error" role="alert">${escapeHtml(feishuReplyExecutionError)}</p>`}
+      ${
+        replyApproval?.approval.decision !== 'approved'
+          ? ''
+          : `<div class="draft-preview"><div><strong>${escapeHtml(replyApproval.proposal.identity.displayName)}</strong><span>Feishu User · one-time approved</span></div><dl class="detail-list"><div><dt>Account</dt><dd>${escapeHtml(replyApproval.proposal.identity.accountId)}</dd></div><div><dt>Target</dt><dd>${escapeHtml(replyApproval.proposal.target.externalId)} · ${escapeHtml(formatTimestamp(replyApproval.proposal.target.sourceTimestamp))}</dd></div><div><dt>Risk</dt><dd>${escapeHtml(replyApproval.proposal.risk)}</dd></div></dl><section class="proposal-content"><strong>Exact final content</strong><p>${escapeHtml(replyApproval.proposal.content.text)}</p></section>${replyExecution === undefined ? '<p>This click performs the external write.</p>' : `<p>Outcome: ${escapeHtml(replyExecution.execution.outcome)}${replyExecution.execution.outcome === 'succeeded' ? ` · remote message ${escapeHtml(replyExecution.execution.externalReference.externalId)}` : ` · ${escapeHtml(replyExecution.execution.issue.message)}`}</p>`}</div>`
+      }
+    </section>
+    <div class="notice"><strong>Local-first.</strong> Drafting and approval remain separate; only the explicit execution action above may perform the exact external write.</div>
   </article>`
 }
 
@@ -936,6 +993,42 @@ async function loadFeishuReplyApprovalStatus(): Promise<void> {
   }
 }
 
+async function loadFeishuReplyExecutionStatus(): Promise<void> {
+  const request = ++feishuReplyExecutionStatusRequest
+  feishuReplyExecutionStatusLoading = true
+  feishuReplyExecutionStatusError = undefined
+  render()
+  try {
+    const response = await fetch('/api/action-executions/feishu-reply', {
+      headers: { accept: 'application/json' },
+    })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseFeishuReplyExecutionStatusSnapshot(await response.json())
+    const csrfToken = response.headers.get('x-twindesk-action-execution-csrf-token')
+    if (
+      (snapshot.capability === 'ready' &&
+        (csrfToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(csrfToken))) ||
+      (snapshot.capability === 'unavailable' && csrfToken !== null)
+    ) {
+      throw new Error('Local API returned an invalid reply execution capability.')
+    }
+    if (request !== feishuReplyExecutionStatusRequest) return
+    feishuReplyExecutionStatus = snapshot
+    feishuReplyExecutionCsrfToken = csrfToken ?? undefined
+  } catch (error) {
+    if (request !== feishuReplyExecutionStatusRequest) return
+    feishuReplyExecutionStatus = undefined
+    feishuReplyExecutionCsrfToken = undefined
+    feishuReplyExecutionStatusError =
+      error instanceof Error ? error.message : 'The local reply execution check failed.'
+  } finally {
+    if (request === feishuReplyExecutionStatusRequest) {
+      feishuReplyExecutionStatusLoading = false
+      render()
+    }
+  }
+}
+
 async function createModelDraft(): Promise<void> {
   const workItemId = selectedWorkItemId
   const csrfToken = modelDraftCsrfToken
@@ -980,6 +1073,8 @@ async function createModelDraft(): Promise<void> {
     feishuReplyProposalError = undefined
     feishuReplyApprovalResult = undefined
     feishuReplyApprovalError = undefined
+    feishuReplyExecutionResult = undefined
+    feishuReplyExecutionError = undefined
   } catch (error) {
     modelDraftCreateError =
       error instanceof Error ? error.message : 'The local model Draft request failed.'
@@ -1054,6 +1149,8 @@ async function editModelDraft(submitForReview: boolean): Promise<void> {
     feishuReplyProposalError = undefined
     feishuReplyApprovalResult = undefined
     feishuReplyApprovalError = undefined
+    feishuReplyExecutionResult = undefined
+    feishuReplyExecutionError = undefined
   } catch (error) {
     const message = error instanceof Error ? error.message : 'The local Draft edit failed.'
     modelDraftEditError = `${message} Refresh or retry the same edit before making another revision.`
@@ -1130,6 +1227,8 @@ async function createFeishuReplyProposal(): Promise<void> {
     feishuReplyProposalCsrfToken = nextToken
     feishuReplyApprovalResult = undefined
     feishuReplyApprovalError = undefined
+    feishuReplyExecutionResult = undefined
+    feishuReplyExecutionError = undefined
   } catch (error) {
     const message = error instanceof Error ? error.message : 'The local reply preview failed.'
     feishuReplyProposalError = `${message} Refresh or retry the exact Draft before editing it again.`
@@ -1210,11 +1309,81 @@ async function mutateFeishuReplyApproval(
     }
     feishuReplyApprovalResult = snapshot
     feishuReplyApprovalCsrfToken = nextToken
+    feishuReplyExecutionResult = undefined
+    feishuReplyExecutionError = undefined
   } catch (error) {
     const message = error instanceof Error ? error.message : 'The local reply approval failed.'
     feishuReplyApprovalError = `${message} Retry the same operation to recover its durable result.`
   } finally {
     feishuReplyApprovalBusy = false
+    render()
+  }
+}
+
+async function executeFeishuReply(): Promise<void> {
+  const approval = feishuReplyApprovalResult
+  const csrfToken = feishuReplyExecutionCsrfToken
+  if (
+    approval?.approval.decision !== 'approved' ||
+    csrfToken === undefined ||
+    feishuReplyExecutionStatus?.capability !== 'ready' ||
+    feishuReplyExecuting ||
+    (feishuReplyExecutionResult !== undefined &&
+      (feishuReplyExecutionResult.execution.outcome !== 'failed' ||
+        feishuReplyExecutionResult.execution.retryDisposition !== 'retry_same_key'))
+  ) {
+    return
+  }
+  let input: ReturnType<typeof parseFeishuReplyExecutionRequest>
+  try {
+    input = parseFeishuReplyExecutionRequest({
+      version: 1,
+      workItemId: approval.proposal.workItemId,
+      draftRevision: approval.proposal.draftRevision,
+    })
+  } catch (error) {
+    feishuReplyExecutionError =
+      error instanceof Error ? error.message : 'The local reply execution request is invalid.'
+    render()
+    return
+  }
+  feishuReplyExecuting = true
+  feishuReplyExecutionError = undefined
+  render()
+  try {
+    const response = await fetch('/api/action-executions/feishu-reply/execute', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'x-twindesk-action-execution-csrf-token': csrfToken,
+      },
+      body: JSON.stringify(input),
+    })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseFeishuReplyExecutionSnapshot(await response.json())
+    if (
+      snapshot.proposal.workItemId !== input.workItemId ||
+      snapshot.proposal.draftRevision !== input.draftRevision ||
+      snapshot.proposal.identity.accountId !== approval.proposal.identity.accountId ||
+      snapshot.proposal.identity.displayName !== approval.proposal.identity.displayName ||
+      snapshot.proposal.target.externalId !== approval.proposal.target.externalId ||
+      snapshot.proposal.target.sourceTimestamp !== approval.proposal.target.sourceTimestamp ||
+      snapshot.proposal.content.text !== approval.proposal.content.text
+    ) {
+      throw new Error('Local API returned execution for another approved reply.')
+    }
+    const nextToken = response.headers.get('x-twindesk-action-execution-csrf-token')
+    if (nextToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(nextToken)) {
+      throw new Error('Local API returned an invalid reply execution capability.')
+    }
+    feishuReplyExecutionResult = snapshot
+    feishuReplyExecutionCsrfToken = nextToken
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'The approved reply execution failed.'
+    feishuReplyExecutionError = `${message} Refresh local state before deciding whether recovery is needed.`
+  } finally {
+    feishuReplyExecuting = false
     render()
   }
 }
@@ -1739,6 +1908,7 @@ function renderRouteAndLoad(): void {
     void loadModelDraftStatus()
     void loadFeishuReplyProposalStatus()
     void loadFeishuReplyApprovalStatus()
+    void loadFeishuReplyExecutionStatus()
   }
   if (route.id === 'audit') void loadAudit()
   if (route.id === 'connectors') {
@@ -1780,6 +1950,8 @@ document.addEventListener('click', (event) => {
     feishuReplyProposalError = undefined
     feishuReplyApprovalResult = undefined
     feishuReplyApprovalError = undefined
+    feishuReplyExecutionResult = undefined
+    feishuReplyExecutionError = undefined
     render()
     return
   }
@@ -1813,6 +1985,10 @@ document.addEventListener('click', (event) => {
     approvalDecision === 'cancelled'
   ) {
     void mutateFeishuReplyApproval(approvalDecision)
+    return
+  }
+  if (target.closest('[data-feishu-reply-execute]') !== null) {
+    void executeFeishuReply()
     return
   }
   if (target.closest('[data-inbox-retry]') !== null) void loadInbox(activeInboxState)

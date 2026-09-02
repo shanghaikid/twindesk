@@ -31,6 +31,14 @@ export {
   type FeishuReplyApprovalStatusSnapshot,
 } from './feishu-reply-approval-contract.ts'
 export {
+  parseFeishuReplyExecutionRequest,
+  parseFeishuReplyExecutionSnapshot,
+  parseFeishuReplyExecutionStatusSnapshot,
+  type FeishuReplyExecutionRequest,
+  type FeishuReplyExecutionSnapshot,
+  type FeishuReplyExecutionStatusSnapshot,
+} from './feishu-reply-execution-contract.ts'
+export {
   parseFeishuReplyProposalCreateRequest,
   parseFeishuReplyProposalSnapshot,
   parseFeishuReplyProposalStatusSnapshot,

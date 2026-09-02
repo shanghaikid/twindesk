@@ -113,9 +113,9 @@ must still verify the complete source-to-receipt trace.
 - The Connector-neutral Work Hub Host now composes approval consumption,
   durable dispatch, receipt, and recoverable Audit ordering inside an injected
   exclusive-operation callback. The Workbench Feishu reply runtime binds that
-  Host to Keychain rotation and the lease-held reply adapter, but the product UI
-  does not invoke it yet; neither boundary grants execution authority by itself.
-  See
+  Host to Keychain rotation and the lease-held reply adapter, and the product UI
+  invokes it only through a separate explicit execution action; neither
+  boundary grants execution authority by itself. See
   [Work Hub Action Execution Host](ACTION_EXECUTION_HOST.md).
 - TD-209 local acceptance integrates the complete Audit trace; live-account
   acceptance remains required.

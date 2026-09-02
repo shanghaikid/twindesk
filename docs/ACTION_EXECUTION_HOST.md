@@ -91,6 +91,7 @@ this Host boundary to the real Feishu runtime lease, `FeishuReplyExecutor`, and
 `FeishuReplyExecutionAdapter`. The binding passes a synthetic full-stack test;
 it is not yet a hosted or live Connector. The User reply adapter now runs
 durable token rotation under that same ownership callback before scope and send
-checks. Hosted ingestion or polling, recovery and reauthorization UX,
-approved-action execution UI, credential-healthy model acceptance, and a real
-authorized account acceptance run remain open.
+checks. The Workbench Inbox now invokes this boundary only after a separate
+approval and execution click. Hosted ingestion or polling, browser-refresh
+flow restoration, credential-healthy model acceptance, and a real authorized
+account acceptance run remain open.

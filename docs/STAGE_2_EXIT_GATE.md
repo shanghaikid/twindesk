@@ -74,15 +74,15 @@ approved and sent reply with a complete trace. Passing injected-client tests is
 necessary but not equivalent to that requirement. Declaring Stage 2 complete
 would incorrectly imply live support for the synthetically tested product
 authorization-code/PKCE and initial-persistence entry, credential rotation,
-composed live Feishu API semantics, callback or polling lifecycle, interactive
-execution of the approved proposal, and a real external receipt.
+composed live Feishu API semantics, callback or polling lifecycle,
+browser-refresh restoration, and a real external receipt.
 
 TD-209 therefore remains open until the runtime hosts ingestion, polling,
 blocked-state recovery, and reauthorization around the now-composed Work Hub
 reply operation, proves the now-lifecycle-bound Harness model-Draft entry against
-a credential-healthy production provider, composes the existing execution Host
-into an explicit product control, and completes an authorized live-account
-acceptance run. Stage 3 must not rely on a claimed
+a credential-healthy production provider, restores the durable action flow
+across browser refresh, and completes an authorized live-account acceptance
+run. Stage 3 must not rely on a claimed
 Stage 2 exit before those checks pass.
 
 ## Verification

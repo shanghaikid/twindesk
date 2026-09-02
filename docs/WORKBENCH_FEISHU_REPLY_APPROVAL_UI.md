@@ -4,8 +4,8 @@
 
 The Workbench Inbox exposes the product UI for requesting and deciding one
 exact Feishu User reply approval. It composes the existing Connector-neutral
-TD-206 SQLite policy; it does not consume the approval, invoke the execution
-Host, resolve a credential, call Feishu, or create an ActionReceipt.
+TD-206 SQLite policy; this step does not consume the approval, invoke the
+execution Host, resolve a credential, call Feishu, or create an ActionReceipt.
 
 The visible flow remains explicitly separated:
 
@@ -14,7 +14,7 @@ ready_for_review Draft
   -> exact reply preview
   -> request approval
   -> approve once | reject | cancel | expire
-  -> stop
+  -> separate execution step
 ```
 
 ## Host-Owned Binding
@@ -63,12 +63,11 @@ principal, SecretReference, idempotency key, or credential value.
 
 ## Remaining Work
 
-- The UI does not yet consume an approved capability or start the existing
-  Workbench Feishu reply execution Host.
+- The separate execution UI now consumes an approved capability only after a
+  second explicit click; see
+  [Workbench Feishu Reply Execution UI](WORKBENCH_FEISHU_REPLY_EXECUTION_UI.md).
 - No hosted ingestion/polling lifecycle or live-account send is proven.
-- A future execution control must re-display the durable exact action and its
-  account, identity, target, and content, then use the existing lease-held Host
-  without turning approval replay into a second send authorization.
+- Browser-refresh restoration of the complete durable flow remains open.
 
 ## Verification
 

@@ -128,8 +128,8 @@ advertises this capability as unavailable until a Harness Host injects that
 runtime; no browser field can select or credential a provider.
 Connector Cordis activation, existing-identity replacement, Bot identity creation,
 credential repair/removal, live authorization and
-reauthorization acceptance, approved-action execution UI,
-credential-healthy production provider acceptance, and a real Feishu send remain missing. Local model Draft editing, explicit `ready_for_review`, an exact persisted Feishu User reply preview, and fixed-lifetime one-time approval decisions are now available. See the
+reauthorization acceptance, browser-refresh flow restoration,
+credential-healthy production provider acceptance, and a real Feishu send remain missing. Local model Draft editing, explicit `ready_for_review`, an exact persisted Feishu User reply preview, fixed-lifetime one-time approval decisions, and the separate approved execution action are now available. See the
 [Stage 2 exit-gate audit](STAGE_2_EXIT_GATE.md).
 
 ## Stage 3: Jira Context

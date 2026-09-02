@@ -114,7 +114,7 @@ Still open:
 
 - product actions for the two reconciliation-required outcomes;
 - live Keychain and Feishu acceptance; and
-- approved-action execution UI.
+- browser-refresh restoration of the complete action flow.
 
 The product entry is specified in
 [Workbench Feishu OAuth Reauthorization UI](WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_UI.md).

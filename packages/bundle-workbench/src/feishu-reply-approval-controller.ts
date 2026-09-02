@@ -219,7 +219,8 @@ function timestampAt(now: () => number): IsoTimestamp {
   }
 }
 
-function approvalId(proposal: ActionProposal): ApprovalRecordId {
+/** Stable Host-only approval identity derived from the durable proposal. */
+export function workbenchFeishuReplyApprovalId(proposal: ActionProposal): ApprovalRecordId {
   const digest = createHash('sha256').update(proposal.id).digest('hex').slice(0, 32)
   return `approval-feishu-reply-${digest}` as ApprovalRecordId
 }
@@ -341,7 +342,7 @@ function currentApproval(
   proposal: ActionProposal,
 ): ApprovalRecord | undefined {
   try {
-    return database.getActionApproval(approvalId(proposal))
+    return database.getActionApproval(workbenchFeishuReplyApprovalId(proposal))
   } catch {
     throw fail('approval_unavailable', 'The Feishu reply approval is unavailable.')
   }
@@ -413,7 +414,7 @@ export function createWorkbenchFeishuReplyApprovalController(
         stored = options.database.requestActionApproval({
           kind: 'action_approval_request',
           schemaVersion: 1,
-          id: approvalId(resolution.proposal),
+          id: workbenchFeishuReplyApprovalId(resolution.proposal),
           proposalId: resolution.proposal.id,
           requestedAt,
           expiresAt,

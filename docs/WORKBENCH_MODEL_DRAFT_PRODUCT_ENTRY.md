@@ -60,5 +60,5 @@ durable Draft/Audit recovery, and missing-Persona failure without a live model
 or external account.
 
 This does not prove a live production model provider. Provider credential
-health, approved-action execution UI, polling, and live Feishu acceptance
+health, browser-refresh action restoration, polling, and live Feishu acceptance
 remain open Stage 2 work.
