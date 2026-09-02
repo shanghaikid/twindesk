@@ -59,6 +59,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Workbench Feishu Reply Proposal UI](docs/WORKBENCH_FEISHU_REPLY_PROPOSAL_UI.md): exact Host-derived User reply preview with no approval or execution authority.
 - [Workbench Feishu Reply Approval UI](docs/WORKBENCH_FEISHU_REPLY_APPROVAL_UI.md): fixed-lifetime exact approval request and decision controls with content-free Audit.
 - [Workbench Feishu Reply Execution UI](docs/WORKBENCH_FEISHU_REPLY_EXECUTION_UI.md): separate external-write control, Host-only durable ID resolution, and minimized terminal or uncertain results.
+- [Workbench Feishu Reply Flow Restoration](docs/WORKBENCH_FEISHU_REPLY_FLOW_RESTORATION.md): read-only refresh recovery of the exact durable Draft, proposal, approval, and receipt presentation.
 - [Feishu Reply Execution](docs/FEISHU_REPLY_EXECUTION.md): optional exact reconciliation, send-only durable dispatch safety, normalized receipts, restart recovery, and uncertain-result handling.
 - [Feishu Reply Execution Adapter](docs/FEISHU_REPLY_EXECUTION_ADAPTER.md): lease-held Bot/User scope, Keychain, token, and fixed HTTP composition with preflight-safe retry handling.
 - [Feishu Reply HTTP Client](docs/FEISHU_REPLY_HTTP_CLIENT.md): fixed-endpoint plain-text delivery, bounded responses, payload-free errors, and conservative post-send ambiguity.
@@ -125,8 +126,7 @@ explicit shared-event, cursor, deletion-receipt, and Harness Session retention
 behavior. The Audit page shows four synthetic routing records plus two
 deterministic Persona Draft records. The fixture flow reaches `ready_for_review`
 across restart with no model call, approval, Connector execution, or external
-write. Browser-refresh restoration of action cards, credential health,
-user-created Personas, and hosted Connector
+write. Credential health, user-created Personas, and hosted Connector
 subscriptions are not implemented. A Host-controlled model-Draft entry covers initial generation
 synthetically. The standalone `web:start` launcher remains unavailable by
 design, while the Workbench Harness Profile now owns the product Web and
@@ -245,8 +245,10 @@ entry. The standalone launcher correctly reports its Agent Runtime as
 unavailable, while `profile:start` injects the pinned Harness runner and
 Host-selected route. Stage 2 is not
 declared complete: hosted ingestion or polling, remaining Connector lifecycle
-wiring, production provider activation, browser-refresh flow restoration, and
-a live-account send remain unimplemented.
+wiring, production provider activation, and a live-account send remain
+unimplemented. The Inbox now restores the exact durable Draft, proposal,
+approval, and receipt presentation after refresh without mutating local state
+or invoking a Connector.
 Versioned domain records and the product-owned Connector contract are
 implemented. The pinned Harness Profile,
 two draft-only Personas, JSONL restart recovery, and bounded Codex specialist

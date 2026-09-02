@@ -51,6 +51,7 @@ import {
   type FeishuReplyExecutionSnapshot,
   type FeishuReplyExecutionStatusSnapshot,
 } from './feishu-reply-execution-contract.ts'
+import { parseFeishuReplyFlowSnapshot } from './feishu-reply-flow-contract.ts'
 import {
   parseFeishuReplyProposalCreateRequest,
   parseFeishuReplyProposalSnapshot,
@@ -125,6 +126,9 @@ let feishuReplyExecutionStatusRequest = 0
 let feishuReplyExecuting = false
 let feishuReplyExecutionError: string | undefined
 let feishuReplyExecutionResult: FeishuReplyExecutionSnapshot | undefined
+let feishuReplyFlowLoading = false
+let feishuReplyFlowError: string | undefined
+let feishuReplyFlowRequest = 0
 let auditSnapshot: AuditSnapshot | undefined
 let auditLoading = false
 let auditError: string | undefined
@@ -272,10 +276,12 @@ function workItemDetails(item: InboxItem | undefined): string {
     feishuReplyExecutionStatus?.capability === 'ready' &&
     feishuReplyExecutionCsrfToken !== undefined &&
     !feishuReplyExecuting &&
+    !feishuReplyFlowLoading &&
     (replyExecution === undefined ||
       (replyExecution.execution.outcome === 'failed' &&
         replyExecution.execution.retryDisposition === 'retry_same_key'))
   const canCreate =
+    generated === undefined &&
     item.personaId !== undefined &&
     modelDraftStatus?.capability === 'ready' &&
     modelDraftCsrfToken !== undefined &&
@@ -283,6 +289,7 @@ function workItemDetails(item: InboxItem | undefined): string {
     !modelDraftEditing &&
     !feishuReplyProposalCreating &&
     !feishuReplyApprovalBusy &&
+    !feishuReplyFlowLoading &&
     !replyApprovalLocksDraft
   const modelDraftMessage =
     item.personaId === undefined
@@ -300,11 +307,13 @@ function workItemDetails(item: InboxItem | undefined): string {
     (modelDraftEditorText ?? generated.draft.content.text) === generated.draft.content.text &&
     feishuReplyProposalStatus?.capability === 'ready' &&
     feishuReplyProposalCsrfToken !== undefined &&
+    replyPreview === undefined &&
     replyApproval === undefined &&
     !modelDraftCreating &&
     !modelDraftEditing &&
     !feishuReplyProposalCreating &&
-    !feishuReplyApprovalBusy
+    !feishuReplyApprovalBusy &&
+    !feishuReplyFlowLoading
   const replyPreviewMessage =
     generated?.draft.state !== 'ready_for_review'
       ? 'Mark the local Draft ready for review before creating an exact reply preview.'
@@ -327,13 +336,15 @@ function workItemDetails(item: InboxItem | undefined): string {
     !modelDraftCreating &&
     !modelDraftEditing &&
     !feishuReplyProposalCreating &&
-    !feishuReplyApprovalBusy
+    !feishuReplyApprovalBusy &&
+    !feishuReplyFlowLoading
   const canDecideReplyApproval =
     replyApproval?.approval.decision === 'pending' &&
     feishuReplyApprovalCsrfToken !== undefined &&
-    !feishuReplyApprovalBusy
+    !feishuReplyApprovalBusy &&
+    !feishuReplyFlowLoading
   const replyApprovalMessage =
-    replyPreview === undefined
+    replyPreview === undefined && replyApproval === undefined
       ? 'Create the exact reply preview before requesting approval.'
       : feishuReplyApprovalStatusLoading
         ? 'Checking the one-time approval boundary…'
@@ -347,7 +358,9 @@ function workItemDetails(item: InboxItem | undefined): string {
                 ? `Awaiting your decision until ${formatTimestamp(replyApproval.approval.expiresAt)}.`
                 : replyApproval.approval.decision === 'approved'
                   ? replyExecution === undefined
-                    ? 'Approved once. The authorization is stored but has not been consumed or sent.'
+                    ? replyApproval.proposal.state === 'executing'
+                      ? 'Approval was consumed by an incomplete execution; explicit recovery is required.'
+                      : 'Approved once. The authorization is stored but has not been consumed or sent.'
                     : `Approval consumed by the ${replyExecution.execution.outcome} execution attempt.`
                   : `Approval ${replyApproval.approval.decision}. No message was sent.`
   const replyExecutionMessage =
@@ -360,7 +373,9 @@ function workItemDetails(item: InboxItem | undefined): string {
           : feishuReplyExecutionStatus?.capability !== 'ready'
             ? 'The Host-controlled Feishu execution boundary is unavailable.'
             : replyExecution === undefined
-              ? 'This separate action will consume the approval once and send the exact content shown below.'
+              ? replyApproval.proposal.state === 'executing'
+                ? 'This separate action asks the Host to recover or reconcile the existing attempt without a blind resend.'
+                : 'This separate action will consume the approval once and send the exact content shown below.'
               : replyExecution.execution.outcome === 'succeeded'
                 ? `Sent at ${formatTimestamp(replyExecution.execution.attemptedAt)}.`
                 : replyExecution.execution.outcome === 'uncertain'
@@ -370,6 +385,8 @@ function workItemDetails(item: InboxItem | undefined): string {
                     : 'The reply failed with a terminal result and will not be retried.'
   return `<article class="detail-card">
     <div class="detail-title"><span class="badge">${escapeHtml(stateLabel(item.inboxState))}</span><h2>${escapeHtml(item.title)}</h2><p>${escapeHtml(item.summary)}</p></div>
+    ${feishuReplyFlowLoading ? '<p class="form-message">Restoring the durable local action flow…</p>' : ''}
+    ${feishuReplyFlowError === undefined ? '' : `<p class="form-message error" role="alert">${escapeHtml(feishuReplyFlowError)}</p>`}
     <dl class="detail-list">
       <div><dt>Attention</dt><dd>${escapeHtml(item.attentionReason)}</dd></div>
       <div><dt>Persona</dt><dd>${escapeHtml(item.personaLabel ?? 'Not selected')}</dd></div>
@@ -415,7 +432,7 @@ function workItemDetails(item: InboxItem | undefined): string {
     </section>
     <section class="draft-entry" aria-label="Feishu reply execution">
       <div><h3>Execute approved reply</h3><p>${escapeHtml(replyExecutionMessage)}</p></div>
-      <button class="primary-button" type="button" data-feishu-reply-execute${canExecuteReply ? '' : ' disabled'}>${feishuReplyExecuting ? 'Sending…' : replyExecution?.execution.outcome === 'failed' ? 'Retry exact reply' : 'Send approved reply'}</button>
+      <button class="primary-button" type="button" data-feishu-reply-execute${canExecuteReply ? '' : ' disabled'}>${feishuReplyExecuting ? 'Sending…' : replyExecution?.execution.outcome === 'failed' ? 'Retry exact reply' : replyApproval?.proposal.state === 'executing' ? 'Recover approved reply' : 'Send approved reply'}</button>
       ${feishuReplyExecutionError === undefined ? '' : `<p class="form-message error" role="alert">${escapeHtml(feishuReplyExecutionError)}</p>`}
       ${
         replyApproval?.approval.decision !== 'approved'
@@ -847,7 +864,7 @@ function render(): void {
           <span class="brand-mark">T</span><strong>TwinDesk</strong>
         </a>
         <nav class="primary-nav" aria-label="Primary navigation">${navigation(route)}</nav>
-        <div class="sidebar-status"><span class="status-dot"></span><div><strong>Local only</strong><span>External writes disabled</span></div></div>
+        <div class="sidebar-status"><span class="status-dot"></span><div><strong>Local only</strong><span>Approval-gated writes</span></div></div>
       </aside>
       <main class="main-shell">
         <header class="page-header">
@@ -859,12 +876,60 @@ function render(): void {
     </div>`
 }
 
+function clearFeishuReplyFlowPresentation(): void {
+  modelDraftResult = undefined
+  modelDraftEditorText = undefined
+  feishuReplyProposalResult = undefined
+  feishuReplyApprovalResult = undefined
+  feishuReplyExecutionResult = undefined
+  feishuReplyFlowError = undefined
+}
+
+async function restoreFeishuReplyFlow(workItemId: string): Promise<void> {
+  const request = ++feishuReplyFlowRequest
+  feishuReplyFlowLoading = true
+  feishuReplyFlowError = undefined
+  render()
+  try {
+    const response = await fetch(
+      `/api/action-flow/feishu-reply?workItemId=${encodeURIComponent(workItemId)}`,
+      { headers: { accept: 'application/json' } },
+    )
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseFeishuReplyFlowSnapshot(await response.json())
+    if (request !== feishuReplyFlowRequest || selectedWorkItemId !== workItemId) return
+    clearFeishuReplyFlowPresentation()
+    if (snapshot.stage !== 'empty') {
+      modelDraftResult = snapshot.draft
+      modelDraftEditorText = snapshot.draft.draft.content.text
+    }
+    if (snapshot.stage === 'proposal') feishuReplyProposalResult = snapshot.proposal
+    if (snapshot.stage === 'approval' || snapshot.stage === 'execution') {
+      feishuReplyApprovalResult = snapshot.approval
+    }
+    if (snapshot.stage === 'execution') feishuReplyExecutionResult = snapshot.execution
+  } catch (error) {
+    if (request !== feishuReplyFlowRequest || selectedWorkItemId !== workItemId) return
+    clearFeishuReplyFlowPresentation()
+    feishuReplyFlowError =
+      error instanceof Error ? error.message : 'The durable local action flow is unavailable.'
+  } finally {
+    if (request === feishuReplyFlowRequest) {
+      feishuReplyFlowLoading = false
+      render()
+    }
+  }
+}
+
 async function loadInbox(state: InboxState): Promise<void> {
   const request = ++inboxRequest
+  feishuReplyFlowRequest += 1
   activeInboxState = state
   inboxLoading = true
   inboxError = undefined
   selectedWorkItemId = undefined
+  feishuReplyFlowLoading = false
+  clearFeishuReplyFlowPresentation()
   render()
   try {
     const response = await fetch(`/api/inbox?state=${encodeURIComponent(state)}`, {
@@ -875,6 +940,7 @@ async function loadInbox(state: InboxState): Promise<void> {
     if (request !== inboxRequest) return
     inboxSnapshot = snapshot
     selectedWorkItemId = snapshot.items[0]?.id
+    if (selectedWorkItemId !== undefined) void restoreFeishuReplyFlow(selectedWorkItemId)
   } catch (error) {
     if (request !== inboxRequest) return
     inboxSnapshot = undefined
@@ -1945,14 +2011,12 @@ document.addEventListener('click', (event) => {
     selectedWorkItemId = itemButton.dataset.workItemId
     modelDraftCreateError = undefined
     modelDraftEditError = undefined
-    modelDraftEditorText = undefined
-    feishuReplyProposalResult = undefined
     feishuReplyProposalError = undefined
-    feishuReplyApprovalResult = undefined
     feishuReplyApprovalError = undefined
-    feishuReplyExecutionResult = undefined
     feishuReplyExecutionError = undefined
+    clearFeishuReplyFlowPresentation()
     render()
+    void restoreFeishuReplyFlow(selectedWorkItemId)
     return
   }
   if (target.closest('[data-model-draft-create]') !== null) {

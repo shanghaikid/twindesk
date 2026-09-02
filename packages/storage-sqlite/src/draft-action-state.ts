@@ -413,6 +413,22 @@ export function readDraftByWorkItemRevision(
   return row === undefined ? undefined : parseStoredDraft(row)
 }
 
+export function readLatestDraftByWorkItem(
+  database: DatabaseSync,
+  workItemId: WorkItemId,
+): Draft | undefined {
+  const row = database
+    .prepare(
+      `SELECT ${DRAFT_COLUMNS}
+       FROM drafts
+       WHERE work_item_id = ?
+       ORDER BY revision DESC
+       LIMIT 1`,
+    )
+    .get(workItemId) as DraftRow | undefined
+  return row === undefined ? undefined : parseStoredDraft(row)
+}
+
 export function readActionProposal(
   database: DatabaseSync,
   id: ActionProposalId,
@@ -420,6 +436,22 @@ export function readActionProposal(
   const row = database
     .prepare(`SELECT ${PROPOSAL_COLUMNS} FROM action_proposals WHERE id = ?`)
     .get(id) as ProposalRow | undefined
+  return row === undefined ? undefined : parseStoredProposal(row)
+}
+
+export function readLatestActionProposalByWorkItem(
+  database: DatabaseSync,
+  workItemId: WorkItemId,
+): ActionProposal | undefined {
+  const row = database
+    .prepare(
+      `SELECT ${PROPOSAL_COLUMNS}
+       FROM action_proposals
+       WHERE work_item_id = ?
+       ORDER BY updated_at DESC, id DESC
+       LIMIT 1`,
+    )
+    .get(workItemId) as ProposalRow | undefined
   return row === undefined ? undefined : parseStoredProposal(row)
 }
 

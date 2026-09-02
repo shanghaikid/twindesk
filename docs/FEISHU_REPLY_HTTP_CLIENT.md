@@ -111,6 +111,6 @@ Host lease, durable User rotation, exact Keychain resolution, fresh Bot/User
 scope authorization, and callback-scoped User or tenant tokens. The Workbench
 root now composes that client with the Connector-neutral Host operation under
 the real lease, and the Inbox exposes its separate approved execution action.
-Remaining TD-209 work includes hosted lifecycle, browser-refresh restoration,
-and a live authorized account. The repository must not claim that
+Remaining TD-209 work includes hosted lifecycle and a live authorized account.
+The repository must not claim that
 the isolated or synthetically composed HTTP contract proves a real Feishu send.

@@ -104,8 +104,8 @@ preview. See
   idempotent execution, reconciliation, and uncertain-result receipts. The
   Workbench reply runtime composes production-compatible credential, HTTP,
   lease, and durable dispatch boundaries, and the product exposes the separate
-  approved execution control. Browser-refresh restoration and live-account
-  acceptance remain open.
+  approved execution control and durable browser-refresh restoration.
+  Live-account acceptance remains open.
 
 ## Verification
 

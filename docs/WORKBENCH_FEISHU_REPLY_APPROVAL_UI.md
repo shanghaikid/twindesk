@@ -67,7 +67,8 @@ principal, SecretReference, idempotency key, or credential value.
   second explicit click; see
   [Workbench Feishu Reply Execution UI](WORKBENCH_FEISHU_REPLY_EXECUTION_UI.md).
 - No hosted ingestion/polling lifecycle or live-account send is proven.
-- Browser-refresh restoration of the complete durable flow remains open.
+- The complete durable flow now restores after refresh; production polling and
+  cross-window live updates remain open.
 
 ## Verification
 

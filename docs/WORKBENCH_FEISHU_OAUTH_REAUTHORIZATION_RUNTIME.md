@@ -113,8 +113,10 @@ proves the production manager's real cross-process exclusion and crash release.
 Still open:
 
 - product actions for the two reconciliation-required outcomes;
-- live Keychain and Feishu acceptance; and
-- browser-refresh restoration of the complete action flow.
+- live Keychain and Feishu acceptance.
+
+The complete durable action presentation now restores after refresh through a
+separate read-only boundary.
 
 The product entry is specified in
 [Workbench Feishu OAuth Reauthorization UI](WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_UI.md).

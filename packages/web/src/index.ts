@@ -39,6 +39,12 @@ export {
   type FeishuReplyExecutionStatusSnapshot,
 } from './feishu-reply-execution-contract.ts'
 export {
+  parseFeishuReplyFlowRequest,
+  parseFeishuReplyFlowSnapshot,
+  type FeishuReplyFlowRequest,
+  type FeishuReplyFlowSnapshot,
+} from './feishu-reply-flow-contract.ts'
+export {
   parseFeishuReplyProposalCreateRequest,
   parseFeishuReplyProposalSnapshot,
   parseFeishuReplyProposalStatusSnapshot,

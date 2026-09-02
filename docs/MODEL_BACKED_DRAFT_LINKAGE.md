@@ -64,5 +64,5 @@ of model output from Audit.
 The pinned Harness invocation and Session-flush boundary now composes with this
 protocol; see [Harness Model Draft Runtime](HARNESS_MODEL_DRAFT_RUNTIME.md). Its
 tests use a deterministic keyless adapter and do not prove a live model
-provider acceptance. Browser-refresh action restoration, production Feishu polling,
-and live-account acceptance remain open.
+provider acceptance. Production Feishu polling and live-account acceptance
+remain open; the durable action presentation now restores after refresh.

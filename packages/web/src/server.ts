@@ -34,6 +34,7 @@ import {
   parseFeishuReplyExecutionSnapshot,
   parseFeishuReplyExecutionStatusSnapshot,
 } from './feishu-reply-execution-contract.ts'
+import { parseFeishuReplyFlowSnapshot } from './feishu-reply-flow-contract.ts'
 import {
   parseFeishuReplyProposalCreateRequest,
   parseFeishuReplyProposalSnapshot,
@@ -74,6 +75,10 @@ const ASSETS = new Map([
   [
     '/feishu-reply-execution-contract.js',
     { file: 'feishu-reply-execution-contract.js', type: 'text/javascript; charset=utf-8' },
+  ],
+  [
+    '/feishu-reply-flow-contract.js',
+    { file: 'feishu-reply-flow-contract.js', type: 'text/javascript; charset=utf-8' },
   ],
   [
     '/feishu-reply-proposal-contract.js',
@@ -175,6 +180,10 @@ export interface TwinDeskWebServerOptions {
     read(): Promise<unknown> | unknown
     execute(request: unknown, signal: AbortSignal): Promise<unknown>
   }
+  /** Read-only reconstruction of one Work Item's durable Draft/action flow. */
+  readonly feishuReplyFlow?: {
+    read(workItemId: string, signal: AbortSignal): Promise<unknown>
+  }
 }
 
 type FeishuSettingsService = NonNullable<TwinDeskWebServerOptions['feishuSettings']>
@@ -189,6 +198,36 @@ type ModelDraftService = NonNullable<TwinDeskWebServerOptions['modelDraft']>
 type FeishuReplyProposalService = NonNullable<TwinDeskWebServerOptions['feishuReplyProposal']>
 type FeishuReplyApprovalService = NonNullable<TwinDeskWebServerOptions['feishuReplyApproval']>
 type FeishuReplyExecutionService = NonNullable<TwinDeskWebServerOptions['feishuReplyExecution']>
+type FeishuReplyFlowService = NonNullable<TwinDeskWebServerOptions['feishuReplyFlow']>
+
+function normalizeFeishuReplyFlowService(value: unknown): FeishuReplyFlowService | undefined {
+  if (value === undefined) return undefined
+  try {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError()
+    const prototype = Object.getPrototypeOf(value) as unknown
+    const descriptors = Object.getOwnPropertyDescriptors(value)
+    if (
+      (prototype !== Object.prototype && prototype !== null) ||
+      Object.getOwnPropertySymbols(value).length !== 0 ||
+      Object.keys(descriptors).length !== 1 ||
+      !Object.hasOwn(descriptors, 'read') ||
+      !Object.hasOwn(descriptors.read as PropertyDescriptor, 'value') ||
+      typeof descriptors.read?.value !== 'function'
+    ) {
+      throw new TypeError()
+    }
+    const read = descriptors.read.value as (
+      workItemId: string,
+      signal: AbortSignal,
+    ) => Promise<unknown>
+    return Object.freeze({
+      read: (workItemId: string, signal: AbortSignal) =>
+        Reflect.apply(read, value, [workItemId, signal]),
+    })
+  } catch {
+    throw new TypeError('TwinDesk Web Feishu reply flow service is invalid.')
+  }
+}
 
 function normalizeFeishuReplyExecutionService(
   value: unknown,
@@ -1982,6 +2021,58 @@ async function serveFeishuReplyExecutionApi(
   }
 }
 
+async function serveFeishuReplyFlowApi(
+  request: IncomingMessage,
+  response: ServerResponse,
+  requestUrl: URL,
+  headOnly: boolean,
+  service: FeishuReplyFlowService | undefined,
+  activeControllers: Set<AbortController>,
+): Promise<void> {
+  const keys = [...requestUrl.searchParams.keys()]
+  const values = requestUrl.searchParams.getAll('workItemId')
+  if (
+    keys.length !== 1 ||
+    keys[0] !== 'workItemId' ||
+    values.length !== 1 ||
+    values[0] === undefined ||
+    values[0].length === 0 ||
+    values[0].length > 200 ||
+    values[0].trim() !== values[0] ||
+    /[\u0000-\u001f\u007f]/u.test(values[0]) ||
+    Buffer.byteLength(values[0], 'utf8') > 512
+  ) {
+    send(response, 400, headOnly ? '' : 'Invalid reply flow query.\n', 'text/plain; charset=utf-8')
+    return
+  }
+  if (service === undefined) {
+    send(response, 503, headOnly ? '' : 'Reply flow unavailable.\n', 'text/plain; charset=utf-8')
+    return
+  }
+  const workItemId = values[0]
+  const controller = new AbortController()
+  const abort = (): void => controller.abort()
+  activeControllers.add(controller)
+  request.once('aborted', abort)
+  try {
+    const snapshot = parseFeishuReplyFlowSnapshot(await service.read(workItemId, controller.signal))
+    if (snapshot.stage !== 'empty' && snapshot.draft.draft.workItemId !== workItemId) {
+      throw new TypeError()
+    }
+    const body = JSON.stringify(snapshot)
+    response.writeHead(200, {
+      ...commonHeaders('application/json; charset=utf-8'),
+      'content-length': String(Buffer.byteLength(body)),
+    })
+    response.end(headOnly ? undefined : body)
+  } catch {
+    send(response, 503, headOnly ? '' : 'Reply flow unavailable.\n', 'text/plain; charset=utf-8')
+  } finally {
+    request.off('aborted', abort)
+    activeControllers.delete(controller)
+  }
+}
+
 async function serveAsset(
   response: ServerResponse,
   pathname: string,
@@ -2047,6 +2138,7 @@ export async function startTwinDeskWebServer(
   const feishuReplyProposal = normalizeFeishuReplyProposalService(options.feishuReplyProposal)
   const feishuReplyApproval = normalizeFeishuReplyApprovalService(options.feishuReplyApproval)
   const feishuReplyExecution = normalizeFeishuReplyExecutionService(options.feishuReplyExecution)
+  const feishuReplyFlow = normalizeFeishuReplyFlowService(options.feishuReplyFlow)
 
   const inboxOptions = { includeAudit: true, includeDraftFlow: true }
   const inbox =
@@ -2065,6 +2157,7 @@ export async function startTwinDeskWebServer(
   const activeFeishuReplyProposalControllers = new Set<AbortController>()
   const activeFeishuReplyApprovalControllers = new Set<AbortController>()
   const activeFeishuReplyExecutionControllers = new Set<AbortController>()
+  const activeFeishuReplyFlowControllers = new Set<AbortController>()
   let boundOrigin: string | undefined
 
   const server = createServer((request, response) => {
@@ -2315,6 +2408,17 @@ export async function startTwinDeskWebServer(
         )
         return
       }
+      if (requestUrl.pathname === '/api/action-flow/feishu-reply') {
+        await serveFeishuReplyFlowApi(
+          request,
+          response,
+          requestUrl,
+          method === 'HEAD',
+          feishuReplyFlow,
+          activeFeishuReplyFlowControllers,
+        )
+        return
+      }
       if (requestUrl.pathname === '/api/settings/feishu') {
         await serveFeishuSettingsApi(
           response,
@@ -2410,6 +2514,7 @@ export async function startTwinDeskWebServer(
           for (const controller of activeFeishuReplyProposalControllers) controller.abort()
           for (const controller of activeFeishuReplyApprovalControllers) controller.abort()
           for (const controller of activeFeishuReplyExecutionControllers) controller.abort()
+          for (const controller of activeFeishuReplyFlowControllers) controller.abort()
           try {
             await feishuAuthorization?.cancel()
           } catch {

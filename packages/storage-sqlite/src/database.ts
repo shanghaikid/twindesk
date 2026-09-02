@@ -84,6 +84,8 @@ import {
   readActionProposal,
   readDraft,
   readDraftByWorkItemRevision,
+  readLatestDraftByWorkItem,
+  readLatestActionProposalByWorkItem,
   reviseDraft as storeDraftRevision,
   transitionActionProposal as storeActionProposalTransition,
   transitionDraft as storeDraftTransition,
@@ -187,11 +189,13 @@ export interface TwinDeskDatabase {
   reviseDraft(revision: DraftRevisionWrite): DraftRevisionWriteResult
   getDraft(id: DraftId): Draft | undefined
   getDraftByWorkItemRevision(workItemId: WorkItemId, revision: number): Draft | undefined
+  getLatestDraftByWorkItem(workItemId: WorkItemId): Draft | undefined
   createActionProposal(proposal: ActionProposal): ActionProposalWriteResult
   transitionActionProposal(
     transition: ActionProposalStateTransition,
   ): ActionProposalTransitionWriteResult
   getActionProposal(id: ActionProposalId): ActionProposal | undefined
+  getLatestActionProposalByWorkItem(workItemId: WorkItemId): ActionProposal | undefined
   requestActionApproval(request: ActionApprovalRequest): ActionApprovalRequestResult
   decideActionApproval(decision: ActionApprovalDecision): ActionApprovalDecisionResult
   consumeActionApproval(consumption: ActionApprovalConsumption): ActionApprovalConsumptionResult
@@ -348,6 +352,14 @@ class TwinDeskDatabaseHandle implements TwinDeskDatabase {
     return readDraftByWorkItemRevision(database, workItemId, revision)
   }
 
+  getLatestDraftByWorkItem(workItemId: WorkItemId): Draft | undefined {
+    const database = this.#database
+    if (database === undefined) {
+      throw new DraftActionStateError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return readLatestDraftByWorkItem(database, workItemId)
+  }
+
   createActionProposal(proposal: ActionProposal): ActionProposalWriteResult {
     const database = this.#database
     if (database === undefined) {
@@ -372,6 +384,14 @@ class TwinDeskDatabaseHandle implements TwinDeskDatabase {
       throw new DraftActionStateError('database_closed', 'The TwinDesk database is closed.')
     }
     return readActionProposal(database, id)
+  }
+
+  getLatestActionProposalByWorkItem(workItemId: WorkItemId): ActionProposal | undefined {
+    const database = this.#database
+    if (database === undefined) {
+      throw new DraftActionStateError('database_closed', 'The TwinDesk database is closed.')
+    }
+    return readLatestActionProposalByWorkItem(database, workItemId)
   }
 
   requestActionApproval(request: ActionApprovalRequest): ActionApprovalRequestResult {

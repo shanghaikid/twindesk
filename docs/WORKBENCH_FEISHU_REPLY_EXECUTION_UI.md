@@ -55,9 +55,8 @@ restart without another external effect.
 
 ## Current Limitations
 
-- The UI does not yet restore the full proposal/approval/result card
-  automatically after a browser refresh; exact API replay and durable Host
-  recovery remain available.
+- The full proposal/approval/result card is restored on page load and item
+  selection, but production polling and cross-window live updates remain open.
 - Credential health and a real authorized Feishu send have not been accepted
   against a live account.
 - Hosted ingestion or polling and the broader Connector lifecycle remain open.

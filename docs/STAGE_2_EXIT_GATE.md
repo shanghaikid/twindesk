@@ -74,8 +74,9 @@ approved and sent reply with a complete trace. Passing injected-client tests is
 necessary but not equivalent to that requirement. Declaring Stage 2 complete
 would incorrectly imply live support for the synthetically tested product
 authorization-code/PKCE and initial-persistence entry, credential rotation,
-composed live Feishu API semantics, callback or polling lifecycle,
-browser-refresh restoration, and a real external receipt.
+composed live Feishu API semantics, callback or polling lifecycle, and a real
+external receipt. Read-only browser-refresh flow restoration is covered by
+synthetic restart evidence.
 
 TD-209 therefore remains open until the runtime hosts ingestion, polling,
 blocked-state recovery, and reauthorization around the now-composed Work Hub

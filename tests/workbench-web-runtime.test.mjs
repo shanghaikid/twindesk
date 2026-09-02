@@ -115,6 +115,18 @@ test('Workbench hosts default-path Feishu Settings in the product Web shell', as
       replyExecution.headers.get('x-twindesk-action-execution-csrf-token'),
       replyApproval.headers.get('x-twindesk-action-approval-csrf-token'),
     )
+    const restoredFlow = await fetch(
+      `${running.url}/api/action-flow/feishu-reply?workItemId=fixture-work-item-release-risk-question`,
+      { headers: { connection: 'close' } },
+    )
+    assert.equal(restoredFlow.status, 200)
+    const restoredFlowSnapshot = await restoredFlow.json()
+    assert.equal(restoredFlowSnapshot.stage, 'draft')
+    assert.equal(
+      restoredFlowSnapshot.draft.draft.workItemId,
+      'fixture-work-item-release-risk-question',
+    )
+    assert.equal(restoredFlowSnapshot.draft.disposition, 'recovered')
     const authorization = await fetch(`${running.url}/api/authorization/feishu`, {
       headers: { connection: 'close' },
     })

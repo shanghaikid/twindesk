@@ -66,6 +66,6 @@ removes the temporary product data.
 
 No test invokes a live model. Local editing is documented separately in
 [Workbench Model Draft Editing](WORKBENCH_MODEL_DRAFT_EDITING.md). Provider
-credential health, authenticated remote generation, browser-refresh action
-restoration, production data paths, Connector polling, and live Feishu acceptance remain
+credential health, authenticated remote generation, production data paths,
+Connector polling, and live Feishu acceptance remain
 open Stage 2 work.

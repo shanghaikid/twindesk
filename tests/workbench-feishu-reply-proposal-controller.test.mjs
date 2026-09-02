@@ -5,11 +5,16 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import test from 'node:test'
 
-import { parseDraft, parseWorkItemUserAction } from '../packages/domain/dist/index.js'
+import {
+  parseDraft,
+  parseDraftStateTransition,
+  parseWorkItemUserAction,
+} from '../packages/domain/dist/index.js'
 import {
   FeishuIdentityConfigurationStore,
   FeishuMessageNormalizer,
 } from '../packages/plugin-feishu/dist/index.js'
+import { WorkHubActionExecutionHost } from '../packages/plugin-work-hub/dist/index.js'
 import {
   computeApprovalExecutionAttemptId,
   openTwinDeskDatabase,
@@ -17,7 +22,9 @@ import {
 import {
   createWorkbenchFeishuReplyApprovalController,
   createWorkbenchFeishuReplyExecutionController,
+  createWorkbenchFeishuReplyFlowController,
   createWorkbenchFeishuReplyProposalController,
+  workbenchFeishuReplyApprovalId,
   WorkbenchFeishuReplyApprovalError,
   WorkbenchFeishuReplyProposalError,
 } from '../packages/bundle-workbench/dist/index.js'
@@ -514,6 +521,231 @@ test('Workbench executes only the exact approved reply through Host-owned identi
     { code: 'invalid_request' },
   )
   assert.equal(hostCalls, 2)
+})
+
+test('Workbench rebuilds the exact Draft, proposal, approval, and receipt flow after restart', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'twindesk-workbench-reply-flow-'))
+  context.after(() => rm(root, { recursive: true, force: true }))
+  const databasePath = join(root, 'twindesk.sqlite3')
+  let nowMs = Date.parse('2026-09-02T09:04:00.000Z')
+  let database = openTwinDeskDatabase(databasePath, { now: () => nowMs })
+  context.after(() => {
+    if (database.isOpen) database.close()
+  })
+  const identityStore = new FeishuIdentityConfigurationStore(join(root, 'identity.json'))
+  await identityStore.write(configuration())
+  const { workItem } = seedReadyDraft(database)
+  const request = { version: /** @type {const} */ (1), workItemId: workItem.id, draftRevision: 1 }
+  const proposalController = createWorkbenchFeishuReplyProposalController({
+    database,
+    identityStore,
+    now: () => nowMs,
+  })
+  const approvalController = createWorkbenchFeishuReplyApprovalController({
+    database,
+    proposalController,
+    now: () => nowMs,
+  })
+  const flow = createWorkbenchFeishuReplyFlowController({ database })
+
+  assert.equal(
+    /** @type {any} */ (await flow.read(workItem.id, new AbortController().signal)).stage,
+    'draft',
+  )
+  await proposalController.create(request, new AbortController().signal)
+  assert.equal(
+    /** @type {any} */ (await flow.read(workItem.id, new AbortController().signal)).stage,
+    'proposal',
+  )
+  nowMs = Date.parse('2026-09-02T09:05:00.000Z')
+  await approvalController.request(request, new AbortController().signal)
+  assert.equal(
+    /** @type {any} */ (await flow.read(workItem.id, new AbortController().signal)).stage,
+    'approval',
+  )
+  await approvalController.decide(
+    { ...request, decision: 'approved' },
+    new AbortController().signal,
+  )
+
+  const proposal = database.getLatestActionProposalByWorkItem(workItem.id)
+  assert.ok(proposal)
+  const approvalId = workbenchFeishuReplyApprovalId(proposal)
+  nowMs = Date.parse('2026-09-02T09:06:00.000Z')
+  await new WorkHubActionExecutionHost({
+    database,
+    now: () => nowMs,
+    async withExclusiveOperation(_signal, operation) {
+      return operation({ lease: 'synthetic-flow-lease' })
+    },
+    async execute(action, _ownership, _signal, reserveDispatch) {
+      assert.equal(
+        reserveDispatch(action, /** @type {any} */ ('2026-09-02T09:06:00.000Z')),
+        'reserved',
+      )
+      return /** @type {any} */ ({
+        proposalId: action.proposal.id,
+        connectorId: 'feishu',
+        accountId: action.proposal.identity.accountId,
+        idempotencyKey: action.proposal.idempotencyKey,
+        outcome: 'succeeded',
+        attemptedAt: '2026-09-02T09:06:00.000Z',
+        externalReference: {
+          connectorId: 'feishu',
+          accountId: action.proposal.identity.accountId,
+          objectType: 'message',
+          externalId: 'om_synthetic_restored_flow',
+          sourceTimestamp: '2026-09-02T09:06:01.000Z',
+        },
+      })
+    },
+  }).execute(
+    {
+      kind: 'work_hub_action_execution_request',
+      schemaVersion: 1,
+      approvalId,
+      proposalId: proposal.id,
+    },
+    new AbortController().signal,
+  )
+
+  const completed = /** @type {any} */ (await flow.read(workItem.id, new AbortController().signal))
+  assert.equal(completed.stage, 'execution')
+  assert.equal(completed.execution.disposition, 'recovered')
+  assert.equal(completed.execution.execution.outcome, 'succeeded')
+  assert.equal(
+    completed.execution.execution.externalReference.externalId,
+    'om_synthetic_restored_flow',
+  )
+  assert.doesNotMatch(
+    JSON.stringify(completed),
+    /approvalId|proposalId|idempotencyKey|executionAttemptId|principalId|credentialReference/u,
+  )
+
+  database.close()
+  database = openTwinDeskDatabase(databasePath, { now: () => nowMs })
+  const restarted = await createWorkbenchFeishuReplyFlowController({ database }).read(
+    workItem.id,
+    new AbortController().signal,
+  )
+  assert.deepEqual(restarted, completed)
+})
+
+test('Workbench restores a new Draft without reviving a rejected older reply', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'twindesk-workbench-reply-stale-flow-'))
+  context.after(() => rm(root, { recursive: true, force: true }))
+  let nowMs = Date.parse('2026-09-02T09:04:00.000Z')
+  const database = openTwinDeskDatabase(join(root, 'twindesk.sqlite3'), { now: () => nowMs })
+  context.after(() => database.close())
+  const identityStore = new FeishuIdentityConfigurationStore(join(root, 'identity.json'))
+  await identityStore.write(configuration())
+  const { workItem, draft } = seedReadyDraft(database)
+  const request = { version: /** @type {const} */ (1), workItemId: workItem.id, draftRevision: 1 }
+  const proposalController = createWorkbenchFeishuReplyProposalController({
+    database,
+    identityStore,
+    now: () => nowMs,
+  })
+  const approvalController = createWorkbenchFeishuReplyApprovalController({
+    database,
+    proposalController,
+    now: () => nowMs,
+  })
+  await proposalController.create(request, new AbortController().signal)
+  nowMs = Date.parse('2026-09-02T09:05:00.000Z')
+  await approvalController.request(request, new AbortController().signal)
+  await approvalController.decide(
+    { ...request, decision: 'rejected' },
+    new AbortController().signal,
+  )
+  nowMs = Date.parse('2026-09-02T09:06:00.000Z')
+  database.reviseDraft(
+    /** @type {any} */ ({
+      transition: parseDraftStateTransition({
+        kind: 'draft_state_transition',
+        schemaVersion: 1,
+        id: 'draft-transition:synthetic-after-rejection',
+        draftId: draft.id,
+        fromState: 'ready_for_review',
+        toState: 'superseded',
+        occurredAt: '2026-09-02T09:06:00.000Z',
+      }),
+      draft: parseDraft({
+        kind: 'draft',
+        schemaVersion: 1,
+        id: 'draft:synthetic-after-rejection',
+        workItemId: workItem.id,
+        personaId: draft.personaId,
+        revision: 2,
+        state: 'editing',
+        content: { mediaType: 'text/plain', text: 'A new synthetic local revision.' },
+        createdAt: '2026-09-02T09:06:00.000Z',
+        updatedAt: '2026-09-02T09:06:00.000Z',
+      }),
+    }),
+  )
+
+  const restored = /** @type {any} */ (
+    await createWorkbenchFeishuReplyFlowController({ database }).read(
+      workItem.id,
+      new AbortController().signal,
+    )
+  )
+  assert.equal(restored.stage, 'draft')
+  assert.equal(restored.draft.draft.revision, 2)
+  assert.equal(restored.draft.draft.content.text, 'A new synthetic local revision.')
+
+  const incomplete = createWorkbenchFeishuReplyFlowController({
+    database: /** @type {any} */ ({
+      getWorkItem() {
+        return workItem
+      },
+      getLatestDraftByWorkItem() {
+        return { ...draft, id: 'draft:synthetic-gap', revision: 2, state: 'editing' }
+      },
+      getDraftByWorkItemRevision() {
+        return undefined
+      },
+      getLatestActionProposalByWorkItem() {
+        return undefined
+      },
+      getActionApproval() {
+        return undefined
+      },
+      getActionExecutionReceipt() {
+        return undefined
+      },
+    }),
+  })
+  await assert.rejects(incomplete.read(workItem.id, new AbortController().signal), {
+    code: 'flow_unavailable',
+  })
+
+  const mismatchedWorkItem = createWorkbenchFeishuReplyFlowController({
+    database: /** @type {any} */ ({
+      getWorkItem() {
+        return { ...workItem, id: 'work-item:forged' }
+      },
+      getLatestDraftByWorkItem() {
+        return undefined
+      },
+      getDraftByWorkItemRevision() {
+        return undefined
+      },
+      getLatestActionProposalByWorkItem() {
+        return undefined
+      },
+      getActionApproval() {
+        return undefined
+      },
+      getActionExecutionReceipt() {
+        return undefined
+      },
+    }),
+  })
+  await assert.rejects(mismatchedWorkItem.read(workItem.id, new AbortController().signal), {
+    code: 'flow_unavailable',
+  })
 })
 
 for (const decision of /** @type {const} */ (['rejected', 'cancelled', 'expired'])) {

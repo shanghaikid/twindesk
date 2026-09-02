@@ -99,6 +99,6 @@ that same Host lease before reply reservation and scope authorization.
 Temporary preflight failures retain `retry_same_key`; reauthorization-required
 or uncertain rotation results produce distinct terminal reply receipts and
 never reach reply HTTP.
-The Workbench Inbox now exposes the approved-action execution UI. Hosted
-ingestion or polling, browser-refresh restoration, and live-account acceptance
-remain open.
+The Workbench Inbox now exposes the approved-action execution UI and restores
+its durable presentation after refresh. Hosted ingestion or polling and
+live-account acceptance remain open.

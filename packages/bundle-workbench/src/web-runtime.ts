@@ -19,6 +19,7 @@ import { createWorkbenchFeishuUserIdentityBootstrapper } from './feishu-user-ide
 import { createWorkbenchFeishuReplyProposalController } from './feishu-reply-proposal-controller.ts'
 import { createWorkbenchFeishuReplyApprovalController } from './feishu-reply-approval-controller.ts'
 import { createDefaultWorkbenchFeishuReplyExecutionController } from './feishu-reply-execution-controller.ts'
+import { createWorkbenchFeishuReplyFlowController } from './feishu-reply-flow-controller.ts'
 import {
   createWorkbenchModelDraftController,
   type WorkbenchModelDraftControllerOptions,
@@ -172,6 +173,9 @@ export async function startWorkbenchWebServer(
       proposalController: feishuReplyProposal,
       rotationJournal: stores.rotationJournal,
     })
+    const feishuReplyFlow = createWorkbenchFeishuReplyFlowController({
+      database: maintenanceDatabase,
+    })
     await feishuOAuthReconciliation.recoverPending(new AbortController().signal)
     let pendingSettingsUpdate: Promise<void> = Promise.resolve()
     const running = await startTwinDeskWebServer({
@@ -224,6 +228,7 @@ export async function startWorkbenchWebServer(
       },
       feishuReplyApproval,
       feishuReplyExecution,
+      feishuReplyFlow,
     })
     let closing: Promise<void> | undefined
     return Object.freeze({

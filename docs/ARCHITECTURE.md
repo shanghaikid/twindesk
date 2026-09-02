@@ -330,13 +330,14 @@ action. Cordis activation remains open. See
 [ADR 0004](decisions/0004-feishu-oauth-recovery-journal-path.md). The Stage 2
 exit remains open until the
 production runtime hosts ingestion, polling, and credential-recovery
-lifecycles, binds the Workbench model-Draft product entry to a credential-healthy
-Harness provider, restores the action flow across browser refresh, and passes
-live-account acceptance boundaries. See
+lifecycles, binds the Workbench model-Draft product entry to a
+credential-healthy Harness provider, and passes live-account acceptance
+boundaries. Read-only action-flow refresh restoration is now composed. See
 [Workbench Feishu OAuth Reauthorization Runtime](WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_RUNTIME.md),
 [Workbench Feishu Reply Proposal UI](WORKBENCH_FEISHU_REPLY_PROPOSAL_UI.md),
 [Workbench Feishu Reply Approval UI](WORKBENCH_FEISHU_REPLY_APPROVAL_UI.md),
-[Workbench Feishu Reply Execution UI](WORKBENCH_FEISHU_REPLY_EXECUTION_UI.md), and
+[Workbench Feishu Reply Execution UI](WORKBENCH_FEISHU_REPLY_EXECUTION_UI.md),
+[Workbench Feishu Reply Flow Restoration](WORKBENCH_FEISHU_REPLY_FLOW_RESTORATION.md), and
 [Stage 2 Exit Gate](STAGE_2_EXIT_GATE.md).
 
 The model-Draft product entry keeps runtime selection on the Host side. Web
