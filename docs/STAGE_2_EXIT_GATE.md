@@ -65,7 +65,7 @@ local business records; credentials and raw connector responses do not.
 | SecretReference resolves and parses from macOS Keychain | Contract passed | Fixed read-only lookup plus identity-bound Bot/User parsing and zeroed source/derived bytes are tested with injected adapters; no live item is read |
 | Real Feishu reply succeeds | Not proven | The Workbench composition root binds the held lease, Host approval/dispatch/receipt/Audit operation, durable User rotation, and production Bot/User adapter; its complete test injects Keychain and Fetch and uses no live account |
 | User edits and approves in the product UI | Not implemented | Current Web shell remains read-only fixture UI |
-| Model-backed Draft and Harness trace are linked | Not implemented | The acceptance Draft is deterministic and `modelInvocation: false` |
+| Model-backed Draft and Harness trace are linked | Persistence protocol passed; runtime not composed | Work Hub can durably link one bounded `editing` Draft and Audit to an opaque WorkItem -> Session -> Run chain, repair an interrupted Audit without another model Run, and preserve store separation. The acceptance Draft remains deterministic with `modelInvocation: false`; production Harness invocation and Session-flush composition are not yet bound. |
 
 ## Why the Stage Does Not Exit Yet
 
@@ -79,9 +79,9 @@ approval, and a real external receipt.
 
 TD-209 therefore remains open until the runtime hosts ingestion, polling,
 blocked-state recovery, and reauthorization around the now-composed Work Hub
-reply operation, and product Draft and approval UI plus an authorized
-live-account acceptance run are implemented and verified. Stage 3 must not rely
-on a claimed
+reply operation, composes production Harness invocation and Session flush with
+the model Draft linkage, and implements product Draft and approval UI plus an
+authorized live-account acceptance run. Stage 3 must not rely on a claimed
 Stage 2 exit before those checks pass.
 
 ## Verification

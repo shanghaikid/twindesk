@@ -117,7 +117,11 @@ replacement, and journal settlement. The
 default Web composition now exposes that runtime through a separate
 recovery-gated controller and CSRF-bound local API. The Connectors page requires
 an explicit click, polls only minimized memory state, supports cancellation,
-and never converts reconciliation evidence into an automatic retry.
+and never converts reconciliation evidence into an automatic retry. Work Hub
+now has a restart-repairable persistence boundary for linking caller-supplied
+Harness Session and Run identities, after a required durable flush, to one bounded `editing` Draft and business
+Audit without copying runtime payloads or granting approval. Production Harness
+invocation and Session-flush composition remain open.
 Cordis activation, existing-identity replacement, Bot identity creation,
 credential repair/removal, live authorization and
 reauthorization acceptance, interactive Draft and

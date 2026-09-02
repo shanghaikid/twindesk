@@ -56,12 +56,15 @@ TD-207 owns Feishu execution and normalized receipt persistence but likewise
 does not append Audit records automatically; TD-209 must preserve execution and
 reconciliation history here while the receipt projection advances.
 Migration 8 now provides an atomic Connector maintenance request/result Audit
-protocol and restart-visible pending state. Feishu composition must still bind
-that protocol to current rotation-journal evidence without repeating the local
-reconciliation effect. See
+protocol and restart-visible pending state. The Workbench Feishu composition
+now binds it to current rotation-journal evidence and repairs interruption
+without repeating the local reconciliation effect. See
 [Connector Maintenance Audit Protocol](CONNECTOR_MAINTENANCE_AUDIT.md).
-The tests
-use synthetic rows and cause no external side effect.
+The Work Hub model Draft linkage now also records a complete opaque
+WorkItem -> Session -> Run chain after the caller has durably flushed Harness,
+with exact replay repairing a missing Audit without repeating a model Run. See
+[Model-Backed Draft Linkage](MODEL_BACKED_DRAFT_LINKAGE.md). The tests use
+synthetic rows and cause no external side effect.
 
 ## Queries and presentation
 
@@ -105,7 +108,8 @@ chain-of-thought must never be stored.
 The fixture Inbox → Persona → Draft → Audit path now satisfies the
 [Stage 1 exit gate](STAGE_1_EXIT_GATE.md). Its Draft Audit entries deliberately
 omit Session and Run references because deterministic fixture generation does
-not invoke Harness or a model.
+not invoke Harness or a model. The separate model Draft linkage protocol accepts
+those references but does not yet invoke Harness itself.
 
 ## Verification
 
