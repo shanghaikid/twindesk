@@ -5,7 +5,9 @@
 TD-209 adds production credential read and replacement primitives for the
 Feishu Connector. `FeishuSystemKeychainSecretResolver` resolves an already
 validated Bot application-credential or User OAuth `SecretReference` from the
-macOS system Keychain. `FeishuSystemKeychainSecretReplacer` replaces only a
+macOS system Keychain. It also resolves a separate `connector_api_key`
+reference for the app-bound Bot event-subscription bundle.
+`FeishuSystemKeychainSecretReplacer` replaces only a
 User OAuth bundle at the same validated reference. The separate
 [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) boundary now parses
 these bytes and encodes rotated User bundles. Neither Keychain primitive
@@ -20,9 +22,10 @@ generic-password account = SecretReference.id
 generic-password value   = versioned connector-owned credential bundle
 ```
 
-Only `store: system_keychain` with purpose `connector_app_credential` or
-`connector_oauth` is accepted. Encrypted secret stores and other purposes need
-separate owners and never fall back to this adapter.
+Only `store: system_keychain` with purpose `connector_app_credential`,
+`connector_oauth`, or `connector_api_key` is accepted for reads. Replacement
+remains restricted to `connector_oauth`. Encrypted secret stores and other
+purposes need separate owners and never fall back to this adapter.
 
 ## Process Boundary
 

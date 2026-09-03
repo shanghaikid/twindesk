@@ -82,11 +82,11 @@ echoing rejected identities or content.
 
 ## Remaining Integration Work
 
-- Concrete Feishu callback hosting and live acceptance of the Cordis-activated
-  OAuth/Keychain-backed User polling composition remain open.
-- The Bot callback handler still needs runtime composition around normalization
-  and the atomic commit call. The User polling loop already owns that boundary
-  synthetically but has not run against a live account.
+- The loopback Bot callback Host now composes normalization and the atomic
+  commit call; public TLS forwarding, Feishu subscription configuration, and a
+  live callback remain open.
+- The User polling loop owns the same normalization boundary synthetically but
+  has not run against a live account.
 - TD-205 now packages an existing ready-for-review Draft as a preview-only
   reply proposal. It does not generate or send the reply.
 - TD-208 now exposes the identity, scope, cursor, rate-limit, and health

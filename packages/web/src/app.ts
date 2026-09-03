@@ -233,13 +233,13 @@ function formatTimestamp(timestamp: string): string {
 
 function workItemList(items: readonly InboxItem[]): string {
   if (inboxLoading) {
-    return `<div class="empty-state"><h2>Loading Inbox…</h2><p>Reading local fixture projections.</p></div>`
+    return `<div class="empty-state"><h2>Loading Inbox…</h2><p>Reading local Inbox projections.</p></div>`
   }
   if (inboxError !== undefined) {
     return `<div class="empty-state"><h2>Inbox unavailable</h2><p>${escapeHtml(inboxError)}</p><button class="secondary-button" type="button" data-inbox-retry>Retry</button></div>`
   }
   if (items.length === 0) {
-    return `<div class="empty-state"><div class="empty-icon" aria-hidden="true">✓</div><h2>No work items</h2><p>There are no fixture items in this state.</p></div>`
+    return `<div class="empty-state"><div class="empty-icon" aria-hidden="true">✓</div><h2>No work items</h2><p>There are no work items in this state.</p></div>`
   }
   return `<div class="work-items">${items
     .map(
@@ -262,7 +262,7 @@ function workItemDetails(item: InboxItem | undefined): string {
   }
   const contextText =
     item.context.status === 'complete'
-      ? 'Complete fixture context'
+      ? 'Complete source context'
       : `Partial — missing ${item.context.missing.join(', ')}`
   const generated = modelDraftResult?.draft.workItemId === item.id ? modelDraftResult : undefined
   const replyPreview =
@@ -468,7 +468,7 @@ function inboxContent(): string {
               `<button class="tab${id === activeInboxState ? ' is-active' : ''}" type="button" role="tab" aria-selected="${id === activeInboxState}" data-inbox-state="${id}">${label} <span>${counts[id]}</span></button>`,
           ).join('')}
         </div>
-        <span class="fixture-label">Synthetic fixtures</span>
+        <span class="fixture-label">Local projections · includes fixtures</span>
       </div>
       <div class="inbox-split">
         <section class="work-list" aria-label="Work item list">${workItemList(items)}</section>
@@ -938,7 +938,7 @@ function settingsContent(): string {
         <div class="setting-row"><div><h3>Product UI</h3><p>TwinDesk-owned local Web shell</p></div><span class="badge success">Active</span></div>
         <div class="setting-row"><div><h3>Agent Runtime</h3><p>DeepSeek Harness 0.1.1-rc.2, behind the adapter</p></div><span class="badge neutral">Diagnostic UI only</span></div>
         <div class="setting-row"><div><h3>Autonomy</h3><p>Reads, drafts, approvals, and execution remain separate</p></div><span class="badge success">draft_only</span></div>
-        <div class="setting-row"><div><h3>Business storage</h3><p>Fixture projections use TwinDesk SQLite, separate from Harness Sessions</p></div><span class="badge success">Active</span></div>
+        <div class="setting-row"><div><h3>Business storage</h3><p>Inbox projections use TwinDesk SQLite, separate from Harness Sessions</p></div><span class="badge success">Active</span></div>
       </div>
     </section>`
 }

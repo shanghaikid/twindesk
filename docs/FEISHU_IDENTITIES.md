@@ -92,7 +92,9 @@ would invalidate established bindings. See
   contracts, and fixed reply plus User-search HTTP primitives are now covered
   synthetically. Workbench composes reply execution and User polling under
   lease-held production-shaped adapters, and Cordis now activates them beneath
-  one shared owner. Revocation handling, context API adapters, automatic
+  one shared owner. A separate `connector_api_key` Keychain reference now
+  resolves the app-bound Verification Token and Encrypt Key only inside each
+  hosted Bot callback. Revocation handling, context API adapters, automatic
   lifecycle restart, and live acceptance remain open. See
   [Feishu System Keychain Resolution and Replacement](FEISHU_SYSTEM_KEYCHAIN.md) and
   [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) and
@@ -106,9 +108,10 @@ would invalidate established bindings. See
   boundary; Workbench now composes its concrete probes and minimized Connectors
   UI, while live User connectivity and normalized rate observations remain open. See
   [Feishu Connector Diagnostics](FEISHU_CONNECTOR_DIAGNOSTICS.md).
-- TD-201 implements the verified in-memory Bot message consumer and hash-only
-  receipt journal, but no callback host, subscription setup, or Encrypt Key
-  resolver is wired. See
+- TD-201 now wires the verified Bot consumer, app-bound Keychain subscription
+  secrets, hash-only receipt journal, fixed loopback callback route, and durable
+  Inbox normalization under the Cordis Host lifecycle. Public TLS forwarding,
+  subscription setup, and live delivery remain open. See
   [Feishu Bot Event Ingestion](FEISHU_BOT_EVENT_INGESTION.md).
 - TD-202 implements bounded, explicitly partial User message discovery,
   candidate cursors, the concrete OAuth/scope/Keychain/HTTP search adapter, and

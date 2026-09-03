@@ -12,16 +12,18 @@ synthetic definitions
   -> optional immutable synthetic routing AuditRecords
   -> optional exact Persona mapping and deterministic ready_for_review Drafts
   -> optional immutable synthetic Draft AuditRecords
-  -> Work Hub fixture presentation service
+  -> Work Hub presentation service over every durable Work Item
   -> loopback GET /api/inbox and /api/audit
   -> TwinDesk Web Inbox and Audit pages
 ```
 
 `@twindesk/plugin-work-hub` owns fixture seeding and the presentation-safe read
-model. `@twindesk/web` does not import SQLite or expose raw normalized event
-payloads. The browser receives only Work Item fields needed by the page, a
-synthetic source label, context completeness, source count, and optional
-Persona display metadata. Account IDs and external object IDs are not returned.
+model. The read model now pages every durable Work Item, including normalized
+Feishu items, rather than matching only the four fixture IDs. `@twindesk/web`
+does not expose raw normalized event payloads. The browser receives only Work
+Item fields needed by the page, a minimized synthetic or Feishu source label,
+context completeness, source count, and optional Persona display metadata.
+Account IDs and external object IDs are not returned.
 
 ## States and interaction
 
@@ -50,10 +52,9 @@ approval, Connector execution, or external action has occurred. The Web shell
 enables four routing AuditRecords plus two Persona-attributed Draft
 AuditRecords.
 
-The API is read-only. The existing server-wide `GET` and `HEAD` restriction
-rejects mutation methods, and the UI explicitly states that fixture data cannot
-perform an external write. Persona metadata remains identity and behavior only;
-it grants no authority.
+The Inbox API is read-only. Other product endpoints implement separately
+CSRF-bound Draft, proposal, approval, and execution states. Persona metadata
+remains identity and behavior only; it grants no authority.
 
 ## Persistence and local startup
 
@@ -75,11 +76,11 @@ local TwinDesk database and `--port <port>` to change the port.
 
 ## Limitations
 
-- The service deliberately returns only the four stable fixture IDs, even if
-  its database later contains non-fixture Work Items.
-- The pages do not edit state, select Personas, edit Drafts, create
-  ActionProposals, approve, or execute actions. The server creates only the two
-  deterministic fixture Drafts used by the Stage 1 gate.
+- Fixture definitions provide richer synthetic context labels. Non-fixture
+  Work Items receive a minimized source label and explicit partial-context
+  presentation until a bounded context projection is composed.
+- Draft, proposal, approval, and execution controls remain separate Host-owned
+  endpoints; listing a durable Work Item grants none of those capabilities.
 - Fixture Drafts do not invoke a model or Harness Run and have no Session or Run
   association. Real Persona execution remains later work.
 - Fixture timestamps and content are synthetic repository data. No company

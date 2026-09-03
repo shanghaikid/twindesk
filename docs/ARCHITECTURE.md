@@ -158,9 +158,12 @@ purposes, symbolic links, and unsupported versions. A credential-free
 ActionIdentity projection records the selected principal without granting
 scope or execution authority. TD-201 adds a separate Bot message callback
 boundary: raw-body signature verification, encrypted-envelope support, exact
-direct-message/mention filtering, and an append-only hash receipt journal. It
-does not host a callback, resolve its Encrypt Key, normalize ExternalEvents, or
-grant execution authority. TD-202 adds bounded User-identity search windows and
+direct-message/mention filtering, URL verification, and an append-only hash
+receipt journal. The Workbench now resolves a separate app-bound subscription
+secret bundle per request and hosts the boundary at a fixed loopback route;
+accepted events atomically normalize into Inbox storage before acknowledgement.
+It provides no public ingress, subscription automation, or execution authority.
+TD-202 adds bounded User-identity search windows and
 opaque candidate cursor positions; it always reports partial coverage and
 leaves durable event/cursor commit to TD-204. TD-203 adds a User-bound context
 adapter boundary for bounded conversation messages, simple document excerpts,
@@ -233,10 +236,11 @@ primitive. The Connector-neutral Work Hub Host operation owns approval,
 dispatch, receipt, and recoverable Audit ordering under exclusive ownership.
 The Workbench composition root now binds both boundaries with the real runtime
 lease in a production-shaped API and synthetic end-to-end test. Cordis acquires
-one top-level owner and gives polling plus the hosted OAuth, reconciliation, and
-reply paths an exact-configuration shared manager view. Live acceptance,
-out-of-process configuration watching, and Bot event hosting remain TD-209
-work. Production diagnostics now run beneath the shared owner. Product-mediated
+one top-level owner and gives polling plus the hosted OAuth, reconciliation,
+reply, and Bot event paths an exact-configuration shared manager view. Live
+acceptance, public callback forwarding, subscription setup, and out-of-process
+configuration watching remain TD-209 work. Production diagnostics now run
+beneath the shared owner. Product-mediated
 Settings and credential success
 now reconstruct polling beneath the same owner. See
 [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) and
@@ -337,8 +341,8 @@ shared top-level Feishu owner. See
 [ADR 0003](decisions/0003-macos-local-data-root.md), and
 [ADR 0004](decisions/0004-feishu-oauth-recovery-journal-path.md). The Stage 2
 exit remains open until the
-production runtime hosts ingestion, polling, and credential-recovery
-lifecycles, binds the Workbench model-Draft product entry to a
+production runtime passes live ingestion, polling, and credential-recovery
+acceptance, binds the Workbench model-Draft product entry to a
 credential-healthy Harness provider, and passes live-account acceptance
 boundaries. Read-only action-flow refresh restoration is now composed. See
 [Workbench Feishu OAuth Reauthorization Runtime](WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_RUNTIME.md),
@@ -403,7 +407,8 @@ A Profile Bundle that composes the plugins above, default Agent Presets, model T
 Its exported Workbench Feishu reply runtime factory composes the exact durable
 approval operation, real kernel-backed lease, production reply adapter, and
 injected credential/scope/HTTP collaborators. Cordis now hosts this path and
-User polling beneath one shared top-level owner; live acceptance remains open.
+User polling and signed Bot ingestion beneath one shared top-level owner; live
+acceptance and public callback forwarding remain open.
 
 The Stage 0 bundle inserts `@twindesk/plugin-work-hub` and
 `@twindesk/plugin-ui` after the pinned Harness base and Web application

@@ -4,6 +4,7 @@ import {
   createHarnessModelDraftRunner,
   inspectHarnessModelDraftRoute,
 } from '@twindesk/harness-adapter'
+import { parseSecretReference } from '@twindesk/domain'
 
 import { createWorkbenchFeishuRuntimeSupervisor } from './feishu-runtime-supervisor.ts'
 import { openWorkbenchFeishuSettingsStores } from './local-data-paths.ts'
@@ -24,6 +25,8 @@ export interface WorkbenchCordisRuntimeConfig {
   readonly model: string
   /** Host-only tenant identity. Omit to keep User polling disabled. */
   readonly feishuTenantKey?: string
+  /** Host-only Keychain reference id for the Bot event-subscription secret bundle. */
+  readonly feishuBotEventSecretReferenceId?: string
 }
 
 interface WorkbenchCordisRuntimeContext {
@@ -73,13 +76,24 @@ function tenantKeyAt(value: unknown): string {
   return value
 }
 
+function secretReferenceIdAt(value: unknown): string {
+  if (
+    typeof value !== 'string' ||
+    value.length === 0 ||
+    !/^secret-ref:[a-z0-9][a-z0-9._-]{0,127}$/u.test(value)
+  ) {
+    throw new TypeError()
+  }
+  return value
+}
+
 function configAt(value: unknown): WorkbenchCordisRuntimeConfig {
   try {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError()
     const prototype = Object.getPrototypeOf(value) as unknown
     const descriptors = Object.getOwnPropertyDescriptors(value)
     const required = ['version', 'homeDirectory', 'databasePath', 'port', 'provider', 'model']
-    const allowed = [...required, 'feishuTenantKey']
+    const allowed = [...required, 'feishuTenantKey', 'feishuBotEventSecretReferenceId']
     if (
       (prototype !== Object.prototype && prototype !== null) ||
       Object.getOwnPropertySymbols(value).length !== 0 ||
@@ -89,7 +103,9 @@ function configAt(value: unknown): WorkbenchCordisRuntimeConfig {
       descriptors.version?.value !== 1 ||
       !Number.isSafeInteger(descriptors.port?.value) ||
       (descriptors.port?.value as number) < 0 ||
-      (descriptors.port?.value as number) > 65_535
+      (descriptors.port?.value as number) > 65_535 ||
+      (descriptors.feishuBotEventSecretReferenceId?.value !== undefined &&
+        descriptors.feishuTenantKey?.value === undefined)
     ) {
       throw new TypeError()
     }
@@ -103,6 +119,14 @@ function configAt(value: unknown): WorkbenchCordisRuntimeConfig {
       ...(Object.hasOwn(descriptors, 'feishuTenantKey') &&
       descriptors.feishuTenantKey?.value !== undefined
         ? { feishuTenantKey: tenantKeyAt(descriptors.feishuTenantKey?.value) }
+        : {}),
+      ...(Object.hasOwn(descriptors, 'feishuBotEventSecretReferenceId') &&
+      descriptors.feishuBotEventSecretReferenceId?.value !== undefined
+        ? {
+            feishuBotEventSecretReferenceId: secretReferenceIdAt(
+              descriptors.feishuBotEventSecretReferenceId.value,
+            ),
+          }
         : {}),
     })
   } catch {
@@ -177,6 +201,20 @@ export function apply(contextValue: unknown, configValue: unknown): void {
         feishuLeaseManager: supervisor.leaseManager,
         feishuRuntimeStatus: () => supervisor.readStatus(),
         onFeishuRuntimeChanged: () => supervisor.requestRefresh(),
+        ...(config.feishuBotEventSecretReferenceId === undefined
+          ? {}
+          : {
+              feishuBotEvent: {
+                tenantKey: config.feishuTenantKey,
+                secretReference: parseSecretReference({
+                  kind: 'secret_reference' as const,
+                  schemaVersion: 1 as const,
+                  id: config.feishuBotEventSecretReferenceId,
+                  store: 'system_keychain' as const,
+                  purpose: 'connector_api_key' as const,
+                }),
+              },
+            }),
       })
     } catch (error) {
       await supervisor.close()

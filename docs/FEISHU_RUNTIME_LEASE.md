@@ -73,12 +73,13 @@ The User polling runtime separately proves one long-lived lease across
 restart-safe page commits and bounded retry. Its production constructor creates
 the OAuth/Keychain/HTTP search adapter only within that already-held lease.
 The production Cordis runtime now acquires the Host lease once and places
-polling, authorization, recovery, and external writes beneath an
+polling, signed Bot ingestion, authorization, recovery, diagnostics, and
+external writes beneath an
 exact-configuration shared manager instead of letting each operation reacquire
 it. The manager drains active callbacks before releasing the kernel owner and
 does not replace operation-level approval, OAuth reservation, dispatch, or
 idempotency controls. Product-mediated Settings and credential success restart
-polling beneath the same owner. Remaining TD-209 work includes diagnostics,
-hosted Bot ingestion, out-of-process configuration watching, and live-account
-acceptance. See
+polling beneath the same owner. Remaining TD-209 work includes public callback
+forwarding, subscription setup, out-of-process configuration watching, and
+live-account acceptance. See
 [ADR 0005](decisions/0005-shared-feishu-runtime-owner.md).

@@ -85,10 +85,13 @@ durably rotated expired token, one send, and no resend after restart and
 approval expiry. A separate Workbench host now holds the same lease while the
 existing coordinator persists already-exchanged blocked-state reauthorization
 evidence, without starting OAuth or retrying a reply. The required live-account
-path is still missing hosted Bot ingestion and live polling acceptance. Cordis
-now starts the production-shaped User polling composition and existing Web
-operations beneath one shared top-level lease when a Host tenant key and
-restart-loaded User identity are present. The product Web boundary can render a minimized read-only Feishu
+path now has a production-shaped loopback Bot callback Host with app-bound
+Keychain secrets, URL verification, durable normalization, and exact
+acknowledgement, but public forwarding, subscription setup, live Bot delivery,
+and live polling acceptance remain missing. Cordis now starts the
+production-shaped User polling composition and existing Web operations beneath
+one shared top-level lease when a Host tenant key and restart-loaded User
+identity are present. The product Web boundary can render a minimized read-only Feishu
 Settings status, and the default launcher injects the fixed-path Workbench
 reader. The product can now edit an existing User identity's non-secret
 literal-loopback callback and requested scopes behind same-origin,

@@ -138,12 +138,14 @@ Every external write implementation requires an idempotency test. Every persiste
 
 ## Current Phase
 
-The repository is currently in Roadmap Stage 1. Prioritize the versioned domain
-model, forward-only TwinDesk SQLite migrations, idempotent fixture ingestion,
-durable cursors, rebuildable Inbox projections, product-owned local API, draft
-state transitions, Audit Timeline, redaction, retention, export, deletion, and
-restart recovery. Keep real Connectors and every external write out of this
-stage. Harness Web UI is diagnostic only; `@twindesk/web` owns product routes.
+The repository is currently in Roadmap Stage 2. Stages 0 and 1 are complete.
+Prioritize the Feishu closed-loop MVP, including separate Bot and User
+identities, bounded and replay-safe ingestion, explicit partial context,
+draft-only behavior by default, exact one-time approval, idempotent execution,
+restart recovery, and production-shaped diagnostics. Keep Jira, configurable
+Personas, Teams, automation, and desktop packaging outside this stage. Do not
+present synthetic Connector evidence as live-account acceptance. Harness Web UI
+remains diagnostic only; `@twindesk/web` owns product routes.
 
 ## Completion Checklist
 

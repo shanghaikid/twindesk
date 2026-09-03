@@ -24,6 +24,7 @@ import {
 
 const NOW = Date.parse('2026-08-27T08:00:00.000Z')
 const ENCRYPTION_KEY = 'synthetic-feishu-event-encryption-key'
+const VERIFICATION_TOKEN = 'synthetic-feishu-verification-token'
 const TIMESTAMP = String(NOW / 1000)
 
 function configuration() {
@@ -140,6 +141,58 @@ function consumer(receipts) {
     { tenantKey: 'tenant_synthetic', now: () => NOW },
   )
 }
+
+/** @param {string} receipts */
+function subscriptionConsumer(receipts) {
+  return new FeishuBotEventConsumer(
+    configuration(),
+    ENCRYPTION_KEY,
+    new FeishuBotEventReceiptStore(receipts),
+    {
+      tenantKey: 'tenant_synthetic',
+      verificationToken: VERIFICATION_TOKEN,
+      now: () => NOW,
+    },
+  )
+}
+
+test('signed URL verification echoes only the exact bound challenge', async (context) => {
+  const files = await fixture(context, 'challenge')
+  let calls = 0
+  const challenge = {
+    type: 'url_verification',
+    challenge: 'synthetic-challenge-value',
+    token: VERIFICATION_TOKEN,
+  }
+  assert.deepEqual(
+    await subscriptionConsumer(files.receipts).consume(signedRequest(challenge), async () => {
+      calls += 1
+    }),
+    { status: 'challenge', challenge: 'synthetic-challenge-value' },
+  )
+  assert.equal(calls, 0)
+  await assert.rejects(
+    subscriptionConsumer(files.receipts).consume(
+      signedRequest({ ...challenge, token: 'wrong-token' }),
+      async () => {
+        calls += 1
+      },
+    ),
+    (error) => error instanceof FeishuBotEventError && error.code === 'identity_mismatch',
+  )
+  await assert.rejects(
+    consumer(files.receipts).consume(signedRequest(challenge), async () => undefined),
+    (error) => error instanceof FeishuBotEventError && error.code === 'identity_mismatch',
+  )
+  await assert.rejects(
+    subscriptionConsumer(files.receipts).consume(
+      signedRequest({ ...challenge, extra: 'unsupported' }),
+      async () => undefined,
+    ),
+    (error) => error instanceof FeishuBotEventError && error.code === 'identity_mismatch',
+  )
+  assert.equal(calls, 0)
+})
 
 test('verified direct messages are consumed once and persist only hash receipts', async (context) => {
   const files = await fixture(context, 'direct')

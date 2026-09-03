@@ -3,10 +3,10 @@
 ## Scope
 
 The Workbench Cordis plugin can now activate the production-shaped Feishu User
-polling composition under one shared top-level Host lease. Polling remains
-read-only: it discovers only messages visible to the configured User OAuth
-identity, normalizes bounded pages, and atomically commits TwinDesk events,
-Inbox projections, and candidate cursors.
+polling composition and signed Bot callback ingestion under one shared
+top-level Host lease. Polling remains read-only. Bot ingestion accepts only
+verified direct messages and exact mentions, then atomically commits TwinDesk
+events and Inbox projections before acknowledgement.
 
 This lifecycle grants no Persona, Tool, approval, or external-write authority.
 Reply execution continues through its separate exact proposal, approval,
@@ -18,6 +18,14 @@ dispatch, receipt, and Audit path.
 absent, Cordis starts the existing product Web runtime without polling. When it
 is present, it must be a bounded canonical tenant identifier and never comes
 from a browser request.
+
+`TWINDESK_FEISHU_BOT_EVENT_SECRET_REFERENCE_ID` optionally enables the fixed
+loopback `POST /api/connectors/feishu/bot/events` route. It must be an opaque
+`secret-ref:*` Keychain account and is invalid without the tenant key. The
+referenced `connector_api_key` bundle contains the exact app-bound Verification
+Token and Encrypt Key; neither launch configuration nor the browser contains
+secret material. A user-managed TLS proxy or tunnel must forward the public
+Feishu Request URL to the loopback route.
 
 Polling starts immediately when the restart-safe identity store already
 contains a User identity at Cordis startup. An empty or Bot-only installation
@@ -43,7 +51,8 @@ With an existing User identity, Cordis performs this order:
 5. construct and start the OAuth rotation, scope, Keychain, HTTP, normalization,
    and cursor polling stack through the shared manager;
 6. start the product Web server and give authorization, reauthorization,
-   reconciliation, and reply execution that same manager;
+   reconciliation, reply execution, diagnostics, and optional Bot ingestion
+   that same manager;
 7. on unload, abort and await polling, close Web and active requests, close the
    polling database handle, then drain and release the owner.
 
@@ -55,7 +64,8 @@ idempotency, durable OAuth reservations, or approval checks.
 A terminal polling error is observed and emits only a fixed attention-required
 Host message. It does not expose the account, application, principal,
 SecretReference, credential, message, cursor, page token, response, or thrown
-value. Production diagnostics and UI recovery status remain separate open work.
+value. Production diagnostics report the polling lifecycle separately; a live
+Bot ingestion health signal remains open.
 
 ## Verification and Limitations
 
@@ -63,13 +73,14 @@ value. Production diagnostics and UI recovery status remain separate open work.
 identity substitution, cancellation, draining shutdown, hostile input, and
 post-close rejection. `tests/workbench-cordis-runtime.test.mjs` covers optional
 activation, a synthetic polling page beneath one observed parent acquisition,
-normal release, and existing Web lifecycle behavior. The real lease suite
+a signed Bot callback that appears in the durable Inbox, normal release, and
+existing Web lifecycle behavior. The real lease suite
 separately retains cross-process exclusion and crash release. The adapter and
 polling suites retain OAuth/scope/Keychain ordering, secret cleanup, restart,
 cursor, replay, partial-result, and cancellation coverage.
 
 No test reads a live Keychain item or calls Feishu. Production-shaped
-diagnostics now share this owner, but live User polling, live reply execution,
-live diagnostics, hosted Bot ingestion, out-of-process
-configuration watching, and credential-healthy model generation remain outside
-this evidence.
+diagnostics and loopback Bot ingestion now share this owner, but live User
+polling, live reply execution, live diagnostics, public callback forwarding,
+subscription setup, live Bot delivery, out-of-process configuration watching,
+and credential-healthy model generation remain outside this evidence.

@@ -5,7 +5,12 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import test from 'node:test'
 
-import { parseWorkItemUserAction } from '../packages/domain/dist/index.js'
+import {
+  parseExternalEvent,
+  parseExternalThread,
+  parseWorkItem,
+  parseWorkItemUserAction,
+} from '../packages/domain/dist/index.js'
 import {
   createFixtureInboxService,
   createFixtureInboxServiceFromDatabase,
@@ -14,6 +19,9 @@ import {
 import { openTwinDeskDatabase } from '../packages/storage-sqlite/dist/index.js'
 
 /** @typedef {import('../packages/domain/src/model.ts').WorkItemUserAction} SourceWorkItemUserAction */
+/** @typedef {import('../packages/domain/src/model.ts').ExternalEvent} SourceExternalEvent */
+/** @typedef {import('../packages/domain/src/model.ts').ExternalThread} SourceExternalThread */
+/** @typedef {import('../packages/domain/src/model.ts').WorkItem} SourceWorkItem */
 
 /** @param {import('node:test').TestContext} context */
 async function temporaryDatabase(context) {
@@ -131,5 +139,79 @@ test('the fixture Inbox can share a caller-owned database without closing it', (
   service.close()
   assert.equal(database.isOpen, true)
   assert.equal(database.queryAuditTimeline({ limit: 10 }).records.length, 4)
+  database.close()
+})
+
+test('the shared Inbox includes durable non-fixture Feishu Work Items', () => {
+  const database = openTwinDeskDatabase(':memory:')
+  const timestamp = '2026-09-03T08:00:00.000Z'
+  const source = {
+    connectorId: 'feishu',
+    accountId: 'feishu-account:synthetic',
+    objectType: 'message',
+    externalId: 'om_synthetic_external_message',
+    sourceTimestamp: timestamp,
+  }
+  const event = /** @type {SourceExternalEvent} */ (
+    /** @type {unknown} */ (
+      parseExternalEvent({
+        kind: 'external_event',
+        schemaVersion: 1,
+        id: 'feishu-event-shared-inbox',
+        idempotencyKey: 'feishu:synthetic:shared-inbox:v1',
+        source,
+        eventType: 'message.received',
+        occurredAt: timestamp,
+        receivedAt: timestamp,
+        context: { status: 'complete' },
+        normalized: { text: 'Synthetic Feishu message for a local projection.' },
+      })
+    )
+  )
+  const thread = /** @type {SourceExternalThread} */ (
+    /** @type {unknown} */ (
+      parseExternalThread({
+        kind: 'external_thread',
+        schemaVersion: 1,
+        id: 'feishu-thread-shared-inbox',
+        subject: 'Synthetic Feishu thread',
+        externalReferences: [source],
+        sourceEventIds: [event.id],
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+    )
+  )
+  const workItem = /** @type {SourceWorkItem} */ (
+    /** @type {unknown} */ (
+      parseWorkItem({
+        kind: 'work_item',
+        schemaVersion: 1,
+        id: 'feishu-work-item-shared-inbox',
+        threadId: thread.id,
+        sourceEventIds: [event.id],
+        inboxState: 'needs_reply',
+        title: 'Reply to the Feishu message',
+        summary: 'A synthetic external message needs a reply.',
+        attentionReason: 'The sender asked a direct question.',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+    )
+  )
+  database.ingestExternalEvents([event])
+  database.putWorkItemProjection({ thread, workItem })
+
+  const service = createFixtureInboxServiceFromDatabase(database)
+  const snapshot = service.read('needs_reply')
+  const projected = snapshot.items.find(({ id }) => id === workItem.id)
+
+  assert.equal(snapshot.counts.needs_reply, 2)
+  assert.equal(projected?.source.label, 'Feishu')
+  assert.deepEqual(projected?.context, {
+    status: 'partial',
+    missing: ['Context details are not projected in this Inbox view.'],
+  })
+  service.close()
   database.close()
 })

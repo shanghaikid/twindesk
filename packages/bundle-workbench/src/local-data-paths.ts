@@ -9,7 +9,7 @@ import {
   FeishuOAuthRotationJournal,
 } from '@twindesk/plugin-feishu'
 
-export const WORKBENCH_LOCAL_DATA_PATHS_VERSION = 2 as const
+export const WORKBENCH_LOCAL_DATA_PATHS_VERSION = 3 as const
 
 export type WorkbenchLocalDataPathErrorCode =
   'invalid_options' | 'unsupported_platform' | 'unsafe_path' | 'io_error'
@@ -39,6 +39,7 @@ export interface WorkbenchLocalDataPaths {
   readonly feishuIdentityConfiguration: string
   readonly feishuOAuthAuthorizationConfiguration: string
   readonly feishuOAuthRotationJournal: string
+  readonly feishuBotEventReceipts: string
 }
 
 export interface WorkbenchFeishuSettingsStores {
@@ -133,6 +134,7 @@ export function resolveWorkbenchLocalDataPaths(
       'oauth-authorization.v1.json',
     ),
     feishuOAuthRotationJournal: join(feishuStateDirectory, 'oauth-rotation.jsonl'),
+    feishuBotEventReceipts: join(feishuStateDirectory, 'bot-event-receipts.jsonl'),
   })
 }
 

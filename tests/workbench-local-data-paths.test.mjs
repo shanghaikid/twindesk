@@ -51,7 +51,7 @@ test('Workbench resolves one fixed macOS product-data layout', () => {
   })
   assert.deepEqual(paths, {
     kind: 'workbench_local_data_paths',
-    schemaVersion: 2,
+    schemaVersion: 3,
     platform: 'darwin',
     rootDirectory: '/Users/synthetic/Library/Application Support/TwinDesk',
     feishuSettingsDirectory:
@@ -64,6 +64,8 @@ test('Workbench resolves one fixed macOS product-data layout', () => {
       '/Users/synthetic/Library/Application Support/TwinDesk/settings/connectors/feishu/oauth-authorization.v1.json',
     feishuOAuthRotationJournal:
       '/Users/synthetic/Library/Application Support/TwinDesk/state/connectors/feishu/oauth-rotation.jsonl',
+    feishuBotEventReceipts:
+      '/Users/synthetic/Library/Application Support/TwinDesk/state/connectors/feishu/bot-event-receipts.jsonl',
   })
   assert.equal(Object.isFrozen(paths), true)
 })

@@ -1,4 +1,5 @@
 export * from './bot-event-consumer.ts'
+export * from './bot-event-subscription-secret.ts'
 export * from './bot-identity-scope-http-client.ts'
 export * from './bot-keychain-scope-probe.ts'
 export * from './bot-tenant-token-acquisition.ts'

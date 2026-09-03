@@ -77,8 +77,12 @@ export type FeishuBotEventResult =
   | Readonly<{ status: 'accepted'; event: FeishuBotMessageEvent }>
   | Readonly<{ status: 'duplicate' }>
   | Readonly<{ status: 'ignored'; reason: 'group_message_without_bot_mention' }>
+  | Readonly<{ status: 'challenge'; challenge: string }>
 
-type ParsedFeishuBotEventResult = Exclude<FeishuBotEventResult, Readonly<{ status: 'duplicate' }>>
+type ParsedFeishuBotEventResult = Exclude<
+  FeishuBotEventResult,
+  Readonly<{ status: 'duplicate' | 'challenge' }>
+>
 
 interface ReceiptRecord {
   readonly kind: 'feishu_bot_message_receipt'
@@ -216,6 +220,42 @@ function parseBody(rawBody: Buffer, encryptionKey: string): UnknownRecord {
     return dataRecord(decryptEnvelope(encrypted, encryptionKey))
   }
   return envelope
+}
+
+function secureStringMatches(observed: string, expected: string): boolean {
+  const left = Buffer.from(observed, 'utf8')
+  const right = Buffer.from(expected, 'utf8')
+  try {
+    return left.byteLength === right.byteLength && timingSafeEqual(left, right)
+  } finally {
+    left.fill(0)
+    right.fill(0)
+  }
+}
+
+function parseChallenge(
+  body: UnknownRecord,
+  verificationToken: string | undefined,
+): Readonly<{ status: 'challenge'; challenge: string }> | undefined {
+  if (body.type !== 'url_verification') return undefined
+  if (
+    verificationToken === undefined ||
+    Object.keys(body).length !== 3 ||
+    !Object.hasOwn(body, 'challenge') ||
+    !Object.hasOwn(body, 'token') ||
+    typeof body.token !== 'string' ||
+    !secureStringMatches(body.token, verificationToken)
+  ) {
+    throw fail('identity_mismatch', 'The Feishu callback verification identity does not match.')
+  }
+  return Object.freeze({
+    status: 'challenge',
+    challenge: boundedString(
+      body.challenge,
+      'The Feishu callback verification challenge is invalid.',
+      1_024,
+    ),
+  })
 }
 
 function parseHeaders(value: unknown): Readonly<{
@@ -702,6 +742,7 @@ export class FeishuBotEventConsumer {
   readonly #tenantKey: string
   readonly #now: () => number
   readonly #maximumSignatureAgeMs: number
+  readonly #verificationToken: string | undefined
 
   constructor(
     configuration: unknown,
@@ -709,6 +750,7 @@ export class FeishuBotEventConsumer {
     receiptStore: FeishuBotEventReceiptStore,
     options: Readonly<{
       tenantKey: string
+      verificationToken?: string
       now?: () => number
       maximumSignatureAgeMs?: number
     }>,
@@ -730,13 +772,22 @@ export class FeishuBotEventConsumer {
     const optionRecord = dataRecord(options, 'invalid_request')
     if (
       Object.keys(optionRecord).some(
-        (key) => !['tenantKey', 'now', 'maximumSignatureAgeMs'].includes(key),
+        (key) => !['tenantKey', 'verificationToken', 'now', 'maximumSignatureAgeMs'].includes(key),
       ) ||
       typeof optionRecord.tenantKey !== 'string' ||
       optionRecord.tenantKey.length === 0 ||
       optionRecord.tenantKey.length > 512 ||
       optionRecord.tenantKey.trim() !== optionRecord.tenantKey ||
       !/^[A-Za-z0-9][A-Za-z0-9._:-]*$/u.test(optionRecord.tenantKey)
+    ) {
+      throw fail('invalid_request', 'The Feishu Bot consumer options are invalid.')
+    }
+    if (
+      optionRecord.verificationToken !== undefined &&
+      (typeof optionRecord.verificationToken !== 'string' ||
+        optionRecord.verificationToken.length === 0 ||
+        optionRecord.verificationToken.length > 4_096 ||
+        /[\u0000-\u001f\u007f]/u.test(optionRecord.verificationToken))
     ) {
       throw fail('invalid_request', 'The Feishu Bot consumer options are invalid.')
     }
@@ -757,6 +808,7 @@ export class FeishuBotEventConsumer {
     this.#encryptionKey = encryptionKey
     this.#receiptStore = receiptStore
     this.#tenantKey = optionRecord.tenantKey
+    this.#verificationToken = optionRecord.verificationToken as string | undefined
     this.#now = now as () => number
     this.#maximumSignatureAgeMs = maximumSignatureAgeMs
   }
@@ -779,11 +831,10 @@ export class FeishuBotEventConsumer {
       throw fail('invalid_request', 'The Feishu Bot consumer clock is invalid.')
     }
     verifySignature(request, this.#encryptionKey, now, this.#maximumSignatureAgeMs)
-    const parsed = parseMessageEvent(
-      parseBody(request.rawBody, this.#encryptionKey),
-      this.#configuration,
-      this.#tenantKey,
-    )
+    const body = parseBody(request.rawBody, this.#encryptionKey)
+    const challenge = parseChallenge(body, this.#verificationToken)
+    if (challenge !== undefined) return challenge
+    const parsed = parseMessageEvent(body, this.#configuration, this.#tenantKey)
     if (parsed.status === 'ignored') return parsed
     const hashes = receiptDigests(parsed.event)
     const disposition = await this.#receiptStore.consumeOnce(

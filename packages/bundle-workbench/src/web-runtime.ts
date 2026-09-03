@@ -5,6 +5,7 @@ import {
 } from '@twindesk/web'
 import { openTwinDeskDatabase } from '@twindesk/storage-sqlite'
 import { FeishuRuntimeLeaseManager } from '@twindesk/plugin-feishu'
+import { parseSecretReference, type SecretReference } from '@twindesk/domain'
 
 import {
   openWorkbenchFeishuSettingsStores,
@@ -17,6 +18,7 @@ import { createWorkbenchFeishuOAuthReconciliationService } from './feishu-oauth-
 import { createDefaultWorkbenchFeishuOAuthReauthorizationController } from './feishu-oauth-reauthorization-controller.ts'
 import { createWorkbenchFeishuSettingsPresentation } from './feishu-settings-presentation.ts'
 import { createWorkbenchFeishuConnectorDiagnostics } from './feishu-connector-diagnostics.ts'
+import { createWorkbenchFeishuBotEventIngress } from './feishu-bot-event-ingress.ts'
 import type { WorkbenchFeishuRuntimeStatus } from './feishu-runtime-supervisor.ts'
 import { createWorkbenchFeishuUserIdentityBootstrapper } from './feishu-user-identity-bootstrap.ts'
 import { createWorkbenchFeishuReplyProposalController } from './feishu-reply-proposal-controller.ts'
@@ -38,6 +40,11 @@ export interface WorkbenchWebServerOptions extends WorkbenchLocalDataPathOptions
   readonly onFeishuRuntimeChanged?: () => void
   /** Host-owned, identifier-free polling lifecycle status. */
   readonly feishuRuntimeStatus?: () => WorkbenchFeishuRuntimeStatus
+  /** Host-only Bot event subscription configuration; never projected to the browser. */
+  readonly feishuBotEvent?: Readonly<{
+    tenantKey: string
+    secretReference: SecretReference
+  }>
   /** Host-owned Harness route. Credentials remain in the configured provider. */
   readonly modelDraftRuntime?: Omit<WorkbenchModelDraftControllerOptions, 'database'>
 }
@@ -72,6 +79,37 @@ function modelDraftRuntimeAt(
   })
 }
 
+function feishuBotEventAt(
+  value: unknown,
+): NonNullable<WorkbenchWebServerOptions['feishuBotEvent']> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError()
+  const prototype = Object.getPrototypeOf(value) as unknown
+  const descriptors = Object.getOwnPropertyDescriptors(value)
+  const keys = ['tenantKey', 'secretReference']
+  if (
+    (prototype !== Object.prototype && prototype !== null) ||
+    Object.getOwnPropertySymbols(value).length !== 0 ||
+    Object.keys(descriptors).length !== keys.length ||
+    keys.some((key) => !Object.hasOwn(descriptors, key)) ||
+    Object.values(descriptors).some((descriptor) => !Object.hasOwn(descriptor, 'value')) ||
+    typeof descriptors.tenantKey?.value !== 'string' ||
+    descriptors.tenantKey.value.length === 0 ||
+    descriptors.tenantKey.value.length > 512 ||
+    descriptors.tenantKey.value.trim() !== descriptors.tenantKey.value ||
+    !/^[A-Za-z0-9][A-Za-z0-9._:-]*$/u.test(descriptors.tenantKey.value)
+  ) {
+    throw new TypeError()
+  }
+  const secretReference = parseSecretReference(descriptors.secretReference?.value)
+  if (
+    secretReference.store !== 'system_keychain' ||
+    secretReference.purpose !== 'connector_api_key'
+  ) {
+    throw new TypeError()
+  }
+  return Object.freeze({ tenantKey: descriptors.tenantKey.value, secretReference })
+}
+
 function readOptions(value: unknown): WorkbenchWebServerOptions {
   try {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError()
@@ -86,6 +124,7 @@ function readOptions(value: unknown): WorkbenchWebServerOptions {
       'feishuLeaseManager',
       'onFeishuRuntimeChanged',
       'feishuRuntimeStatus',
+      'feishuBotEvent',
       'modelDraftRuntime',
     ]
     if (
@@ -122,6 +161,9 @@ function readOptions(value: unknown): WorkbenchWebServerOptions {
       ...(record.modelDraftRuntime === undefined
         ? {}
         : { modelDraftRuntime: modelDraftRuntimeAt(record.modelDraftRuntime) }),
+      ...(record.feishuBotEvent === undefined
+        ? {}
+        : { feishuBotEvent: feishuBotEventAt(record.feishuBotEvent) }),
     }) as WorkbenchWebServerOptions
   } catch {
     throw invalid()
@@ -190,6 +232,19 @@ export async function startWorkbenchWebServer(
         ? {}
         : { runtimeStatus: options.feishuRuntimeStatus }),
     })
+    const feishuBotEvents =
+      options.feishuBotEvent === undefined
+        ? undefined
+        : createWorkbenchFeishuBotEventIngress({
+            identityStore: stores.identityStore,
+            database: maintenanceDatabase,
+            tenantKey: options.feishuBotEvent.tenantKey,
+            receiptStorePath: stores.paths.feishuBotEventReceipts,
+            secretReference: options.feishuBotEvent.secretReference,
+            ...(options.feishuLeaseManager === undefined
+              ? {}
+              : { leaseManager: options.feishuLeaseManager }),
+          })
     const feishuReauthorization = createDefaultWorkbenchFeishuOAuthReauthorizationController({
       identityStore: stores.identityStore,
       authorizationStore: stores.authorizationStore,
@@ -264,6 +319,7 @@ export async function startWorkbenchWebServer(
         },
       },
       feishuDiagnostics,
+      ...(feishuBotEvents === undefined ? {} : { feishuBotEvents }),
       feishuAuthorization: {
         read: feishuAuthorization.read,
         start: feishuAuthorization.start,

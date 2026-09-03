@@ -11,7 +11,11 @@ import {
   type InboxState,
   type WorkItem,
 } from '@twindesk/domain'
-import { openTwinDeskDatabase, type TwinDeskDatabase } from '@twindesk/storage-sqlite'
+import {
+  openTwinDeskDatabase,
+  type InboxCursor,
+  type TwinDeskDatabase,
+} from '@twindesk/storage-sqlite'
 
 import { findBuiltInPersonaConfiguration } from './persona-presets.ts'
 import {
@@ -107,14 +111,14 @@ function fixtureInboxService(
       if (state !== undefined && !FIXTURE_INBOX_STATES.includes(state)) {
         throw new TypeError('The Inbox state is not supported.')
       }
-      const allItems = readFixtureItems(database)
+      const allItems = readInboxItems(database)
       const visibleItems =
         state === undefined ? allItems : allItems.filter((item) => item.inboxState === state)
       return Object.freeze({
         version: 1,
         fixture: true,
         counts: counts(allItems),
-        items: Object.freeze(visibleItems.map(projectItem)),
+        items: Object.freeze(visibleItems.map((item) => projectItem(item, database))),
       })
     },
     readAudit() {
@@ -299,16 +303,14 @@ function seed(database: TwinDeskDatabase, includeAudit: boolean, includeDraftFlo
   if (includeDraftFlow) completeFixtureStage1Flow(database)
 }
 
-function readFixtureItems(database: TwinDeskDatabase): readonly WorkItem[] {
+function readInboxItems(database: TwinDeskDatabase): readonly WorkItem[] {
   const items: WorkItem[] = []
-  for (const { workItem } of FIXTURE_RECORDS) {
-    const current = database.getWorkItem(workItem.id)
-    if (current !== undefined) items.push(current)
-  }
-  items.sort((left, right) => {
-    const chronological = Date.parse(right.updatedAt) - Date.parse(left.updatedAt)
-    return chronological === 0 ? left.id.localeCompare(right.id) : chronological
-  })
+  let after: InboxCursor | undefined
+  do {
+    const page = database.queryInbox({ limit: 100, ...(after === undefined ? {} : { after }) })
+    items.push(...page.items)
+    after = page.nextCursor
+  } while (after !== undefined)
   return items
 }
 
@@ -323,13 +325,28 @@ function counts(items: readonly WorkItem[]): Readonly<Record<InboxState, number>
   return Object.freeze(result)
 }
 
-function projectItem(item: WorkItem): FixtureInboxItem {
+function projectItem(item: WorkItem, database: TwinDeskDatabase): FixtureInboxItem {
   const definition = DEFINITIONS.find(({ suffix }) => item.id === `fixture-work-item-${suffix}`)
-  const context = definition?.context ?? { status: 'partial', missing: ['Fixture metadata'] }
+  const thread = database.getThread(item.threadId)
+  const sourceReference = thread?.externalReferences.find(
+    (reference) => reference.objectType === 'message',
+  )
+  const context = definition?.context ?? {
+    status: 'partial' as const,
+    missing: ['Context details are not projected in this Inbox view.'],
+  }
   const persona =
     item.selectedPersonaId === undefined
       ? undefined
       : findBuiltInPersonaConfiguration(item.selectedPersonaId)
+  const sourceLabel =
+    definition !== undefined
+      ? 'Synthetic fixture'
+      : sourceReference?.connectorId === 'feishu'
+        ? 'Feishu'
+        : sourceReference === undefined
+          ? 'Local projection'
+          : 'External source'
   return Object.freeze({
     id: item.id,
     inboxState: item.inboxState,
@@ -338,7 +355,10 @@ function projectItem(item: WorkItem): FixtureInboxItem {
     attentionReason: item.attentionReason,
     ...(item.selectedPersonaId === undefined ? {} : { personaId: item.selectedPersonaId }),
     ...(persona === undefined ? {} : { personaLabel: persona.name }),
-    source: Object.freeze({ label: 'Synthetic fixture', objectType: 'message' }),
+    source: Object.freeze({
+      label: sourceLabel,
+      objectType: sourceReference?.objectType ?? 'message',
+    }),
     context: Object.freeze({
       status: context.status,
       missing: Object.freeze([...context.missing]),

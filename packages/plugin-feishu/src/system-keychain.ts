@@ -262,7 +262,11 @@ function parseFeishuKeychainReference(value: unknown): SecretReference {
   if (reference.store !== 'system_keychain') {
     throw fail('unsupported_store', 'The Feishu credential is not stored in the system Keychain.')
   }
-  if (reference.purpose !== 'connector_app_credential' && reference.purpose !== 'connector_oauth') {
+  if (
+    reference.purpose !== 'connector_app_credential' &&
+    reference.purpose !== 'connector_oauth' &&
+    reference.purpose !== 'connector_api_key'
+  ) {
     throw fail('unsupported_purpose', 'The Feishu Keychain reference purpose is unsupported.')
   }
   return reference

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -8,6 +9,7 @@ import { apply, inject, name } from '../packages/bundle-workbench/dist/cordis-ru
 import { openWorkbenchFeishuSettingsStores } from '../packages/bundle-workbench/dist/index.js'
 import {
   FeishuRuntimeLeaseManager,
+  FeishuSystemKeychainSecretResolver,
   FeishuUserMessageSearchAdapter,
 } from '../packages/plugin-feishu/dist/index.js'
 
@@ -31,6 +33,8 @@ const FEISHU_CONFIGURATION = Object.freeze({
   }),
 })
 const FEISHU_TENANT_KEY = 'tenant_synthetic_cordis_polling'
+const BOT_ENCRYPTION_KEY = 'synthetic-cordis-bot-event-encryption-key'
+const BOT_VERIFICATION_TOKEN = 'synthetic-cordis-bot-event-verification-token'
 
 /** @param {import('node:test').TestContext} context */
 async function fixture(context) {
@@ -336,6 +340,154 @@ test('Workbench Cordis runtime polls beneath one shared Feishu owner and release
   assert.equal(ownerActive, false)
 })
 
+test('Workbench Cordis runtime hosts signed Bot events into the durable Inbox', async (context) => {
+  const { config } = await fixture(context)
+  const stores = await openWorkbenchFeishuSettingsStores({
+    platform: 'darwin',
+    homeDirectory: config.homeDirectory,
+  })
+  const botConfiguration = {
+    ...FEISHU_CONFIGURATION,
+    bot: {
+      identityType: 'bot',
+      displayName: 'Synthetic Cordis Bot',
+      principalId: 'ou_synthetic_cordis_bot',
+      credentialReference: {
+        kind: 'secret_reference',
+        schemaVersion: 1,
+        id: 'secret-ref:synthetic-cordis-bot-app',
+        store: 'system_keychain',
+        purpose: 'connector_app_credential',
+      },
+    },
+    user: undefined,
+  }
+  await stores.identityStore.write(botConfiguration)
+
+  const originalSecret = Object.getOwnPropertyDescriptor(
+    FeishuSystemKeychainSecretResolver.prototype,
+    'withSecret',
+  )
+  Object.defineProperty(FeishuSystemKeychainSecretResolver.prototype, 'withSecret', {
+    configurable: true,
+    /**
+     * @template TResult
+     * @param {unknown} _reference
+     * @param {AbortSignal} signal
+     * @param {(secret: Uint8Array) => Promise<TResult> | TResult} use
+     * @returns {Promise<TResult>}
+     */
+    async value(_reference, signal, use) {
+      signal.throwIfAborted()
+      const bytes = new TextEncoder().encode(
+        JSON.stringify({
+          kind: 'feishu_bot_event_subscription_secret_bundle',
+          schemaVersion: 1,
+          appId: botConfiguration.appId,
+          verificationToken: BOT_VERIFICATION_TOKEN,
+          encryptionKey: BOT_ENCRYPTION_KEY,
+        }),
+      )
+      try {
+        return await use(bytes)
+      } finally {
+        bytes.fill(0)
+      }
+    },
+  })
+  context.after(() => {
+    if (originalSecret !== undefined) {
+      Object.defineProperty(
+        FeishuSystemKeychainSecretResolver.prototype,
+        'withSecret',
+        originalSecret,
+      )
+    }
+  })
+  const originalWithLease = Object.getOwnPropertyDescriptor(
+    FeishuRuntimeLeaseManager.prototype,
+    'withLease',
+  )
+  Object.defineProperty(FeishuRuntimeLeaseManager.prototype, 'withLease', {
+    configurable: true,
+    /**
+     * @template TResult
+     * @param {unknown} _configuration
+     * @param {AbortSignal} signal
+     * @param {(lease: import('../packages/plugin-feishu/src/runtime-lease.ts').FeishuRuntimeLease) => Promise<TResult> | TResult} use
+     * @returns {Promise<TResult>}
+     */
+    async value(_configuration, signal, use) {
+      signal.throwIfAborted()
+      return use({ assertHeld: () => signal.throwIfAborted() })
+    },
+  })
+  context.after(() => {
+    if (originalWithLease !== undefined) {
+      Object.defineProperty(FeishuRuntimeLeaseManager.prototype, 'withLease', originalWithLease)
+    }
+  })
+
+  const runtime = runtimeContext()
+  apply(runtime.context, {
+    ...config,
+    feishuTenantKey: FEISHU_TENANT_KEY,
+    feishuBotEventSecretReferenceId: 'secret-ref:synthetic-cordis-bot-events',
+  })
+  const dispose = await runtime.lifecycle()
+  context.after(() => dispose())
+  const url = runtime.messages[0]?.match(/TwinDesk product web: (http:\/\/[^\s]+)/u)?.[1]
+  assert.ok(url)
+  const now = Date.now()
+  const rawBody = JSON.stringify({
+    schema: '2.0',
+    header: {
+      event_id: 'evt_synthetic_cordis_bot',
+      event_type: 'im.message.receive_v1',
+      create_time: String(now),
+      app_id: botConfiguration.appId,
+      tenant_key: FEISHU_TENANT_KEY,
+    },
+    event: {
+      sender: { sender_id: { open_id: 'ou_synthetic_cordis_sender' } },
+      message: {
+        message_id: 'om_synthetic_cordis_bot',
+        create_time: String(now),
+        chat_id: 'oc_synthetic_cordis_bot',
+        chat_type: 'p2p',
+        message_type: 'text',
+        content: JSON.stringify({ text: 'Synthetic Cordis Bot request' }),
+      },
+    },
+  })
+  const timestamp = String(Math.floor(now / 1000))
+  const nonce = 'synthetic-cordis-bot-nonce'
+  const response = await fetch(`${url}/api/connectors/feishu/bot/events`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-lark-request-timestamp': timestamp,
+      'x-lark-request-nonce': nonce,
+      'x-lark-signature': createHash('sha256')
+        .update(timestamp)
+        .update(nonce)
+        .update(BOT_ENCRYPTION_KEY)
+        .update(rawBody)
+        .digest('hex'),
+    },
+    body: rawBody,
+  })
+  assert.equal(response.status, 200)
+  assert.deepEqual(await response.json(), {})
+  const inbox = await fetch(`${url}/api/inbox`)
+  assert.equal(inbox.status, 200)
+  const snapshot = /** @type {{items: Array<{summary: string}>}} */ (await inbox.json())
+  assert.equal(
+    snapshot.items.some((item) => item.summary === 'Synthetic Cordis Bot request'),
+    true,
+  )
+})
+
 test('Workbench Cordis runtime rejects unknown and accessor-backed configuration', async () => {
   const runtime = runtimeContext()
   await assert.rejects(
@@ -366,6 +518,29 @@ test('Workbench Cordis runtime rejects unknown and accessor-backed configuration
       provider: 'synthetic-provider',
       model: 'synthetic-model',
       feishuTenantKey: ' ',
+    }),
+  )
+  await assert.rejects(async () =>
+    apply(runtime.context, {
+      version: 1,
+      homeDirectory: '/tmp/synthetic-home',
+      databasePath: '/tmp/synthetic.sqlite3',
+      port: 0,
+      provider: 'synthetic-provider',
+      model: 'synthetic-model',
+      feishuBotEventSecretReferenceId: 'secret-ref:synthetic-without-tenant',
+    }),
+  )
+  await assert.rejects(async () =>
+    apply(runtime.context, {
+      version: 1,
+      homeDirectory: '/tmp/synthetic-home',
+      databasePath: '/tmp/synthetic.sqlite3',
+      port: 0,
+      provider: 'synthetic-provider',
+      model: 'synthetic-model',
+      feishuTenantKey: FEISHU_TENANT_KEY,
+      feishuBotEventSecretReferenceId: 'not-a-secret-reference',
     }),
   )
 })

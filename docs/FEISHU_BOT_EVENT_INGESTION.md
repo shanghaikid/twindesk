@@ -1,9 +1,12 @@
 # Feishu Bot Event Ingestion
 
-TD-201 adds the verified callback boundary for Feishu Bot message events. It
-does not create an HTTP server, configure a Feishu subscription, resolve a
-Keychain secret, normalize a message into a TwinDesk `ExternalEvent`, or grant
-any external-write authority.
+TD-201 now composes the verified callback boundary for Feishu Bot message
+events into the loopback product Host. The fixed
+`POST /api/connectors/feishu/bot/events` route preserves the signed request
+bytes, resolves a separate event-subscription bundle from macOS Keychain,
+handles URL verification, and commits accepted messages into TwinDesk business
+storage before acknowledgement. It does not configure the Feishu subscription,
+provide a public ingress, invoke a model, or grant external-write authority.
 
 ## Accepted Visibility
 
@@ -45,10 +48,59 @@ consumer. Before parsing or handling content, the consumer:
 The expected tenant key and Encrypt Key are supplied at construction. The
 tenant key is non-secret identity metadata; the Encrypt Key is a short-lived
 in-memory value. It is held in a private field, is never written to the receipt
-journal, and is never included in typed error messages. The current repository
-still has no Keychain resolver or default callback host; those installation
-boundaries must resolve the key from an opaque secret reference and register the
-in-memory value with the shared redactor. Verification cannot be disabled.
+journal, and is never included in typed error messages. The production
+Workbench composition resolves one `connector_api_key` SecretReference through
+the existing fixed macOS Keychain service for each callback. Its version 1 JSON
+bundle contains only the exact app ID, Verification Token, and Encrypt Key. The
+source bytes are zeroed after the callback settles, and the parser rejects
+unknown or duplicate fields, invalid UTF-8, oversized data, and app mismatch.
+
+URL verification is accepted only after the same raw-body signature check and
+an exact timing-safe Verification Token match. The Host then returns only
+`{"challenge":"..."}`. This follows the official Node SDK's
+[request-address challenge behavior](https://github.com/larksuite/node-sdk#challenge-check)
+while retaining TwinDesk's stricter signature and token checks. Verification
+cannot be disabled.
+
+## Hosted HTTP and Acknowledgement Boundary
+
+The product Web server remains bound to `127.0.0.1` or `::1`. Enabling Bot
+events requires both Host launch variables:
+
+- `TWINDESK_FEISHU_TENANT_KEY` — the bounded tenant identity;
+- `TWINDESK_FEISHU_BOT_EVENT_SECRET_REFERENCE_ID` — the opaque Keychain item
+  account, such as `secret-ref:feishu-bot-events`.
+
+The Keychain item uses service `com.twindesk.feishu` and contains:
+
+```json
+{
+  "kind": "feishu_bot_event_subscription_secret_bundle",
+  "schemaVersion": 1,
+  "appId": "cli_example",
+  "verificationToken": "value-from-feishu-developer-console",
+  "encryptionKey": "value-from-feishu-developer-console"
+}
+```
+
+The route requires a bounded `application/json` body with an unambiguous
+Content-Length. Duplicate signature headers, chunked bodies, query parameters,
+unsupported methods, and bodies over 1 MiB fail before the ingestion service.
+Invalid signatures, timestamps, tokens, identities, and event shapes receive a
+payload-free rejection. Storage, Keychain, or lease failures receive a
+retryable HTTP 503. Accepted, ignored, and duplicate deliveries return an empty
+JSON acknowledgement. Client disconnect and Host shutdown cancel work that has
+not become durable.
+
+Because the product listener is intentionally loopback-only, a user-managed
+TLS reverse proxy or tunnel must forward the public Feishu Request URL to this
+fixed local path. It must expose only
+`POST /api/connectors/feishu/bot/events`, not the TwinDesk product origin or its
+other loopback routes. TwinDesk does not provision, trust, or persist that
+upstream configuration. The official SDK documents that request-address verification
+must return the challenge within one second and event handlers must finish
+within the platform acknowledgement window; live latency remains an acceptance
+item.
 
 ## Deduplication and Commit Order
 
@@ -87,24 +139,29 @@ instead of silently forgetting idempotency history.
 
 ## External Effects and Remaining Work
 
-TD-201 reads a signed event and records a local hash receipt only. It creates no
-Draft, ActionProposal, approval, send request, or external write. The following
-remain separate tasks:
+The hosted path normalizes an accepted event and atomically commits its
+ExternalEvent, Thread, and Work Item before appending the hash-only callback
+receipt. The Inbox reader now pages through all durable Work Items, so a new Bot
+message is visible alongside the synthetic fixtures. It creates no Draft,
+ActionProposal, approval, send request, or external write. The following remain
+separate tasks:
 
-- HTTP/long-connection hosting, subscription setup, secret resolution, and
-  callback acknowledgement wiring;
-- hosted Bot callback or long-connection activation beside the existing
-  Cordis-owned User polling composition;
-- runtime composition with the completed bounded context and durable
-  normalization boundaries (TD-203 and TD-204);
+- public TLS ingress, Feishu subscription setup, and a live callback acceptance;
+- bounded context enrichment after the durable TD-204 normalization boundary;
 - production scope, rate-limit, health, and cursor probe composition; TD-208 now
   defines the presentation-safe diagnostics contract.
 
 ## Verification
 
-`tests/feishu-bot-events.test.mjs` covers direct messages, exact Bot mentions,
+`tests/feishu-bot-events.test.mjs` covers direct messages, URL verification,
+exact Bot mentions,
 unmentioned groups, plaintext and encrypted callbacks, invalid and stale
 signatures, application and tenant mismatch, message-level replay and conflict,
 cross-instance concurrent duplicates, out-of-order messages, downstream failure
 and retry, restart recovery, interrupted journal tails, private hash-only
 persistence, symbolic links, and hostile accessors without payload disclosure.
+The subscription-secret, Workbench ingress, Web callback, Cordis runtime, and
+Inbox suites additionally cover Keychain scoping and zeroing, exact
+acknowledgements, duplicate headers, shutdown cancellation, atomic durable
+projection, restart deduplication, and visibility in the product Inbox. All
+credentials and messages are synthetic.

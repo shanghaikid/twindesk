@@ -59,7 +59,7 @@ local business records; credentials and raw connector responses do not.
 | Send is idempotent across restart | Local contract passed | Durable terminal receipt, one external effect, execution refusal, and send-only dispatch blocking without invented reconciliation |
 | Reply request key fits Feishu's 50-character limit | Contract passed | New proposals use a 46-character identity-bound key and the lease-held Bot/User reply adapter preserves it through the fixed HTTP primitive |
 | Complete local business trace exists | Passed | Six attributable, reference-validated Audit records |
-| Real Bot callback/subscription reaches the runtime | Not proven | No hosted callback or long-connection composition |
+| Real Bot callback/subscription reaches the runtime | Production-shaped local Host passed; live delivery not proven | A fixed loopback POST route performs signed URL verification, per-request app-bound Keychain secret resolution, durable normalization, restart deduplication, and exact acknowledgement under the Cordis lease. Public TLS forwarding, Feishu subscription setup, and live delivery remain external acceptance steps. |
 | Exclusive Feishu Host ownership | Contract passed | A kernel-backed loopback lease excludes real competing processes, releases after `SIGKILL`, and now owns durable User rotation, one full synthetic Workbench reply operation, and the production-shaped polling composition, including lazy construction of its search adapter under the same lease |
 | Real User polling/context uses OAuth from Keychain | Not proven | Code/PKCE exchange, default-path restart-loaded app-bound registered-loopback configuration and capture through lease-held verified initial persistence, blocked-state replacement, durable reply-path rotation, exact User scope probing, and a restart-safe atomic polling scheduler pass synthetically. Cordis binds that scheduler and the hosted OAuth/reply operations to one top-level owner, activates after first User creation, and restarts polling after successful product Settings or credential recovery. It reloads every durable page cursor, applies bounded retry, and stops on authorization or storage failure. Live authorization and reauthorization acceptance, existing-identity replacement, credential repair/removal, and live polling remain open. |
 | Production Connector diagnostics | Contract passed; live account not accepted | Workbench runs concrete Bot/User scope probes and the SQLite cursor reader beneath the shared Host lease, combines them with identifier-free polling lifecycle state, and serves a separately validated no-store browser projection with fixed recovery categories. Bot checks are remote; User checks validate the current local OAuth bundle but do not prove live User connectivity. Rate state remains unknown. |
@@ -79,7 +79,8 @@ composed live Feishu API semantics, live callback or polling acceptance, and a r
 external receipt. Read-only browser-refresh flow restoration is covered by
 synthetic restart evidence.
 
-TD-209 therefore remains open until the runtime hosts Bot ingestion, proves live polling,
+TD-209 therefore remains open until the loopback Bot Host receives a live delivery through
+an explicitly configured public ingress, and the runtime proves live polling,
 blocked-state recovery, and reauthorization around the now-composed Work Hub
 reply operation, proves the now-lifecycle-bound Harness model-Draft entry against
 a credential-healthy production provider, restores the durable action flow

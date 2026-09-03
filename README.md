@@ -112,7 +112,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 
 ## Current Status
 
-Stages 0 and 1 are complete and the project is ready for Roadmap Stage 2. The
+Stages 0 and 1 are complete and the project is currently in Roadmap Stage 2. The
 standalone `@twindesk/web` shell owns Inbox, Personas, Connectors, Audit, and
 Settings routes and runs only on loopback. The business schema, idempotent
 ExternalEvent ingestion, durable synchronization cursors, Work Item projections,
@@ -152,10 +152,14 @@ the separate User identity while explicitly reporting partial coverage, and it
 validates bounded conversation, document-excerpt, and attachment context without
 returning binary files. Verified Bot messages and bounded User discovery batches
 now normalize into canonical ExternalEvents and event-anchored Inbox Work Items;
-User events, projections, and candidate cursors share one transaction. It is not
-connected to a real account and hosts no Bot callback. The production polling
-and diagnostics compositions resolve configured Keychain references, but their
-live-account behavior is not yet accepted. A Draft-bound Feishu reply can now be packaged as a local
+User events, projections, and candidate cursors share one transaction. The
+product Inbox now reads all durable Work Items rather than only known fixtures.
+A fixed loopback Bot callback route resolves an app-bound event-subscription
+bundle from Keychain per request, performs signed URL verification, and commits
+accepted messages before acknowledgement under the Cordis lease. It has no
+configured public ingress or live-account acceptance. The production polling
+and diagnostics compositions also resolve configured Keychain references, but
+their live-account behavior is not yet accepted. A Draft-bound Feishu reply can now be packaged as a local
 plain-text ActionProposal with an explicit Bot or User identity and exact
 message target. The local approval policy can now bind that proposal to an
 explicit responder decision and expiration, then consume the approval once
@@ -246,9 +250,9 @@ not an automatic repair service. The Inbox now has a Host-controlled model-Draft
 entry. The standalone launcher correctly reports its Agent Runtime as
 unavailable, while `profile:start` injects the pinned Harness runner and
 Host-selected route. Stage 2 is not
-declared complete: hosted Bot ingestion, live polling acceptance, remaining
-Connector lifecycle wiring, production provider activation, and a live-account
-send remain unimplemented. The Inbox now restores the exact durable Draft, proposal,
+declared complete: public Bot callback forwarding and live delivery, live
+polling acceptance, remaining Connector lifecycle wiring, production provider
+activation, and a live-account send remain unimplemented. The Inbox now restores the exact durable Draft, proposal,
 approval, and receipt presentation after refresh without mutating local state
 or invoking a Connector.
 Versioned domain records and the product-owned Connector contract are
@@ -309,5 +313,8 @@ The Harness diagnostic UI binds to port `3080`; the product Inbox binds to
 `http://127.0.0.1:4173/inbox` by default. Provider/model and product port may be
 set with the non-secret Host variables documented in
 [Workbench Cordis Model-Draft Runtime](docs/WORKBENCH_CORDIS_MODEL_DRAFT_RUNTIME.md).
+The optional Feishu tenant and Bot event Keychain-reference variables, fixed
+callback path, bundle format, and user-managed TLS forwarding requirement are
+documented in [Feishu Bot Event Ingestion](docs/FEISHU_BOT_EVENT_INGESTION.md).
 
 Generated Harness state stays under the ignored `.twindesk/` directory.

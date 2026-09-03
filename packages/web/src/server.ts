@@ -120,6 +120,7 @@ const MODEL_DRAFT_EDIT_BODY_MAX_BYTES = 66 * 1_024
 const FEISHU_REPLY_PROPOSAL_BODY_MAX_BYTES = 1_024
 const FEISHU_REPLY_APPROVAL_BODY_MAX_BYTES = 1_024
 const FEISHU_REPLY_EXECUTION_BODY_MAX_BYTES = 1_024
+const FEISHU_BOT_EVENT_BODY_MAX_BYTES = 1024 * 1024
 const FEISHU_SETTINGS_CSRF_HEADER = 'x-twindesk-csrf-token'
 const MODEL_DRAFT_CSRF_HEADER = 'x-twindesk-model-draft-csrf-token'
 const FEISHU_REPLY_PROPOSAL_CSRF_HEADER = 'x-twindesk-action-proposal-csrf-token'
@@ -168,6 +169,10 @@ export interface TwinDeskWebServerOptions {
   /** Identifier-free Connector diagnostics supplied by the Workbench composition root. */
   readonly feishuDiagnostics?: {
     read(signal: AbortSignal): Promise<unknown>
+  }
+  /** Signed inbound Bot callback service supplied by the Workbench composition root. */
+  readonly feishuBotEvents?: {
+    consume(request: unknown, signal: AbortSignal): Promise<unknown>
   }
   /** Memory-only initial OAuth authorization service supplied by Workbench. */
   readonly feishuAuthorization?: {
@@ -219,6 +224,7 @@ export interface TwinDeskWebServerOptions {
 
 type FeishuSettingsService = NonNullable<TwinDeskWebServerOptions['feishuSettings']>
 type FeishuDiagnosticsService = NonNullable<TwinDeskWebServerOptions['feishuDiagnostics']>
+type FeishuBotEventService = NonNullable<TwinDeskWebServerOptions['feishuBotEvents']>
 type FeishuSettingsSnapshot = ReturnType<typeof parseFeishuSettingsSnapshot>
 type FeishuAuthorizationService = NonNullable<TwinDeskWebServerOptions['feishuAuthorization']>
 type FeishuOAuthRecoveryService = NonNullable<TwinDeskWebServerOptions['feishuOAuthRecovery']>
@@ -231,6 +237,81 @@ type FeishuReplyProposalService = NonNullable<TwinDeskWebServerOptions['feishuRe
 type FeishuReplyApprovalService = NonNullable<TwinDeskWebServerOptions['feishuReplyApproval']>
 type FeishuReplyExecutionService = NonNullable<TwinDeskWebServerOptions['feishuReplyExecution']>
 type FeishuReplyFlowService = NonNullable<TwinDeskWebServerOptions['feishuReplyFlow']>
+
+type FeishuBotEventIngressResult =
+  | Readonly<{
+      version: 1
+      disposition: 'accepted' | 'duplicate' | 'ignored' | 'rejected' | 'unavailable'
+    }>
+  | Readonly<{ version: 1; disposition: 'challenge'; challenge: string }>
+
+function normalizeFeishuBotEventService(value: unknown): FeishuBotEventService | undefined {
+  if (value === undefined) return undefined
+  try {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError()
+    const prototype = Object.getPrototypeOf(value) as unknown
+    const descriptors = Object.getOwnPropertyDescriptors(value)
+    if (
+      (prototype !== Object.prototype && prototype !== null) ||
+      Object.getOwnPropertySymbols(value).length !== 0 ||
+      Object.keys(descriptors).length !== 1 ||
+      !Object.hasOwn(descriptors, 'consume') ||
+      !Object.hasOwn(descriptors.consume as PropertyDescriptor, 'value') ||
+      typeof descriptors.consume?.value !== 'function'
+    ) {
+      throw new TypeError()
+    }
+    const consume = descriptors.consume.value as (
+      request: unknown,
+      signal: AbortSignal,
+    ) => Promise<unknown>
+    return Object.freeze({
+      consume: (request: unknown, signal: AbortSignal) =>
+        Reflect.apply(consume, value, [request, signal]),
+    })
+  } catch {
+    throw new TypeError('TwinDesk Web Feishu Bot event service is invalid.')
+  }
+}
+
+function parseFeishuBotEventIngressResult(value: unknown): FeishuBotEventIngressResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError()
+  const prototype = Object.getPrototypeOf(value) as unknown
+  const descriptors = Object.getOwnPropertyDescriptors(value)
+  if (
+    (prototype !== Object.prototype && prototype !== null) ||
+    Object.getOwnPropertySymbols(value).length !== 0 ||
+    Object.values(descriptors).some((descriptor) => !Object.hasOwn(descriptor, 'value')) ||
+    descriptors.version?.value !== 1
+  ) {
+    throw new TypeError()
+  }
+  const disposition = descriptors.disposition?.value
+  if (disposition === 'challenge') {
+    const challenge = descriptors.challenge?.value
+    if (
+      Object.keys(descriptors).length !== 3 ||
+      typeof challenge !== 'string' ||
+      challenge.length === 0 ||
+      challenge.length > 1_024 ||
+      challenge.trim() !== challenge ||
+      /[\u0000-\u001f\u007f]/u.test(challenge)
+    ) {
+      throw new TypeError()
+    }
+    return Object.freeze({ version: 1, disposition, challenge })
+  }
+  if (
+    Object.keys(descriptors).length !== 2 ||
+    !['accepted', 'duplicate', 'ignored', 'rejected', 'unavailable'].includes(disposition as string)
+  ) {
+    throw new TypeError()
+  }
+  return Object.freeze({
+    version: 1,
+    disposition: disposition as Exclude<FeishuBotEventIngressResult['disposition'], 'challenge'>,
+  })
+}
 
 function normalizeFeishuReplyFlowService(value: unknown): FeishuReplyFlowService | undefined {
   if (value === undefined) return undefined
@@ -812,6 +893,121 @@ async function readBoundedBody(
     return Buffer.concat(chunks, total)
   } finally {
     for (const chunk of chunks) chunk.fill(0)
+  }
+}
+
+function feishuBotSignatureHeaders(request: IncomingMessage): Readonly<Record<string, string>> {
+  const selected: Record<string, string> = {}
+  for (let index = 0; index < request.rawHeaders.length; index += 2) {
+    const name = request.rawHeaders[index]?.toLowerCase()
+    const value = request.rawHeaders[index + 1]
+    if (
+      name === undefined ||
+      value === undefined ||
+      !['x-lark-request-timestamp', 'x-lark-request-nonce', 'x-lark-signature'].includes(name)
+    ) {
+      continue
+    }
+    if (Object.hasOwn(selected, name)) throw new FeishuSettingsRequestError(400)
+    selected[name] = value
+  }
+  return Object.freeze(selected)
+}
+
+function assertFeishuBotEventHeaders(request: IncomingMessage): void {
+  const contentType = request.headers['content-type']
+  const contentLength = request.headers['content-length']
+  if (contentType !== 'application/json' && contentType !== 'application/json; charset=utf-8') {
+    throw new FeishuSettingsRequestError(415)
+  }
+  if (
+    request.headers['transfer-encoding'] !== undefined ||
+    typeof contentLength !== 'string' ||
+    !/^[1-9][0-9]{0,6}$/u.test(contentLength)
+  ) {
+    throw new FeishuSettingsRequestError(400)
+  }
+  if (Number(contentLength) > FEISHU_BOT_EVENT_BODY_MAX_BYTES) {
+    throw new FeishuSettingsRequestError(413)
+  }
+}
+
+async function serveFeishuBotEventApi(
+  request: IncomingMessage,
+  response: ServerResponse,
+  requestUrl: URL,
+  service: FeishuBotEventService | undefined,
+  activeControllers: Set<AbortController>,
+): Promise<void> {
+  if (requestUrl.search.length > 0) {
+    request.resume()
+    send(response, 400, 'Invalid Feishu Bot callback.\n', 'text/plain; charset=utf-8')
+    return
+  }
+  let signatureHeaders: Readonly<Record<string, string>>
+  try {
+    assertFeishuBotEventHeaders(request)
+    signatureHeaders = feishuBotSignatureHeaders(request)
+  } catch (error) {
+    request.resume()
+    const status = error instanceof FeishuSettingsRequestError ? error.status : 400
+    send(
+      response,
+      status,
+      status === 413
+        ? 'Feishu Bot callback too large.\n'
+        : status === 415
+          ? 'Feishu Bot callback content type unsupported.\n'
+          : 'Invalid Feishu Bot callback.\n',
+      'text/plain; charset=utf-8',
+    )
+    return
+  }
+  if (service === undefined) {
+    request.resume()
+    send(response, 503, 'Feishu Bot callback unavailable.\n', 'text/plain; charset=utf-8')
+    return
+  }
+  const controller = new AbortController()
+  const abort = (): void => controller.abort()
+  activeControllers.add(controller)
+  request.once('aborted', abort)
+  response.once('close', abort)
+  let body: Buffer | undefined
+  try {
+    body = await readBoundedBody(request, FEISHU_BOT_EVENT_BODY_MAX_BYTES)
+    const result = parseFeishuBotEventIngressResult(
+      await service.consume(
+        Object.freeze({
+          headers: signatureHeaders,
+          rawBody: body,
+        }),
+        controller.signal,
+      ),
+    )
+    if (result.disposition === 'rejected') {
+      send(response, 401, 'Feishu Bot callback rejected.\n', 'text/plain; charset=utf-8')
+      return
+    }
+    if (result.disposition === 'unavailable') {
+      send(response, 503, 'Feishu Bot callback unavailable.\n', 'text/plain; charset=utf-8')
+      return
+    }
+    const responseBody =
+      result.disposition === 'challenge' ? JSON.stringify({ challenge: result.challenge }) : '{}'
+    response.writeHead(200, {
+      ...commonHeaders('application/json; charset=utf-8'),
+      'content-length': String(Buffer.byteLength(responseBody)),
+    })
+    response.end(responseBody)
+  } catch {
+    if (controller.signal.aborted) response.destroy()
+    else send(response, 503, 'Feishu Bot callback unavailable.\n', 'text/plain; charset=utf-8')
+  } finally {
+    body?.fill(0)
+    request.off('aborted', abort)
+    response.off('close', abort)
+    activeControllers.delete(controller)
   }
 }
 
@@ -2243,6 +2439,7 @@ export async function startTwinDeskWebServer(
   }
   const feishuSettings = normalizeFeishuSettingsService(options.feishuSettings)
   const feishuDiagnostics = normalizeFeishuDiagnosticsService(options.feishuDiagnostics)
+  const feishuBotEvents = normalizeFeishuBotEventService(options.feishuBotEvents)
   const feishuAuthorization = normalizeFeishuAuthorizationService(options.feishuAuthorization)
   const feishuOAuthRecovery = normalizeFeishuOAuthRecoveryService(options.feishuOAuthRecovery)
   const feishuOAuthReconciliation = normalizeFeishuOAuthReconciliationService(
@@ -2275,6 +2472,7 @@ export async function startTwinDeskWebServer(
   const activeFeishuReplyExecutionControllers = new Set<AbortController>()
   const activeFeishuReplyFlowControllers = new Set<AbortController>()
   const activeFeishuDiagnosticsControllers = new Set<AbortController>()
+  const activeFeishuBotEventControllers = new Set<AbortController>()
   let boundOrigin: string | undefined
 
   const server = createServer((request, response) => {
@@ -2306,6 +2504,8 @@ export async function startTwinDeskWebServer(
         method === 'POST' && requestUrl.pathname === '/api/action-approvals/feishu-reply/decide'
       const feishuReplyExecutionRun =
         method === 'POST' && requestUrl.pathname === '/api/action-executions/feishu-reply/execute'
+      const feishuBotEvent =
+        method === 'POST' && requestUrl.pathname === '/api/connectors/feishu/bot/events'
       const supportedMutation =
         oauthSettingsUpdate ||
         userIdentityCreate ||
@@ -2319,7 +2519,8 @@ export async function startTwinDeskWebServer(
         feishuReplyProposalCreate ||
         feishuReplyApprovalRequest ||
         feishuReplyApprovalDecision ||
-        feishuReplyExecutionRun
+        feishuReplyExecutionRun ||
+        feishuBotEvent
       if (method !== 'GET' && method !== 'HEAD' && !supportedMutation) {
         response.setHeader(
           'allow',
@@ -2343,11 +2544,28 @@ export async function startTwinDeskWebServer(
                         : requestUrl.pathname === '/api/action-approvals/feishu-reply/request' ||
                             requestUrl.pathname === '/api/action-approvals/feishu-reply/decide'
                           ? 'POST'
-                          : requestUrl.pathname === '/api/action-executions/feishu-reply/execute'
+                          : requestUrl.pathname === '/api/action-executions/feishu-reply/execute' ||
+                              requestUrl.pathname === '/api/connectors/feishu/bot/events'
                             ? 'POST'
                             : 'GET, HEAD',
         )
         send(response, 405, 'Method not allowed.\n', 'text/plain; charset=utf-8')
+        return
+      }
+      if (requestUrl.pathname === '/api/connectors/feishu/bot/events' && !feishuBotEvent) {
+        response.setHeader('allow', 'POST')
+        send(response, 405, 'Method not allowed.\n', 'text/plain; charset=utf-8')
+        return
+      }
+
+      if (feishuBotEvent) {
+        await serveFeishuBotEventApi(
+          request,
+          response,
+          requestUrl,
+          feishuBotEvents,
+          activeFeishuBotEventControllers,
+        )
         return
       }
 
@@ -2644,6 +2862,7 @@ export async function startTwinDeskWebServer(
           for (const controller of activeFeishuReplyExecutionControllers) controller.abort()
           for (const controller of activeFeishuReplyFlowControllers) controller.abort()
           for (const controller of activeFeishuDiagnosticsControllers) controller.abort()
+          for (const controller of activeFeishuBotEventControllers) controller.abort()
           try {
             await feishuAuthorization?.cancel()
           } catch {

@@ -20,5 +20,6 @@
         provider: !!js "process.env.TWINDESK_MODEL_PROVIDER || 'deepseek-official'"
         model: !!js "process.env.TWINDESK_MODEL || 'deepseek-v4-flash'"
         feishuTenantKey: !!js 'process.env.TWINDESK_FEISHU_TENANT_KEY || undefined'
+        feishuBotEventSecretReferenceId: !!js 'process.env.TWINDESK_FEISHU_BOT_EVENT_SECRET_REFERENCE_ID || undefined'
     - id: twindesk-ui
       name: '@twindesk/plugin-ui'

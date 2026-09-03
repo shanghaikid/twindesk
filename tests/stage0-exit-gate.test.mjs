@@ -50,7 +50,8 @@ test('the TD-052 audit advances Stage 1 through the product-owned Web shell', as
 
   assert.match(tracker, /- \[x\] \*\*TD-052 — Pass the Stage 0 exit gate\*\*/u)
   assert.match(tracker, /Gate audit \(2026-08-26\): \*\*PASSED\*\*/u)
-  assert.match(tracker, /## Current Milestone: Stage 1 — Local Work Hub/u)
+  assert.match(tracker, /## Completed Milestone: Stage 1 — Local Work Hub/u)
+  assert.match(tracker, /## Current Milestone: Stage 2 — Feishu Closed-Loop MVP/u)
 
   assert.match(
     report,

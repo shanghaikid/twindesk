@@ -3,7 +3,7 @@
 ## Scope
 
 `resolveWorkbenchLocalDataPaths()` defines the first production-owned local
-data location for the macOS MVP. It does not touch disk. Version 2 of the path
+data location for the macOS MVP. It does not touch disk. Version 3 of the path
 record uses this fixed root:
 
 ```text
@@ -12,13 +12,14 @@ record uses this fixed root:
 
 This location is separate from the repository-local `.twindesk/` compatibility
 and fixture state, which remains disposable development data. The current path
-record covers two non-secret Feishu Settings documents and one secret-free
-operational recovery journal:
+record covers two non-secret Feishu Settings documents and two secret-free
+operational state journals:
 
 ```text
 settings/connectors/feishu/identity.v1.json
 settings/connectors/feishu/oauth-authorization.v1.json
 state/connectors/feishu/oauth-rotation.jsonl
+state/connectors/feishu/bot-event-receipts.jsonl
 ```
 
 Harness Sessions and TwinDesk SQLite business data keep their existing separate
@@ -38,7 +39,9 @@ identity and authorization stores retain their existing `O_NOFOLLOW`, bounded
 document, strict validation, private-file, atomic-replacement, and restart
 semantics. The returned rotation journal retains its `0600`, `O_NOFOLLOW`,
 bounded append, fsync, torn-tail repair, versioned-event, and transition
-validation boundaries.
+validation boundaries. The Bot event path constructs its own hash-only receipt
+store at the second state path with the same private-file and interruption
+recovery requirements.
 
 Only canonical absolute home paths are accepted. Root, relative, NUL-containing,
 and lexically aliased paths fail before filesystem access. Unsupported platforms
@@ -48,16 +51,18 @@ process platform and system home directory.
 
 Directory and file paths may contain a local account name. They must not be
 logged, audited, exported, sent to model context, or returned to browser APIs.
-Neither Settings document nor the recovery journal may contain a client secret,
+Neither Settings document nor either state journal may contain a client secret,
 OAuth code, verifier, token, cookie, private key, principal, application ID, or
-SecretReference. The journal contains only sequence, state, and timestamps;
-credentials remain in the system Keychain.
+SecretReference. The rotation journal contains only sequence, state, and
+timestamps; Bot receipts contain only message/event digests and verified local
+receive times. Credentials remain in the system Keychain.
 
 ## Verification and Remaining Work
 
 Synthetic tests verify the exact macOS layout, deep immutability, private
 directory modes, restart recovery through newly constructed stores and the
-rotation journal, absence of secret-like fields, unsupported and aliased path
+rotation journal, Bot receipt restart deduplication, absence of secret-like
+fields, unsupported and aliased path
 rejection, hostile accessor avoidance, and refusal to traverse linked or
 publicly accessible Settings or state directories. The contract covers observed
 preparation-time state; it is not a filesystem lock against a same-user process
@@ -67,9 +72,7 @@ actual Application Support directory.
 
 Still open:
 
-- Keychain/rotation reconciliation actions; hosted reauthorization now consumes
-  the default journal, and its presentation-safe read boundary is implemented
-  separately;
+- explicit Bot receipt retention, pruning, and Connector deletion behavior;
 - explicit disconnect, configuration deletion, OAuth revocation, and Keychain
   deletion as separate user actions;
 - product paths for SQLite business data and Harness Sessions;
