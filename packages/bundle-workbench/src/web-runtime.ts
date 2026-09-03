@@ -20,6 +20,7 @@ import { createWorkbenchFeishuSettingsPresentation } from './feishu-settings-pre
 import { createWorkbenchFeishuConnectorDiagnostics } from './feishu-connector-diagnostics.ts'
 import { createWorkbenchFeishuBotEventIngress } from './feishu-bot-event-ingress.ts'
 import type { WorkbenchFeishuRuntimeStatus } from './feishu-runtime-supervisor.ts'
+import { createWorkbenchFeishuBotIdentityBootstrapper } from './feishu-bot-identity-bootstrap.ts'
 import { createWorkbenchFeishuUserIdentityBootstrapper } from './feishu-user-identity-bootstrap.ts'
 import { createWorkbenchFeishuReplyProposalController } from './feishu-reply-proposal-controller.ts'
 import { createWorkbenchFeishuReplyApprovalController } from './feishu-reply-approval-controller.ts'
@@ -199,6 +200,9 @@ export async function startWorkbenchWebServer(
   const feishuUserIdentityBootstrapper = createWorkbenchFeishuUserIdentityBootstrapper({
     identityStore: stores.identityStore,
   })
+  const feishuBotIdentityBootstrapper = createWorkbenchFeishuBotIdentityBootstrapper({
+    identityStore: stores.identityStore,
+  })
   const feishuAuthorization = createDefaultWorkbenchFeishuOAuthAuthorizationController({
     identityStore: stores.identityStore,
     authorizationStore: stores.authorizationStore,
@@ -308,6 +312,18 @@ export async function startWorkbenchWebServer(
         async createUserIdentity(value: unknown) {
           const operation = pendingSettingsUpdate.then(async () => {
             await feishuUserIdentityBootstrapper.create(value)
+            notifyFeishuRuntimeChanged()
+            return feishuSettings.read()
+          })
+          pendingSettingsUpdate = operation.then(
+            () => undefined,
+            () => undefined,
+          )
+          return operation
+        },
+        async createBotIdentity(value: unknown) {
+          const operation = pendingSettingsUpdate.then(async () => {
+            await feishuBotIdentityBootstrapper.create(value)
             notifyFeishuRuntimeChanged()
             return feishuSettings.read()
           })

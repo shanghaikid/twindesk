@@ -438,3 +438,90 @@ test('Workbench Web bootstraps a User identity from empty Settings and recovers 
     await restarted.close()
   }
 })
+
+test('Workbench Web adds a Bot identity to the existing Feishu application and recovers it', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'twindesk-workbench-bot-bootstrap-'))
+  context.after(() => rm(root, { force: true, recursive: true }))
+  const homeDirectory = join(root, 'synthetic-home')
+  await mkdir(homeDirectory, { mode: 0o700 })
+  const localPaths = {
+    platform: /** @type {const} */ ('darwin'),
+    homeDirectory,
+  }
+  const running = await startWorkbenchWebServer({ ...localPaths, port: 0 })
+  try {
+    const initial = await fetch(`${running.url}/api/settings/feishu`)
+    assert.equal(initial.headers.get('x-twindesk-user-identity-creation'), 'new')
+    assert.equal(initial.headers.get('x-twindesk-bot-identity-creation'), 'new')
+    const initialCsrf = initial.headers.get('x-twindesk-csrf-token')
+    assert.ok(initialCsrf !== null)
+    const userResponse = await fetch(`${running.url}/api/settings/feishu/user-identity`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: running.url,
+        'sec-fetch-site': 'same-origin',
+        'x-twindesk-csrf-token': initialCsrf,
+      },
+      body: JSON.stringify({
+        version: 1,
+        connection: 'new',
+        appId: 'cli_synthetic_bot_web_bootstrap',
+        displayName: 'Synthetic Bootstrap User',
+        principalId: 'ou_synthetic_bot_web_user',
+      }),
+    })
+    assert.equal(userResponse.status, 200)
+    assert.equal(userResponse.headers.get('x-twindesk-bot-identity-creation'), 'existing')
+    const botCsrf = userResponse.headers.get('x-twindesk-csrf-token')
+    assert.ok(botCsrf !== null)
+
+    const botResponse = await fetch(`${running.url}/api/settings/feishu/bot-identity`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: running.url,
+        'sec-fetch-site': 'same-origin',
+        'x-twindesk-csrf-token': botCsrf,
+      },
+      body: JSON.stringify({
+        version: 1,
+        connection: 'existing',
+        appId: null,
+        displayName: 'Synthetic Bootstrap Bot',
+        principalId: 'ou_synthetic_bot_web_bootstrap',
+      }),
+    })
+    assert.equal(botResponse.status, 200)
+    assert.deepEqual(await botResponse.json(), {
+      version: 1,
+      connectorId: 'feishu',
+      state: 'incomplete',
+      identities: ['bot', 'user'],
+      oauth: null,
+    })
+    assert.equal(botResponse.headers.get('x-twindesk-bot-identity-creation'), null)
+  } finally {
+    await running.close()
+  }
+
+  const stores = await openWorkbenchFeishuSettingsStores(localPaths)
+  const identity = await stores.identityStore.read()
+  assert.equal(identity?.appId, 'cli_synthetic_bot_web_bootstrap')
+  assert.equal(identity?.user?.principalId, 'ou_synthetic_bot_web_user')
+  assert.equal(identity?.bot?.principalId, 'ou_synthetic_bot_web_bootstrap')
+  assert.match(
+    identity?.bot?.credentialReference.id ?? '',
+    /^secret-ref:feishu-bot-app-[a-f0-9-]{36}$/u,
+  )
+
+  const restarted = await startWorkbenchWebServer({ ...localPaths, port: 0 })
+  try {
+    const status = await fetch(`${restarted.url}/api/settings/feishu`)
+    assert.equal(status.headers.get('x-twindesk-user-identity-creation'), null)
+    assert.equal(status.headers.get('x-twindesk-bot-identity-creation'), null)
+    assert.deepEqual((await status.json()).identities, ['bot', 'user'])
+  } finally {
+    await restarted.close()
+  }
+})

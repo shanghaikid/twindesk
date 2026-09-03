@@ -87,9 +87,11 @@ export {
   type FeishuRuntimeDiagnostic,
 } from './feishu-diagnostics-contract.ts'
 export {
+  parseFeishuBotIdentityCreate,
   parseFeishuOAuthSettingsUpdate,
   parseFeishuUserIdentityCreate,
   parseFeishuSettingsSnapshot,
+  type FeishuBotIdentityCreate,
   type FeishuConfiguredIdentity,
   type FeishuOAuthSettingsView,
   type FeishuOAuthSettingsUpdate,

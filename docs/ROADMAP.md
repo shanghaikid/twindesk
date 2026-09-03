@@ -96,9 +96,10 @@ Settings status, and the default launcher injects the fixed-path Workbench
 reader. The product can now edit an existing User identity's non-secret
 literal-loopback callback and requested scopes behind same-origin,
 Fetch-Metadata, and CSRF checks. An empty installation can also create one
-non-secret User identity, or add one to a Bot-only connection, while Workbench
-generates the internal account and Keychain-reference locators without
-accepting a credential during identity creation. Once Settings are ready, the
+non-secret Bot or User identity and then add the missing slot to the same
+application. Workbench generates the internal account and distinct
+Keychain-reference locators without accepting a credential or event-subscription
+secret during identity creation. Once Settings are ready, the
 same page can start one explicit initial User OAuth attempt, present the
 lease-held authorization URL for a user click, cancel it, and report only a
 memory-local minimized result. Synthetic tests cover the loopback boundary and
@@ -141,7 +142,7 @@ shell now adds a strict Work Item-only Draft intent while Workbench owns the
 redacted prompt, runtime identities, and explicit provider/model route. The standalone launcher
 advertises this capability as unavailable until a Harness Host injects that
 runtime; no browser field can select or credential a provider.
-Existing-identity replacement, Bot identity creation, credential
+Existing-identity replacement, credential
 repair/removal, out-of-process configuration watching, live authorization and
 reauthorization acceptance, credential-healthy production provider acceptance,
 and a real Feishu send remain missing. Local model Draft editing, explicit

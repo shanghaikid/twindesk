@@ -61,14 +61,16 @@ default. A future Connectors editing flow must expose an explicit disconnect and
 configuration deletion path, separately from OAuth revocation and Keychain
 secret deletion.
 
-The product Connectors page now has a create-only User bootstrap. An empty
-connection accepts an app ID, display name, and User `open_id`; a Bot-only
-connection preserves its app and Bot metadata. Workbench generates the opaque
-TwinDesk account and User Keychain-reference locators without accepting or
-creating credential bytes. Existing User replacement remains separate because
+The product Connectors page now has create-only Bot and User bootstraps. An
+empty connection can begin with either slot; the second identity is added to
+the same app while preserving all existing metadata and references. Workbench
+generates the opaque TwinDesk account and distinct Keychain-reference locators
+without accepting or creating credential bytes. Bot creation does not create
+the separate event-subscription secret. Existing identity replacement remains separate because
 changing identity metadata without coordinating its credential and OAuth state
 would invalidate established bindings. See
-[Workbench Feishu User Identity Bootstrap](WORKBENCH_FEISHU_USER_IDENTITY_BOOTSTRAP.md).
+[Workbench Feishu User Identity Bootstrap](WORKBENCH_FEISHU_USER_IDENTITY_BOOTSTRAP.md)
+and [Workbench Feishu Bot Identity Bootstrap](WORKBENCH_FEISHU_BOT_IDENTITY_BOOTSTRAP.md).
 
 ## Current Limitations
 
@@ -76,7 +78,7 @@ would invalidate established bindings. See
   the default Web launcher projects identity types plus OAuth completeness into
   a minimized Connectors status. Create-only User metadata and OAuth
   callback/scope configuration are available; existing identity replacement,
-  Bot creation, disconnect, revocation, credential health, and other platform
+  disconnect, revocation, credential health, and other platform
   paths remain open. See
   [Workbench Feishu Settings Presentation](WORKBENCH_FEISHU_SETTINGS_PRESENTATION.md).
 - A macOS system-Keychain reader now resolves validated Bot/User references

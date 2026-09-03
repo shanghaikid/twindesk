@@ -85,7 +85,7 @@ Still open:
 
 - reauthorization and Keychain reconciliation UI;
 - safely replace or edit an existing identity;
-- create and edit Bot identity metadata;
+- edit existing Bot identity metadata;
 - disconnect, delete, and revoke identity and credentials;
 - record a dedicated Settings-change Audit without copying identifiers;
 - live acceptance of owner activation and polling after first creation; and
@@ -93,3 +93,5 @@ Still open:
 
 The initial credential entry is documented in
 [Workbench Feishu OAuth Authorization UI](WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_UI.md).
+The parallel create-only Bot flow is documented in
+[Workbench Feishu Bot Identity Bootstrap](WORKBENCH_FEISHU_BOT_IDENTITY_BOOTSTRAP.md).

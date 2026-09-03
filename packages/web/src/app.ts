@@ -12,9 +12,11 @@ import {
 } from './inbox-contract.ts'
 import { parseAuditSnapshot, type AuditSnapshot } from './audit-contract.ts'
 import {
+  parseFeishuBotIdentityCreate,
   parseFeishuOAuthSettingsUpdate,
   parseFeishuSettingsSnapshot,
   parseFeishuUserIdentityCreate,
+  type FeishuBotIdentityCreate,
   type FeishuOAuthSettingsUpdate,
   type FeishuSettingsSnapshot,
   type FeishuUserIdentityCreate,
@@ -158,17 +160,22 @@ let feishuDiagnostics: FeishuDiagnosticsSnapshot | undefined
 let feishuDiagnosticsLoading = false
 let feishuDiagnosticsError: string | undefined
 let feishuDiagnosticsRequest = 0
-type FeishuUserIdentityCreationMode = 'new' | 'existing'
-interface FeishuUserIdentityDraft {
+type FeishuIdentityCreationMode = 'new' | 'existing'
+interface FeishuIdentityDraft {
   readonly appId: string
   readonly displayName: string
   readonly principalId: string
 }
-let feishuUserIdentityCreationMode: FeishuUserIdentityCreationMode | undefined
+let feishuUserIdentityCreationMode: FeishuIdentityCreationMode | undefined
 let feishuUserIdentityEditorOpen = false
 let feishuUserIdentitySaving = false
 let feishuUserIdentitySaveError: string | undefined
-let feishuUserIdentityDraft: FeishuUserIdentityDraft | undefined
+let feishuUserIdentityDraft: FeishuIdentityDraft | undefined
+let feishuBotIdentityCreationMode: FeishuIdentityCreationMode | undefined
+let feishuBotIdentityEditorOpen = false
+let feishuBotIdentitySaving = false
+let feishuBotIdentitySaveError: string | undefined
+let feishuBotIdentityDraft: FeishuIdentityDraft | undefined
 let feishuAuthorization: FeishuAuthorizationSnapshot | undefined
 let feishuAuthorizationLoading = false
 let feishuAuthorizationError: string | undefined
@@ -807,6 +814,13 @@ function connectorsContent(): string {
     feishuSettingsError === undefined &&
     feishuUserIdentityCreationMode !== undefined &&
     feishuSettingsCsrfToken !== undefined
+  const canCreateBotIdentity =
+    !feishuSettingsLoading &&
+    feishuSettingsError === undefined &&
+    feishuBotIdentityCreationMode !== undefined &&
+    feishuSettingsCsrfToken !== undefined
+  const settingsMutationBusy =
+    feishuSettingsSaving || feishuUserIdentitySaving || feishuBotIdentitySaving
   let editor = ''
   if (feishuSettingsEditorOpen && canEdit && settingsSnapshot !== undefined) {
     const host = feishuSettingsDraft?.redirectHost ?? '127.0.0.1'
@@ -831,7 +845,7 @@ function connectorsContent(): string {
   }
   let userIdentityEditor = ''
   if (feishuUserIdentityEditorOpen && canCreateUserIdentity) {
-    const mode = feishuUserIdentityCreationMode as FeishuUserIdentityCreationMode
+    const mode = feishuUserIdentityCreationMode as FeishuIdentityCreationMode
     const appId = feishuUserIdentityDraft?.appId ?? ''
     const displayName = feishuUserIdentityDraft?.displayName ?? ''
     const principalId = feishuUserIdentityDraft?.principalId ?? ''
@@ -850,11 +864,35 @@ function connectorsContent(): string {
       </div>
     </form>`
   }
+  let botIdentityEditor = ''
+  if (feishuBotIdentityEditorOpen && canCreateBotIdentity) {
+    const mode = feishuBotIdentityCreationMode as FeishuIdentityCreationMode
+    const appId = feishuBotIdentityDraft?.appId ?? ''
+    const displayName = feishuBotIdentityDraft?.displayName ?? ''
+    const principalId = feishuBotIdentityDraft?.principalId ?? ''
+    botIdentityEditor = `<form class="settings-editor" data-feishu-bot-identity-form>
+      <div class="settings-editor-heading"><div><h3>Configure Bot identity</h3><p>${mode === 'new' ? 'Create one local Feishu connection and a generated Keychain reference.' : 'Add a Bot identity to the configured Feishu application.'}</p></div></div>
+      <div class="settings-fields">
+        ${mode === 'new' ? `<label><span>Feishu App ID</span><input name="appId" type="text" maxlength="128" autocomplete="off" required value="${escapeHtml(appId)}"></label>` : ''}
+        <label><span>Display name</span><input name="displayName" type="text" maxlength="128" autocomplete="off" required value="${escapeHtml(displayName)}"></label>
+        <label><span>Bot open_id</span><input name="principalId" type="text" maxlength="128" autocomplete="off" required value="${escapeHtml(principalId)}"></label>
+      </div>
+      <p class="muted">This stores identity metadata and a generated Keychain locator only. It does not collect or create an app credential or event-subscription secret.</p>
+      ${feishuBotIdentitySaveError === undefined ? '' : `<p class="form-message error" role="alert">${escapeHtml(feishuBotIdentitySaveError)}</p>`}
+      <div class="settings-form-actions">
+        <button class="secondary-button" type="button" data-feishu-bot-identity-cancel${feishuBotIdentitySaving ? ' disabled' : ''}>Cancel</button>
+        <button class="primary-button" type="submit"${feishuBotIdentitySaving ? ' disabled' : ''}>${feishuBotIdentitySaving ? 'Saving…' : 'Create Bot identity'}</button>
+      </div>
+    </form>`
+  }
   const editAction = canEdit
-    ? `<button class="secondary-button" type="button" data-feishu-settings-edit${feishuSettingsSaving ? ' disabled' : ''}>Edit OAuth</button>`
+    ? `<button class="secondary-button" type="button" data-feishu-settings-edit${settingsMutationBusy ? ' disabled' : ''}>Edit OAuth</button>`
     : ''
   const createUserIdentityAction = canCreateUserIdentity
-    ? `<button class="secondary-button" type="button" data-feishu-user-identity-create${feishuUserIdentitySaving ? ' disabled' : ''}>Configure User</button>`
+    ? `<button class="secondary-button" type="button" data-feishu-user-identity-create${settingsMutationBusy ? ' disabled' : ''}>Configure User</button>`
+    : ''
+  const createBotIdentityAction = canCreateBotIdentity
+    ? `<button class="secondary-button" type="button" data-feishu-bot-identity-create${settingsMutationBusy ? ' disabled' : ''}>Configure Bot</button>`
     : ''
   const editLimit =
     settingsSnapshot !== undefined && !settingsSnapshot.identities.includes('user')
@@ -873,8 +911,9 @@ function connectorsContent(): string {
         <article class="resource-row">
           <span class="resource-icon">飞</span>
           <div class="resource-main"><h3>Feishu</h3><p>${feishuDetails}</p><p class="muted">Settings status only — credentials, authorization validity, and live connectivity are not shown or implied.</p>${editLimit}${feishuSettingsSaveSuccess === undefined ? '' : `<p class="form-message success" role="status">${escapeHtml(feishuSettingsSaveSuccess)}</p>`}</div>
-          <div class="resource-actions">${feishuStatus}${createUserIdentityAction}${editAction}</div>
+          <div class="resource-actions">${feishuStatus}${createBotIdentityAction}${createUserIdentityAction}${editAction}</div>
         </article>
+        ${botIdentityEditor}
         ${userIdentityEditor}
         ${editor}
         ${diagnostics}
@@ -1585,6 +1624,80 @@ async function loadAudit(): Promise<void> {
   }
 }
 
+interface FeishuSettingsCapabilities {
+  readonly oauthWritable: boolean
+  readonly userIdentityCreation: FeishuIdentityCreationMode | undefined
+  readonly botIdentityCreation: FeishuIdentityCreationMode | undefined
+  readonly csrfToken: string | undefined
+}
+
+function feishuIdentityCreationModeAt(
+  value: string | null,
+  snapshot: FeishuSettingsSnapshot,
+  identity: 'bot' | 'user',
+): FeishuIdentityCreationMode | undefined {
+  if (value === null) return undefined
+  if (value !== 'new' && value !== 'existing') {
+    throw new Error('Local API returned an invalid Feishu identity write capability.')
+  }
+  const otherIdentity = identity === 'bot' ? 'user' : 'bot'
+  if (
+    snapshot.identities.includes(identity) ||
+    (value === 'new' && snapshot.identities.length !== 0) ||
+    (value === 'existing' && !snapshot.identities.includes(otherIdentity))
+  ) {
+    throw new Error('Local API returned an inconsistent Feishu identity write capability.')
+  }
+  return value
+}
+
+function feishuSettingsCapabilitiesAt(
+  response: Response,
+  snapshot: FeishuSettingsSnapshot,
+): FeishuSettingsCapabilities {
+  const writableHeader = response.headers.get('x-twindesk-settings-writable')
+  if (writableHeader !== 'true' && writableHeader !== 'false') {
+    throw new Error('Local API returned an invalid Feishu Settings write capability.')
+  }
+  const oauthWritable = writableHeader === 'true'
+  const userIdentityCreation = feishuIdentityCreationModeAt(
+    response.headers.get('x-twindesk-user-identity-creation'),
+    snapshot,
+    'user',
+  )
+  const botIdentityCreation = feishuIdentityCreationModeAt(
+    response.headers.get('x-twindesk-bot-identity-creation'),
+    snapshot,
+    'bot',
+  )
+  const csrfToken = response.headers.get('x-twindesk-csrf-token')
+  const csrfRequired =
+    oauthWritable || userIdentityCreation !== undefined || botIdentityCreation !== undefined
+  if (csrfRequired && (csrfToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(csrfToken))) {
+    throw new Error('Local API returned an invalid Feishu Settings write capability.')
+  }
+  if (!csrfRequired && csrfToken !== null) {
+    throw new Error('Local API returned an unexpected Feishu Settings write capability.')
+  }
+  return Object.freeze({
+    oauthWritable,
+    userIdentityCreation,
+    botIdentityCreation,
+    csrfToken: csrfRequired ? (csrfToken as string) : undefined,
+  })
+}
+
+function applyFeishuSettingsResponse(
+  snapshot: FeishuSettingsSnapshot,
+  capabilities: FeishuSettingsCapabilities,
+): void {
+  feishuSettings = snapshot
+  feishuSettingsWritable = capabilities.oauthWritable
+  feishuUserIdentityCreationMode = capabilities.userIdentityCreation
+  feishuBotIdentityCreationMode = capabilities.botIdentityCreation
+  feishuSettingsCsrfToken = capabilities.csrfToken
+}
+
 async function loadFeishuSettings(): Promise<void> {
   const request = ++feishuSettingsRequest
   feishuSettingsLoading = true
@@ -1596,47 +1709,15 @@ async function loadFeishuSettings(): Promise<void> {
     })
     if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
     const snapshot = parseFeishuSettingsSnapshot(await response.json())
-    const writableHeader = response.headers.get('x-twindesk-settings-writable')
-    if (writableHeader !== 'true' && writableHeader !== 'false') {
-      throw new Error('Local API returned an invalid Feishu Settings write capability.')
-    }
-    const writable = writableHeader === 'true'
-    const identityCreation = response.headers.get('x-twindesk-user-identity-creation')
-    if (
-      identityCreation !== null &&
-      identityCreation !== 'new' &&
-      identityCreation !== 'existing'
-    ) {
-      throw new Error('Local API returned an invalid Feishu identity write capability.')
-    }
-    if (
-      (identityCreation === 'new' && snapshot.identities.length !== 0) ||
-      (identityCreation === 'existing' &&
-        (!snapshot.identities.includes('bot') || snapshot.identities.includes('user')))
-    ) {
-      throw new Error('Local API returned an inconsistent Feishu identity write capability.')
-    }
-    const csrfToken = response.headers.get('x-twindesk-csrf-token')
-    if (
-      (writable || identityCreation !== null) &&
-      (csrfToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(csrfToken))
-    ) {
-      throw new Error('Local API returned an invalid Feishu Settings write capability.')
-    }
-    if (!writable && identityCreation === null && csrfToken !== null) {
-      throw new Error('Local API returned an unexpected Feishu Settings write capability.')
-    }
+    const capabilities = feishuSettingsCapabilitiesAt(response, snapshot)
     if (request !== feishuSettingsRequest) return
-    feishuSettings = snapshot
-    feishuSettingsWritable = writable
-    feishuUserIdentityCreationMode = identityCreation ?? undefined
-    feishuSettingsCsrfToken =
-      writable || identityCreation !== null ? (csrfToken as string) : undefined
+    applyFeishuSettingsResponse(snapshot, capabilities)
   } catch (error) {
     if (request !== feishuSettingsRequest) return
     feishuSettings = undefined
     feishuSettingsWritable = false
     feishuUserIdentityCreationMode = undefined
+    feishuBotIdentityCreationMode = undefined
     feishuSettingsCsrfToken = undefined
     feishuSettingsError =
       error instanceof Error ? error.message : 'The local Feishu Settings request failed.'
@@ -2011,7 +2092,12 @@ async function cancelFeishuAuthorization(): Promise<void> {
 
 async function saveFeishuUserIdentity(create: FeishuUserIdentityCreate): Promise<void> {
   const csrfToken = feishuSettingsCsrfToken
-  if (csrfToken === undefined) {
+  if (
+    csrfToken === undefined ||
+    feishuSettingsSaving ||
+    feishuUserIdentitySaving ||
+    feishuBotIdentitySaving
+  ) {
     feishuUserIdentitySaveError = 'The local identity write capability is unavailable.'
     render()
     return
@@ -2032,19 +2118,9 @@ async function saveFeishuUserIdentity(create: FeishuUserIdentityCreate): Promise
     })
     if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
     const snapshot = parseFeishuSettingsSnapshot(await response.json())
-    const oauthWritableHeader = response.headers.get('x-twindesk-settings-writable')
-    if (oauthWritableHeader !== 'true' && oauthWritableHeader !== 'false') {
-      throw new Error('Local API returned an invalid Feishu Settings write capability.')
-    }
-    const oauthWritable = oauthWritableHeader === 'true'
-    const nextToken = response.headers.get('x-twindesk-csrf-token')
-    if (oauthWritable && (nextToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(nextToken))) {
-      throw new Error('Local API returned an invalid Feishu Settings write capability.')
-    }
-    feishuSettings = snapshot
-    feishuSettingsWritable = oauthWritable
-    feishuSettingsCsrfToken = oauthWritable ? (nextToken as string) : undefined
-    feishuUserIdentityCreationMode = undefined
+    const capabilities = feishuSettingsCapabilitiesAt(response, snapshot)
+    if (!snapshot.identities.includes('user')) throw new Error('Local API rejected the identity.')
+    applyFeishuSettingsResponse(snapshot, capabilities)
     feishuUserIdentityEditorOpen = false
     feishuUserIdentityDraft = undefined
     feishuSettingsSaveSuccess = 'User identity metadata saved locally. No credential was created.'
@@ -2058,9 +2134,59 @@ async function saveFeishuUserIdentity(create: FeishuUserIdentityCreate): Promise
   }
 }
 
+async function saveFeishuBotIdentity(create: FeishuBotIdentityCreate): Promise<void> {
+  const csrfToken = feishuSettingsCsrfToken
+  if (
+    csrfToken === undefined ||
+    feishuSettingsSaving ||
+    feishuUserIdentitySaving ||
+    feishuBotIdentitySaving
+  ) {
+    feishuBotIdentitySaveError = 'The local identity write capability is unavailable.'
+    render()
+    return
+  }
+  feishuBotIdentitySaving = true
+  feishuBotIdentitySaveError = undefined
+  feishuSettingsSaveSuccess = undefined
+  render()
+  try {
+    const response = await fetch('/api/settings/feishu/bot-identity', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'x-twindesk-csrf-token': csrfToken,
+      },
+      body: JSON.stringify(create),
+    })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseFeishuSettingsSnapshot(await response.json())
+    const capabilities = feishuSettingsCapabilitiesAt(response, snapshot)
+    if (!snapshot.identities.includes('bot')) throw new Error('Local API rejected the identity.')
+    applyFeishuSettingsResponse(snapshot, capabilities)
+    feishuBotIdentityEditorOpen = false
+    feishuBotIdentityDraft = undefined
+    feishuSettingsSaveSuccess =
+      'Bot identity metadata saved locally. No credential or subscription secret was created.'
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'The local Bot identity creation failed.'
+    feishuBotIdentitySaveError = `${message} The write result may be uncertain; refresh Settings before retrying.`
+  } finally {
+    feishuBotIdentitySaving = false
+    render()
+  }
+}
+
 async function saveFeishuOAuthSettings(update: FeishuOAuthSettingsUpdate): Promise<void> {
   const csrfToken = feishuSettingsCsrfToken
-  if (csrfToken === undefined) {
+  if (
+    csrfToken === undefined ||
+    feishuSettingsSaving ||
+    feishuUserIdentitySaving ||
+    feishuBotIdentitySaving
+  ) {
     feishuSettingsSaveError = 'The local Settings write capability is unavailable.'
     render()
     return
@@ -2081,12 +2207,11 @@ async function saveFeishuOAuthSettings(update: FeishuOAuthSettingsUpdate): Promi
     })
     if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
     const snapshot = parseFeishuSettingsSnapshot(await response.json())
-    const nextToken = response.headers.get('x-twindesk-csrf-token')
-    if (nextToken === null || !/^[A-Za-z0-9_-]{43}$/u.test(nextToken)) {
+    const capabilities = feishuSettingsCapabilitiesAt(response, snapshot)
+    if (!capabilities.oauthWritable) {
       throw new Error('Local API returned an invalid Feishu Settings write capability.')
     }
-    feishuSettings = snapshot
-    feishuSettingsCsrfToken = nextToken
+    applyFeishuSettingsResponse(snapshot, capabilities)
     feishuSettingsEditorOpen = false
     feishuSettingsDraft = undefined
     feishuSettingsSaveSuccess = 'OAuth settings saved locally.'
@@ -2220,6 +2345,7 @@ document.addEventListener('click', (event) => {
     }
     feishuSettingsEditorOpen = true
     feishuUserIdentityEditorOpen = false
+    feishuBotIdentityEditorOpen = false
     feishuSettingsSaveError = undefined
     feishuSettingsSaveSuccess = undefined
     render()
@@ -2228,8 +2354,24 @@ document.addEventListener('click', (event) => {
     feishuUserIdentityDraft = { appId: '', displayName: '', principalId: '' }
     feishuUserIdentityEditorOpen = true
     feishuSettingsEditorOpen = false
+    feishuBotIdentityEditorOpen = false
     feishuUserIdentitySaveError = undefined
     feishuSettingsSaveSuccess = undefined
+    render()
+  }
+  if (target.closest('[data-feishu-bot-identity-create]') !== null) {
+    feishuBotIdentityDraft = { appId: '', displayName: '', principalId: '' }
+    feishuBotIdentityEditorOpen = true
+    feishuSettingsEditorOpen = false
+    feishuUserIdentityEditorOpen = false
+    feishuBotIdentitySaveError = undefined
+    feishuSettingsSaveSuccess = undefined
+    render()
+  }
+  if (target.closest('[data-feishu-bot-identity-cancel]') !== null) {
+    feishuBotIdentityEditorOpen = false
+    feishuBotIdentityDraft = undefined
+    feishuBotIdentitySaveError = undefined
     render()
   }
   if (target.closest('[data-feishu-user-identity-cancel]') !== null) {
@@ -2317,6 +2459,31 @@ document.addEventListener('submit', (event) => {
       void saveFeishuUserIdentity(create)
     } catch {
       feishuUserIdentitySaveError = 'The Feishu User identity form is invalid.'
+      render()
+    }
+    return
+  }
+  if (form.matches('[data-feishu-bot-identity-form]')) {
+    event.preventDefault()
+    const mode = feishuBotIdentityCreationMode
+    try {
+      if (mode === undefined) throw new TypeError()
+      const values = new FormData(form)
+      feishuBotIdentityDraft = {
+        appId: String(values.get('appId') ?? ''),
+        displayName: String(values.get('displayName') ?? ''),
+        principalId: String(values.get('principalId') ?? ''),
+      }
+      const create = parseFeishuBotIdentityCreate({
+        version: 1,
+        connection: mode,
+        appId: mode === 'new' ? feishuBotIdentityDraft.appId : null,
+        displayName: feishuBotIdentityDraft.displayName,
+        principalId: feishuBotIdentityDraft.principalId,
+      })
+      void saveFeishuBotIdentity(create)
+    } catch {
+      feishuBotIdentitySaveError = 'The Feishu Bot identity form is invalid.'
       render()
     }
     return

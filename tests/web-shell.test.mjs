@@ -133,6 +133,8 @@ test('the local Web server serves product routes and restarts on the same port',
   assert.match(appSource, /feishuSettingsDraft/u)
   assert.match(appSource, /data-feishu-user-identity-form/u)
   assert.match(appSource, /\/api\/settings\/feishu\/user-identity/u)
+  assert.match(appSource, /data-feishu-bot-identity-form/u)
+  assert.match(appSource, /\/api\/settings\/feishu\/bot-identity/u)
   assert.match(appSource, /\/api\/authorization\/feishu\/start/u)
   assert.match(appSource, /\/api\/authorization\/feishu\/cancel/u)
   assert.match(appSource, /\/api\/recovery\/feishu\/oauth/u)
@@ -537,6 +539,78 @@ test('the Web server exposes create-only User identity capability without a cred
   }
 })
 
+test('the Web server exposes create-only Bot identity capability without a credential field', async () => {
+  let createCalls = 0
+  /** @type {unknown} */
+  let observedCreate
+  const created = {
+    version: 1,
+    connectorId: 'feishu',
+    state: 'incomplete',
+    identities: ['bot'],
+    oauth: null,
+  }
+  const running = await startTwinDeskWebServer({
+    port: 0,
+    feishuSettings: {
+      async read() {
+        return EMPTY_FEISHU_SETTINGS
+      },
+      async createBotIdentity(value) {
+        createCalls += 1
+        observedCreate = value
+        return created
+      },
+    },
+  })
+  try {
+    const status = await request(`${running.url}/api/settings/feishu`)
+    const csrfToken = status.headers.get('x-twindesk-csrf-token')
+    assert.equal(status.headers.get('x-twindesk-settings-writable'), 'false')
+    assert.equal(status.headers.get('x-twindesk-bot-identity-creation'), 'new')
+    assert.ok(csrfToken !== null)
+    const create = {
+      version: 1,
+      connection: 'new',
+      appId: 'cli_synthetic_web_bot_identity',
+      displayName: 'Synthetic Web Bot',
+      principalId: 'ou_synthetic_web_bot_identity',
+    }
+    const response = await request(`${running.url}/api/settings/feishu/bot-identity`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: running.url,
+        'sec-fetch-site': 'same-origin',
+        'x-twindesk-csrf-token': csrfToken,
+      },
+      body: JSON.stringify(create),
+    })
+    assert.equal(response.status, 200)
+    assert.deepEqual(await response.json(), created)
+    assert.deepEqual(observedCreate, create)
+    assert.equal(Object.isFrozen(observedCreate), true)
+    assert.equal(response.headers.get('x-twindesk-bot-identity-creation'), null)
+    assert.equal(response.headers.get('x-twindesk-csrf-token'), null)
+    assert.equal(createCalls, 1)
+
+    const malformed = await request(`${running.url}/api/settings/feishu/bot-identity`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: running.url,
+        'sec-fetch-site': 'same-origin',
+        'x-twindesk-csrf-token': csrfToken,
+      },
+      body: JSON.stringify({ ...create, appSecret: 'synthetic-secret' }),
+    })
+    assert.equal(malformed.status, 400)
+    assert.equal(createCalls, 1)
+  } finally {
+    await running.close()
+  }
+})
+
 test('the Web server rejects stale post-mutation Settings presentations', async () => {
   const cases = [
     {
@@ -572,6 +646,24 @@ test('the Web server rejects stale post-mutation Settings presentations', async 
         appId: 'cli_synthetic_stale_identity',
         displayName: 'Synthetic Stale Identity',
         principalId: 'ou_synthetic_stale_identity',
+      },
+    },
+    {
+      path: '/api/settings/feishu/bot-identity',
+      service: {
+        async read() {
+          return EMPTY_FEISHU_SETTINGS
+        },
+        async createBotIdentity() {
+          return EMPTY_FEISHU_SETTINGS
+        },
+      },
+      body: {
+        version: 1,
+        connection: 'new',
+        appId: 'cli_synthetic_stale_bot_identity',
+        displayName: 'Synthetic Stale Bot',
+        principalId: 'ou_synthetic_stale_bot_identity',
       },
     },
   ]

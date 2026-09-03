@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  parseFeishuBotIdentityCreate,
   parseFeishuOAuthSettingsUpdate,
   parseFeishuSettingsSnapshot,
   parseFeishuUserIdentityCreate,
@@ -44,6 +45,32 @@ test('the browser and server share one credential-free User identity creation co
   ]) {
     assert.throws(
       () => parseFeishuUserIdentityCreate(malformed),
+      (error) => error instanceof Error && !error.message.includes('synthetic-secret'),
+    )
+  }
+})
+
+test('the browser and server share one credential-free Bot identity creation contract', () => {
+  const create = {
+    version: 1,
+    connection: 'new',
+    appId: 'cli_synthetic_bot_identity_create',
+    displayName: 'Synthetic Local Bot',
+    principalId: 'ou_synthetic_bot_identity_create',
+  }
+  assert.deepEqual(parseFeishuBotIdentityCreate(copy(create)), create)
+  assert.deepEqual(
+    parseFeishuBotIdentityCreate({ ...create, connection: 'existing', appId: null }),
+    { ...create, connection: 'existing', appId: null },
+  )
+  for (const malformed of [
+    { ...create, connection: 'existing' },
+    { ...create, principalId: 'ou invalid' },
+    { ...create, credentialReference: 'secret-ref:must-not-enter-browser' },
+    { ...create, appSecret: 'synthetic-secret-that-must-not-echo' },
+  ]) {
+    assert.throws(
+      () => parseFeishuBotIdentityCreate(malformed),
       (error) => error instanceof Error && !error.message.includes('synthetic-secret'),
     )
   }

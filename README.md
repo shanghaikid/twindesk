@@ -82,6 +82,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Workbench Feishu Settings Presentation](docs/WORKBENCH_FEISHU_SETTINGS_PRESENTATION.md): minimized read-only Connector status for the local Web boundary.
 - [Workbench Feishu OAuth Settings Editing](docs/WORKBENCH_FEISHU_OAUTH_SETTINGS_EDITING.md): app-bound non-secret OAuth configuration editing with a local request-forgery boundary.
 - [Workbench Feishu User Identity Bootstrap](docs/WORKBENCH_FEISHU_USER_IDENTITY_BOOTSTRAP.md): create-only User metadata and generated Keychain-reference setup without accepting a credential.
+- [Workbench Feishu Bot Identity Bootstrap](docs/WORKBENCH_FEISHU_BOT_IDENTITY_BOOTSTRAP.md): create-only Bot metadata and a separate generated app-credential Keychain reference without collecting secrets.
 - [Feishu OAuth Verified Initial Persistence](docs/FEISHU_OAUTH_INITIAL_PERSISTENCE.md): verified User token snapshot, exact initial Keychain replacement, and uncertain-write recovery.
 - [Feishu OAuth Reauthorization Replacement](docs/FEISHU_OAUTH_REAUTHORIZATION.md): explicit blocked-state replacement, journal migration, and restart reconciliation.
 - [Workbench Feishu OAuth Reauthorization Runtime](docs/WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_RUNTIME.md): lease-held blocked-state callback, exchange, verified replacement, and restart-loaded production composition.
@@ -199,9 +200,10 @@ macOS stores through the Workbench composition and injects that Settings service
 User identity already exists, the same page can update only its non-secret
 literal-loopback OAuth callback and requested scopes through an exact
 same-origin, Fetch-Metadata- and CSRF-bound local POST. It can also bootstrap a
-first User identity from an empty installation or add one to a Bot-only
-connection. Workbench generates the internal account and Keychain-reference
-locators; identity creation itself submits no credential and does not imply
+first User or Bot identity from an empty installation, then add the missing
+identity to the same Feishu application. Workbench generates the internal
+account and distinct Keychain-reference locators; identity creation itself
+submits no credential or event-subscription secret and does not imply
 authorization or connectivity. Once those non-secret Settings are ready, a
 separate Connectors form can start one explicit initial User OAuth attempt. Its
 transient app secret stays within the loopback request and lease-held runtime,

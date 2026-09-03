@@ -31,6 +31,14 @@ export interface FeishuUserIdentityCreate {
   readonly principalId: string
 }
 
+export interface FeishuBotIdentityCreate {
+  readonly version: 1
+  readonly connection: 'new' | 'existing'
+  readonly appId: string | null
+  readonly displayName: string
+  readonly principalId: string
+}
+
 type UnknownRecord = Readonly<Record<string, unknown>>
 
 function invalid(): never {
@@ -181,8 +189,7 @@ export function parseFeishuOAuthSettingsUpdate(value: unknown): FeishuOAuthSetti
   })
 }
 
-/** Parse one create-only, credential-free User identity request. */
-export function parseFeishuUserIdentityCreate(value: unknown): FeishuUserIdentityCreate {
+function identityCreateAt(value: unknown): FeishuUserIdentityCreate {
   const create = recordAt(value, ['version', 'connection', 'appId', 'displayName', 'principalId'])
   if (
     create.version !== 1 ||
@@ -222,6 +229,16 @@ export function parseFeishuUserIdentityCreate(value: unknown): FeishuUserIdentit
     displayName: create.displayName,
     principalId: create.principalId,
   })
+}
+
+/** Parse one create-only, credential-free User identity request. */
+export function parseFeishuUserIdentityCreate(value: unknown): FeishuUserIdentityCreate {
+  return identityCreateAt(value)
+}
+
+/** Parse one create-only, credential-free Bot identity request. */
+export function parseFeishuBotIdentityCreate(value: unknown): FeishuBotIdentityCreate {
+  return identityCreateAt(value)
 }
 
 /** Parse the versioned, identity-minimized Feishu Settings response before rendering. */
