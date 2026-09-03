@@ -47,6 +47,7 @@ DeepSeek Harness is still in developer preview, so the integration layer must pi
 - [Stage 0 Exit Gate](docs/STAGE_0_EXIT_GATE.md): the formal TD-052 decision, criterion evidence, selected UI boundary, and remaining limitations.
 - [Stage 1 Exit Gate](docs/STAGE_1_EXIT_GATE.md): the formal TD-112 local Work Hub decision, end-to-end fixture evidence, and Stage 2 boundary.
 - [Stage 2 Exit Gate](docs/STAGE_2_EXIT_GATE.md): local Feishu contract acceptance evidence and the still-open live-account gate.
+- [Stage 2 Live-Readiness Check](docs/STAGE_2_LIVE_READINESS.md): bounded loopback preflight for the remaining explicit live-account steps.
 - [Feishu Bot and User Identities](docs/FEISHU_IDENTITIES.md): separate principals, credential-reference persistence, privacy, and current connection limits.
 - [Feishu Bot Event Ingestion](docs/FEISHU_BOT_EVENT_INGESTION.md): signed direct-message and mention callbacks, hash-only durable deduplication, privacy, and hosting limits.
 - [Feishu User Message Discovery](docs/FEISHU_USER_MESSAGE_DISCOVERY.md): bounded user-authorized search windows, replay-safe candidate cursors, partial coverage, and adapter limits.

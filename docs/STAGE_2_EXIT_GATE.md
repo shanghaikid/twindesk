@@ -88,6 +88,11 @@ across browser refresh, and completes an authorized live-account acceptance
 run. Stage 3 must not rely on a claimed
 Stage 2 exit before those checks pass.
 
+`pnpm stage2:readiness -- --url <loopback-origin>` now provides a bounded,
+identifier-free preflight for those manual steps. A ready result proves only the
+local configuration and Host boundaries; the report always retains the live
+delivery, provider, polling, and send limitations and cannot pass this gate.
+
 ## Verification
 
 Run the focused contract acceptance test with:

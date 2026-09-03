@@ -117,6 +117,8 @@ state carries a fixed recovery action. The browser receives no account,
 principal, SecretReference, token, cursor position, raw error, or rate count.
 This synthetic composition does not replace live-account acceptance, and User
 connectivity plus rate state remain unproven.
+A versioned Stage 2 live-readiness command can now verify the bounded local
+prerequisites without promoting synthetic or loopback evidence to live proof.
 An explicit local reconciliation action now compares the exact configured
 Keychain bundle with unresolved journal evidence under the Host lease and can
 settle only a strictly newer identity-bound result. It performs no OAuth,

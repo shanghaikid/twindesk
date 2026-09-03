@@ -22,6 +22,7 @@
     "typecheck": "tsc --project tsconfig.typecheck.json --noEmit",
     "test": "tsc -b && node scripts/build-client-plugin.mjs && node scripts/build-web.mjs && node --test",
     "repo:check": "node scripts/check-repository.mjs",
+    "stage2:readiness": "node scripts/stage2-live-readiness.mjs",
     "check": "node scripts/check-all.mjs",
     "web:build": "tsc -b packages/web && node scripts/build-web.mjs",
     "web:start": "node scripts/start-web.mjs"
