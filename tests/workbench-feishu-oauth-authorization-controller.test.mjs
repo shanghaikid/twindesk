@@ -26,6 +26,7 @@ test('Workbench exposes one memory-only authorization URL and clears its client-
   let complete = () => undefined
   /** @type {Uint8Array | undefined} */
   let observedSecret
+  let notifications = 0
   const controller = createWorkbenchFeishuOAuthAuthorizationController({
     async loadHost() {
       return syntheticHost(async (clientSecret, _signal, present) => {
@@ -36,6 +37,10 @@ test('Workbench exposes one memory-only authorization URL and clears its client-
         })
         return { status: 'persisted', obtainedAt: '2026-09-01T00:00:00.000Z' }
       })
+    },
+    onSucceeded() {
+      notifications += 1
+      throw new Error('Synthetic lifecycle observer failure.')
     },
   })
   const source = new TextEncoder().encode('synthetic-client-secret')
@@ -59,6 +64,7 @@ test('Workbench exposes one memory-only authorization URL and clears its client-
     connectorId: 'feishu',
     state: 'succeeded',
   })
+  assert.equal(notifications, 1)
 })
 
 test('Workbench cancels an active authorization and rejects a competing start', async () => {

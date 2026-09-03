@@ -57,12 +57,14 @@ export interface WorkbenchFeishuOAuthAuthorizationController {
 
 export interface WorkbenchFeishuOAuthAuthorizationControllerOptions {
   readonly loadHost: () => Promise<WorkbenchFeishuOAuthAuthorizationHost>
+  readonly onSucceeded?: () => void
 }
 
 export interface DefaultWorkbenchFeishuOAuthAuthorizationControllerOptions {
   readonly identityStore: FeishuIdentityConfigurationStore
   readonly authorizationStore: FeishuOAuthAuthorizationConfigurationStore
   readonly leaseManager?: FeishuRuntimeLeaseManager
+  readonly onSucceeded?: () => void
 }
 
 export class WorkbenchFeishuOAuthAuthorizationControllerError extends Error {
@@ -108,24 +110,42 @@ function dataRecord(value: unknown, allowed: readonly string[]): UnknownRecord {
 }
 
 function readOptions(value: unknown): WorkbenchFeishuOAuthAuthorizationControllerOptions {
-  const record = dataRecord(value, ['loadHost'])
-  if (Object.keys(record).length !== 1 || typeof record.loadHost !== 'function') throw invalid()
+  const record = dataRecord(value, ['loadHost', 'onSucceeded'])
+  if (
+    (Object.keys(record).length !== 1 && Object.keys(record).length !== 2) ||
+    typeof record.loadHost !== 'function' ||
+    (record.onSucceeded !== undefined && typeof record.onSucceeded !== 'function')
+  ) {
+    throw invalid()
+  }
   return Object.freeze({
     loadHost: () =>
       Reflect.apply(record.loadHost as () => Promise<unknown>, undefined, []).then(host),
+    ...(record.onSucceeded === undefined
+      ? {}
+      : {
+          onSucceeded: () => Reflect.apply(record.onSucceeded as () => void, undefined, []) as void,
+        }),
   })
 }
 
 function readDefaultOptions(
   value: unknown,
 ): DefaultWorkbenchFeishuOAuthAuthorizationControllerOptions {
-  const record = dataRecord(value, ['identityStore', 'authorizationStore', 'leaseManager'])
+  const record = dataRecord(value, [
+    'identityStore',
+    'authorizationStore',
+    'leaseManager',
+    'onSucceeded',
+  ])
   if (
-    (Object.keys(record).length !== 2 && Object.keys(record).length !== 3) ||
+    Object.keys(record).length < 2 ||
+    Object.keys(record).length > 4 ||
     !(record.identityStore instanceof FeishuIdentityConfigurationStore) ||
     !(record.authorizationStore instanceof FeishuOAuthAuthorizationConfigurationStore) ||
     (Object.hasOwn(record, 'leaseManager') &&
-      !(record.leaseManager instanceof FeishuRuntimeLeaseManager))
+      !(record.leaseManager instanceof FeishuRuntimeLeaseManager)) ||
+    (record.onSucceeded !== undefined && typeof record.onSucceeded !== 'function')
   ) {
     throw invalid()
   }
@@ -135,6 +155,7 @@ function readDefaultOptions(
     ...(Object.hasOwn(record, 'leaseManager')
       ? { leaseManager: record.leaseManager as FeishuRuntimeLeaseManager }
       : {}),
+    ...(record.onSucceeded === undefined ? {} : { onSucceeded: record.onSucceeded as () => void }),
   })
 }
 
@@ -316,6 +337,11 @@ export function createWorkbenchFeishuOAuthAuthorizationController(
           fillBytes.call(clientSecret, 0)
           assertPersistenceResult(await authorization)
           status = simpleState('succeeded')
+          try {
+            options.onSucceeded?.()
+          } catch {
+            // Durable credential success remains authoritative over lifecycle notification.
+          }
         } catch (error) {
           status = controller.signal.aborted
             ? simpleState('cancelled')
@@ -369,5 +395,6 @@ export function createDefaultWorkbenchFeishuOAuthAuthorizationController(
         resolver,
         ...(options.leaseManager === undefined ? {} : { leaseManager: options.leaseManager }),
       }),
+    ...(options.onSucceeded === undefined ? {} : { onSucceeded: options.onSucceeded }),
   })
 }

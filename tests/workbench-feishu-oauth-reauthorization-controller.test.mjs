@@ -34,6 +34,7 @@ test('Workbench exposes one memory-only reauthorization URL and clears its secre
   let observedSecret
   /** @type {import('../packages/bundle-workbench/dist/index.js').WorkbenchFeishuOAuthAuthorizationPresenter | undefined} */
   let latePresenter
+  let notifications = 0
   const controller = createWorkbenchFeishuOAuthReauthorizationController({
     async loadHost() {
       return syntheticHost(async (clientSecret, _signal, present) => {
@@ -45,6 +46,10 @@ test('Workbench exposes one memory-only reauthorization URL and clears its secre
         })
         return { status: 'reauthorized', obtainedAt: '2026-09-01T00:00:00.000Z' }
       })
+    },
+    onSucceeded() {
+      notifications += 1
+      throw new Error('Synthetic lifecycle observer failure.')
     },
   })
   const source = new TextEncoder().encode('synthetic-client-secret')
@@ -64,6 +69,7 @@ test('Workbench exposes one memory-only reauthorization URL and clears its secre
   complete()
   await turn()
   assert.deepEqual(controller.read(), { version: 1, connectorId: 'feishu', state: 'succeeded' })
+  assert.equal(notifications, 1)
   assert.ok(latePresenter !== undefined)
   latePresenter({ authorizationUrl: AUTHORIZATION_URL, redirectUri: REDIRECT_URI })
   assert.deepEqual(controller.read(), { version: 1, connectorId: 'feishu', state: 'succeeded' })

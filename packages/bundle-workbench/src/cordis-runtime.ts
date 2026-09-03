@@ -4,19 +4,8 @@ import {
   createHarnessModelDraftRunner,
   inspectHarnessModelDraftRoute,
 } from '@twindesk/harness-adapter'
-import {
-  FeishuOAuthRotationCoordinator,
-  FeishuOAuthV3HttpTransport,
-  FeishuOAuthV3TokenRefresher,
-  FeishuSystemKeychainSecretReplacer,
-  FeishuSystemKeychainSecretResolver,
-  FeishuUserCredentialScopeProbe,
-  FeishuUserMessageSearchHttpClient,
-} from '@twindesk/plugin-feishu'
-import { openTwinDeskDatabase } from '@twindesk/storage-sqlite'
 
-import { startWorkbenchFeishuRuntimeOwner } from './feishu-runtime-owner.ts'
-import { createWorkbenchFeishuUserPollingRuntime } from './feishu-user-polling-runtime.ts'
+import { createWorkbenchFeishuRuntimeSupervisor } from './feishu-runtime-supervisor.ts'
 import { openWorkbenchFeishuSettingsStores } from './local-data-paths.ts'
 import { startWorkbenchWebServer } from './web-runtime.ts'
 
@@ -171,59 +160,25 @@ export function apply(contextValue: unknown, configValue: unknown): void {
     const stores = await openWorkbenchFeishuSettingsStores({
       homeDirectory: config.homeDirectory,
     })
-    const configuration = await stores.identityStore.read()
-    if (configuration?.user === undefined) {
-      const running = await startWorkbenchWebServer(webOptions)
-      logger.info(`TwinDesk product web: ${running.url}`)
-      console.log(`TwinDesk product web: ${running.url}`)
-      return () => running.close()
-    }
-
-    const owner = await startWorkbenchFeishuRuntimeOwner({ configuration })
-    let pollingDatabase: ReturnType<typeof openTwinDeskDatabase> | undefined
-    let pollingController: AbortController | undefined
-    let pollingCompletion: Promise<void> | undefined
+    const supervisor = createWorkbenchFeishuRuntimeSupervisor({
+      identityStore: stores.identityStore,
+      rotationJournal: stores.rotationJournal,
+      databasePath: config.databasePath,
+      tenantKey: config.feishuTenantKey,
+      onAttentionRequired() {
+        logger.info('TwinDesk Feishu User polling stopped; Connector attention is required.')
+      },
+    })
     let running: Awaited<ReturnType<typeof startWorkbenchWebServer>>
     try {
-      pollingDatabase = openTwinDeskDatabase(config.databasePath)
-      pollingController = new AbortController()
-      const resolver = new FeishuSystemKeychainSecretResolver()
-      const scopeProbe = new FeishuUserCredentialScopeProbe({ configuration, resolver })
-      const rotationCoordinator = new FeishuOAuthRotationCoordinator({
-        resolver,
-        refresher: new FeishuOAuthV3TokenRefresher({
-          transport: new FeishuOAuthV3HttpTransport(),
-        }),
-        replacer: new FeishuSystemKeychainSecretReplacer(),
-        journal: stores.rotationJournal,
-      })
-      const polling = createWorkbenchFeishuUserPollingRuntime({
-        database: pollingDatabase,
-        configuration,
-        tenantKey: config.feishuTenantKey,
-        resolver,
-        scopeProbe,
-        rotationCoordinator,
-        httpClient: new FeishuUserMessageSearchHttpClient(),
-        leaseManager: owner.leaseManager,
-      })
-      pollingCompletion = polling.run(pollingController.signal).catch(() => {
-        if (!pollingController?.signal.aborted) {
-          logger.info('TwinDesk Feishu User polling stopped; Connector attention is required.')
-        }
-      })
+      await supervisor.refresh()
       running = await startWorkbenchWebServer({
         ...webOptions,
-        feishuLeaseManager: owner.leaseManager,
+        feishuLeaseManager: supervisor.leaseManager,
+        onFeishuRuntimeChanged: () => supervisor.requestRefresh(),
       })
     } catch (error) {
-      pollingController?.abort()
-      await pollingCompletion
-      try {
-        pollingDatabase?.close()
-      } finally {
-        await owner.close()
-      }
+      await supervisor.close()
       throw error
     }
     logger.info(`TwinDesk product web: ${running.url}`)
@@ -231,16 +186,11 @@ export function apply(contextValue: unknown, configValue: unknown): void {
     let closing: Promise<void> | undefined
     return () => {
       closing ??= (async () => {
-        pollingController?.abort()
-        await pollingCompletion
+        await supervisor.quiesce()
         try {
           await running.close()
         } finally {
-          try {
-            pollingDatabase?.close()
-          } finally {
-            await owner.close()
-          }
+          await supervisor.close()
         }
       })()
       return closing

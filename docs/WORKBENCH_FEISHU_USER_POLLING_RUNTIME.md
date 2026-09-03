@@ -58,8 +58,9 @@ credential, opaque cursor, or page-token status surface.
 Cordis now activates this runtime only beneath the shared top-level owner
 documented in
 [Workbench Cordis Feishu Polling Runtime](WORKBENCH_CORDIS_FEISHU_POLLING_RUNTIME.md).
-Automatic restart after Settings or credential changes, production diagnostics,
-and live-account acceptance remain open. Those components must preserve this
+Product-mediated Settings and credential success now restart polling beneath
+that owner. Production diagnostics, out-of-process configuration watching, and
+live-account acceptance remain open. Those components must preserve this
 runtime's cancellation, partial-result, and atomic-commit boundaries.
 
 ## Verification

@@ -57,7 +57,7 @@ No live Keychain item, credential, Feishu account, or network endpoint is used.
 This factory is now hosted beneath the Cordis-owned shared Feishu lifecycle. A
 rotation result that requires reauthorization or
 Keychain reconciliation terminates the approved reply without blind retry;
-automatic polling restart after recovery remains open. The Workbench Inbox now
+live polling restart after recovery remains unproven. The Workbench Inbox now
 invokes this Host through a separate approved-action execution control and
 restores its durable presentation after refresh. Hosted Bot callbacks, live
 polling, and an authorized live-account acceptance run also remain open. Synthetic

@@ -19,26 +19,32 @@ absent, Cordis starts the existing product Web runtime without polling. When it
 is present, it must be a bounded canonical tenant identifier and never comes
 from a browser request.
 
-Polling starts only when the restart-safe identity store already contains a
-User identity at Cordis startup. An empty or Bot-only installation keeps the Web
-setup flow available and leaves polling dormant. After creating the first User
-identity, completing first authorization, or repairing a terminal credential
-condition, restart Cordis to start a fresh supervised polling run. Automatic
-configuration-change restart remains open.
+Polling starts immediately when the restart-safe identity store already
+contains a User identity at Cordis startup. An empty or Bot-only installation
+keeps the Web setup flow available and leaves polling dormant. The first
+successful product User bootstrap activates the owner and polling in the same
+Cordis process. Successful product OAuth Settings updates, initial
+authorization, blocked-state reauthorization, and local reconciliation restart
+polling beneath that owner.
+
+These notifications follow completed, validated product operations. They do not
+turn arbitrary filesystem or Keychain changes into authorization signals.
+Direct out-of-process changes still require a Host restart.
 
 ## Shared Ownership and Shutdown
 
 With an existing User identity, Cordis performs this order:
 
-1. acquire the one kernel-backed Feishu runtime lease;
-2. bind a shared manager view to the exact load-time identity configuration;
-3. open a dedicated TwinDesk SQLite polling handle on the same configured
+1. create one stable Web-facing delegating manager;
+2. acquire the one kernel-backed Feishu runtime lease when a User exists;
+3. bind a shared manager view to the exact current identity configuration;
+4. open a dedicated TwinDesk SQLite polling handle on the same configured
    business database;
-4. construct and start the OAuth rotation, scope, Keychain, HTTP, normalization,
+5. construct and start the OAuth rotation, scope, Keychain, HTTP, normalization,
    and cursor polling stack through the shared manager;
-5. start the product Web server and give authorization, reauthorization,
+6. start the product Web server and give authorization, reauthorization,
    reconciliation, and reply execution that same manager;
-6. on unload, abort and await polling, close Web and active requests, close the
+7. on unload, abort and await polling, close Web and active requests, close the
    polling database handle, then drain and release the owner.
 
 The shared manager does not reacquire the kernel endpoint. It verifies every
@@ -63,6 +69,6 @@ polling suites retain OAuth/scope/Keychain ordering, secret cleanup, restart,
 cursor, replay, partial-result, and cancellation coverage.
 
 No test reads a live Keychain item or calls Feishu. Live User polling, live reply
-execution, automatic restart after Settings or credential changes, production
-diagnostics, hosted Bot ingestion, and credential-healthy model generation
-remain outside this evidence.
+execution, production diagnostics, hosted Bot ingestion, out-of-process
+configuration watching, and credential-healthy model generation remain outside
+this evidence.

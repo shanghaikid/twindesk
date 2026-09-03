@@ -235,8 +235,9 @@ The Workbench composition root now binds both boundaries with the real runtime
 lease in a production-shaped API and synthetic end-to-end test. Cordis acquires
 one top-level owner and gives polling plus the hosted OAuth, reconciliation, and
 reply paths an exact-configuration shared manager view. Live acceptance,
-automatic restart after configuration repair, production diagnostics, and Bot
-event hosting remain TD-209 work. See
+out-of-process configuration watching, production diagnostics, and Bot event
+hosting remain TD-209 work. Product-mediated Settings and credential success
+now reconstruct polling beneath the same owner. See
 [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) and
 [Feishu OAuth v3 Refresh](FEISHU_OAUTH_V3_REFRESH.md) and
 [Feishu OAuth Authorization Code and PKCE](FEISHU_OAUTH_AUTHORIZATION_CODE.md) and

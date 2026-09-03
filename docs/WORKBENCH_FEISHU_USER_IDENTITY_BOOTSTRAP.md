@@ -88,7 +88,7 @@ Still open:
 - create and edit Bot identity metadata;
 - disconnect, delete, and revoke identity and credentials;
 - record a dedicated Settings-change Audit without copying identifiers;
-- automatically reconstruct and start polling after first creation; and
+- live acceptance of owner activation and polling after first creation; and
 - pass live Feishu registration and account acceptance.
 
 The initial credential entry is documented in

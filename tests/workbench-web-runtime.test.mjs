@@ -52,7 +52,16 @@ test('Workbench hosts default-path Feishu Settings in the product Web shell', as
 
   const databasePath = join(root, 'business', 'twindesk.sqlite3')
   await mkdir(join(root, 'business'), { mode: 0o700 })
-  const running = await startWorkbenchWebServer({ ...localPaths, databasePath, port: 0 })
+  let runtimeChanges = 0
+  const running = await startWorkbenchWebServer({
+    ...localPaths,
+    databasePath,
+    port: 0,
+    onFeishuRuntimeChanged() {
+      runtimeChanges += 1
+      throw new Error('Synthetic runtime observer failure.')
+    },
+  })
   try {
     const response = await fetch(`${running.url}/api/settings/feishu`, {
       headers: { connection: 'close' },
@@ -180,6 +189,7 @@ test('Workbench hosts default-path Feishu Settings in the product Web shell', as
     })
     assert.equal(updateResponse.status, 200)
     assert.equal((await updateResponse.json()).oauth.redirectPort, 43125)
+    assert.equal(runtimeChanges, 1)
   } finally {
     await running.close()
   }

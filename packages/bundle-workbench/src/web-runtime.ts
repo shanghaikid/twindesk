@@ -32,6 +32,8 @@ export interface WorkbenchWebServerOptions extends WorkbenchLocalDataPathOptions
   readonly databasePath?: string
   /** Optional shared top-level Feishu owner; never accepted from the browser. */
   readonly feishuLeaseManager?: FeishuRuntimeLeaseManager
+  /** Host-only notification after durable Settings or credential state changes. */
+  readonly onFeishuRuntimeChanged?: () => void
   /** Host-owned Harness route. Credentials remain in the configured provider. */
   readonly modelDraftRuntime?: Omit<WorkbenchModelDraftControllerOptions, 'database'>
 }
@@ -78,6 +80,7 @@ function readOptions(value: unknown): WorkbenchWebServerOptions {
       'port',
       'databasePath',
       'feishuLeaseManager',
+      'onFeishuRuntimeChanged',
       'modelDraftRuntime',
     ]
     if (
@@ -102,7 +105,9 @@ function readOptions(value: unknown): WorkbenchWebServerOptions {
           record.databasePath.length === 0 ||
           record.databasePath.includes('\u0000'))) ||
       (record.feishuLeaseManager !== undefined &&
-        !(record.feishuLeaseManager instanceof FeishuRuntimeLeaseManager))
+        !(record.feishuLeaseManager instanceof FeishuRuntimeLeaseManager)) ||
+      (record.onFeishuRuntimeChanged !== undefined &&
+        typeof record.onFeishuRuntimeChanged !== 'function')
     ) {
       throw new TypeError()
     }
@@ -122,6 +127,15 @@ export async function startWorkbenchWebServer(
   optionsValue: WorkbenchWebServerOptions = {},
 ): Promise<RunningTwinDeskWebServer> {
   const options = readOptions(optionsValue)
+  const notifyFeishuRuntimeChanged = (): void => {
+    try {
+      if (options.onFeishuRuntimeChanged !== undefined) {
+        Reflect.apply(options.onFeishuRuntimeChanged, undefined, [])
+      }
+    } catch {
+      // A lifecycle observer cannot change a completed durable operation.
+    }
+  }
   const stores = await openWorkbenchFeishuSettingsStores({
     ...(options.platform === undefined ? {} : { platform: options.platform }),
     ...(options.homeDirectory === undefined ? {} : { homeDirectory: options.homeDirectory }),
@@ -143,6 +157,9 @@ export async function startWorkbenchWebServer(
     ...(options.feishuLeaseManager === undefined
       ? {}
       : { leaseManager: options.feishuLeaseManager }),
+    ...(options.onFeishuRuntimeChanged === undefined
+      ? {}
+      : { onSucceeded: notifyFeishuRuntimeChanged }),
   })
   const feishuOAuthRecovery = createWorkbenchFeishuOAuthRecoveryPresentation({
     rotationJournal: stores.rotationJournal,
@@ -164,6 +181,9 @@ export async function startWorkbenchWebServer(
       ...(options.feishuLeaseManager === undefined
         ? {}
         : { leaseManager: options.feishuLeaseManager }),
+      ...(options.onFeishuRuntimeChanged === undefined
+        ? {}
+        : { onSucceeded: notifyFeishuRuntimeChanged }),
     })
     const modelDraft =
       options.modelDraftRuntime === undefined
@@ -205,6 +225,7 @@ export async function startWorkbenchWebServer(
         async updateOAuth(value: unknown) {
           const operation = pendingSettingsUpdate.then(async () => {
             await feishuOAuthSettingsEditor.update(value)
+            notifyFeishuRuntimeChanged()
             return feishuSettings.read()
           })
           pendingSettingsUpdate = operation.then(
@@ -216,6 +237,7 @@ export async function startWorkbenchWebServer(
         async createUserIdentity(value: unknown) {
           const operation = pendingSettingsUpdate.then(async () => {
             await feishuUserIdentityBootstrapper.create(value)
+            notifyFeishuRuntimeChanged()
             return feishuSettings.read()
           })
           pendingSettingsUpdate = operation.then(
@@ -232,7 +254,11 @@ export async function startWorkbenchWebServer(
       },
       feishuOAuthRecovery: { read: feishuOAuthRecovery.read },
       feishuOAuthReconciliation: {
-        reconcile: feishuOAuthReconciliation.reconcile,
+        async reconcile(signal) {
+          const result = await feishuOAuthReconciliation.reconcile(signal)
+          if (result.status === 'reconciled') notifyFeishuRuntimeChanged()
+          return result
+        },
       },
       feishuReauthorization: {
         read: feishuReauthorization.read,

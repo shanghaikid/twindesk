@@ -82,5 +82,5 @@ Still open:
 - product actions for Keychain/rotation reconciliation states; blocked-state
   reauthorization now has a separate recovery-gated product entry;
 - credential health, scope, disconnect, revocation, and deletion flows;
-- automatic polling start after first authorization without a Cordis restart; and
+- live acceptance of polling start after first authorization; and
 - a live-account authorization and Stage 2 end-to-end acceptance run.

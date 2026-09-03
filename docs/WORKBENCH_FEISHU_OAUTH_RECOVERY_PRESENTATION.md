@@ -76,7 +76,7 @@ The Connectors page now uses the separate action documented in
 Still open:
 
 - credential health, scope, disconnect, revocation, and deletion flows;
-- automatic polling restart after recovery and live-account acceptance.
+- live polling restart after recovery and live-account acceptance.
 
 See
 [Workbench Feishu OAuth Reauthorization UI](WORKBENCH_FEISHU_OAUTH_REAUTHORIZATION_UI.md)

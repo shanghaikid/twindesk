@@ -129,7 +129,7 @@ redacted prompt, runtime identities, and explicit provider/model route. The stan
 advertises this capability as unavailable until a Harness Host injects that
 runtime; no browser field can select or credential a provider.
 Existing-identity replacement, Bot identity creation, credential
-repair/removal, automatic polling restart, live authorization and
+repair/removal, out-of-process configuration watching, live authorization and
 reauthorization acceptance, credential-healthy production provider acceptance,
 and a real Feishu send remain missing. Local model Draft editing, explicit
 `ready_for_review`, an exact persisted Feishu User reply preview, fixed-lifetime

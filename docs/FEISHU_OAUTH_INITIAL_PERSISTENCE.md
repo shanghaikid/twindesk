@@ -75,8 +75,9 @@ absence checks plus a final ownership guard immediately before Keychain
 replacement. Explicit blocked-state replacement also passes synthetic contracts.
 The Workbench product entry now composes the initial browser/UI lifecycle,
 Settings editing, explicit blocked-state reauthorization, reconciliation, and
-Cordis shared-owner hosting. Automatic lifecycle reconstruction and
-live-account acceptance remain open. See
+Cordis shared-owner hosting and product-mediated lifecycle reconstruction.
+Out-of-process configuration watching and live-account acceptance remain open.
+See
 [Workbench Feishu OAuth Authorization Runtime](WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_RUNTIME.md)
 and
 [Workbench Feishu OAuth Authorization UI](WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_UI.md),

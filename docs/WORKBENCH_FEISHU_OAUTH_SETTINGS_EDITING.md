@@ -85,5 +85,5 @@ Still open:
   [Workbench Feishu OAuth Authorization UI](WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_UI.md);
 - record a dedicated Settings-change audit without copying identifiers;
 - disconnect, delete, and revoke configuration or credentials;
-- automatically reconstruct the Cordis polling lifecycle after editing; and
+- live acceptance of Cordis polling reconstruction after editing; and
 - pass live Feishu registration and account acceptance.

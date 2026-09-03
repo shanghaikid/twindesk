@@ -84,5 +84,5 @@ Still open:
 
 - product actions and durable Audit for Keychain and rotation reconciliation;
 - credential health, disconnect, revocation, and deletion;
-- automatic polling restart after reauthorization; and
+- live acceptance of polling restart after reauthorization; and
 - live Feishu and macOS Keychain acceptance.

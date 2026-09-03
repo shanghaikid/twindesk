@@ -143,8 +143,9 @@ reply, send request, or other Feishu write.
   events/projections/cursors, and applies bounded retry. The concrete bounded
   Feishu HTTP search/detail primitive and its lease-held, rotation-, scope-, and
   Keychain-bound adapter, Workbench factory, and Cordis shared-owner activation
-  now exist. Automatic lifecycle reconstruction, production diagnostics, and
-  live acceptance remain open. See
+  now exist. Product-mediated lifecycle reconstruction is also covered;
+  production diagnostics, out-of-process configuration watching, and live
+  acceptance remain open. See
   [Workbench Feishu User Polling Runtime](WORKBENCH_FEISHU_USER_POLLING_RUNTIME.md).
 - TD-203 now defines bounded conversation, document-excerpt, and attachment
   context retrieval; its concrete SDK/HTTP adapter is not wired yet.

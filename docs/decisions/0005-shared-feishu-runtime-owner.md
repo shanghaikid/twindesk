@@ -45,14 +45,14 @@ coordination.
   recovery paths by attempting a second kernel acquisition.
 - A competing TwinDesk process remains excluded for the complete active Cordis
   Feishu lifecycle.
-- The owner is bound to a load-time identity snapshot. A future identity
-  replacement requires lifecycle reconstruction.
+- The owner is bound to one exact identity snapshot. Product-mediated identity
+  creation or replacement reconstructs the lifecycle before new delegated work.
 - Polling is enabled only by a Host-supplied tenant key and an existing User
   identity at Cordis startup. It does not infer tenant identity from browser
   data.
-- The current supervisor does not automatically restart polling after a
-  terminal authorization, scope, or configuration failure. Credential repair
-  or first authorization requires a Cordis restart before polling resumes.
+- A terminal polling failure stays stopped until an explicit successful product
+  Settings, authorization, reauthorization, or reconciliation operation requests
+  refresh. Direct out-of-process file or Keychain changes require a Host restart.
 - This decision does not prove a live Feishu credential, remote message search,
   or reply.
 

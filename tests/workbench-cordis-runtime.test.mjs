@@ -123,18 +123,74 @@ test('Workbench Cordis runtime fails before listening when the Host route is una
   assert.deepEqual(runtime.messages, [])
 })
 
-test('Workbench Cordis runtime leaves polling dormant until a User identity exists', async (context) => {
+test('Workbench Cordis runtime starts polling after the product creates its first User identity', async (context) => {
   const { config } = await fixture(context)
+  const stores = await openWorkbenchFeishuSettingsStores({
+    platform: 'darwin',
+    homeDirectory: config.homeDirectory,
+  })
+  /** @type {((value?: unknown) => void) | undefined} */
+  let resolveSearch
+  const searched = new Promise((resolve) => {
+    resolveSearch = resolve
+  })
+  const originalSearch = Object.getOwnPropertyDescriptor(
+    FeishuUserMessageSearchAdapter.prototype,
+    'search',
+  )
+  Object.defineProperty(FeishuUserMessageSearchAdapter.prototype, 'search', {
+    configurable: true,
+    async value() {
+      const configuration = await stores.identityStore.read()
+      if (configuration?.user === undefined) throw new Error('Synthetic User is missing.')
+      resolveSearch?.()
+      return Object.freeze({
+        kind: 'feishu_user_message_search_page',
+        schemaVersion: 1,
+        identityType: 'user',
+        accountId: configuration.accountId,
+        appId: configuration.appId,
+        tenantKey: FEISHU_TENANT_KEY,
+        userPrincipalId: configuration.user.principalId,
+        messages: Object.freeze([]),
+        unavailableMessageIds: Object.freeze([]),
+        hasMore: false,
+      })
+    },
+  })
+  context.after(() => {
+    if (originalSearch !== undefined) {
+      Object.defineProperty(FeishuUserMessageSearchAdapter.prototype, 'search', originalSearch)
+    }
+  })
   const originalWithLease = Object.getOwnPropertyDescriptor(
     FeishuRuntimeLeaseManager.prototype,
     'withLease',
   )
   let acquisitions = 0
+  let ownerActive = false
   Object.defineProperty(FeishuRuntimeLeaseManager.prototype, 'withLease', {
     configurable: true,
-    async value() {
+    /**
+     * @template TResult
+     * @param {unknown} _configuration
+     * @param {AbortSignal} signal
+     * @param {(lease: import('../packages/plugin-feishu/src/runtime-lease.ts').FeishuRuntimeLease) => Promise<TResult> | TResult} use
+     * @returns {Promise<TResult>}
+     */
+    async value(_configuration, signal, use) {
+      signal.throwIfAborted()
       acquisitions += 1
-      throw new Error('A dormant polling runtime must not acquire a lease.')
+      ownerActive = true
+      try {
+        return await use({
+          assertHeld() {
+            if (!ownerActive) throw new Error('Synthetic Cordis owner is not active.')
+          },
+        })
+      } finally {
+        ownerActive = false
+      }
     },
   })
   context.after(() => {
@@ -149,7 +205,39 @@ test('Workbench Cordis runtime leaves polling dormant until a User identity exis
   context.after(() => dispose())
   assert.equal(runtime.messages.length, 1)
   assert.equal(acquisitions, 0)
+
+  const url = runtime.messages[0]?.match(/TwinDesk product web: (http:\/\/[^\s]+)/u)?.[1]
+  assert.ok(url)
+  const status = await fetch(`${url}/api/settings/feishu`)
+  const csrfToken = status.headers.get('x-twindesk-csrf-token')
+  assert.ok(csrfToken !== null)
+  const created = await fetch(`${url}/api/settings/feishu/user-identity`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      origin: url,
+      'sec-fetch-site': 'same-origin',
+      'x-twindesk-csrf-token': csrfToken,
+    },
+    body: JSON.stringify({
+      version: 1,
+      connection: 'new',
+      appId: 'cli_synthetic_cordis_dynamic',
+      displayName: 'Synthetic Cordis Dynamic User',
+      principalId: 'ou_synthetic_cordis_dynamic',
+    }),
+  })
+  assert.equal(created.status, 200)
+  await Promise.race([
+    searched,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Dynamic Cordis polling did not start.')), 1_000),
+    ),
+  ])
+  assert.equal(acquisitions, 1)
+  assert.equal(ownerActive, true)
   await dispose()
+  assert.equal(ownerActive, false)
 })
 
 test('Workbench Cordis runtime polls beneath one shared Feishu owner and releases it on shutdown', async (context) => {

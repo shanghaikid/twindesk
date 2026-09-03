@@ -77,7 +77,8 @@ polling, authorization, recovery, and external writes beneath an
 exact-configuration shared manager instead of letting each operation reacquire
 it. The manager drains active callbacks before releasing the kernel owner and
 does not replace operation-level approval, OAuth reservation, dispatch, or
-idempotency controls. Remaining TD-209 work includes diagnostics, hosted Bot
-ingestion, automatic polling restart after configuration repair, and
-live-account acceptance. See
+idempotency controls. Product-mediated Settings and credential success restart
+polling beneath the same owner. Remaining TD-209 work includes diagnostics,
+hosted Bot ingestion, out-of-process configuration watching, and live-account
+acceptance. See
 [ADR 0005](decisions/0005-shared-feishu-runtime-owner.md).
