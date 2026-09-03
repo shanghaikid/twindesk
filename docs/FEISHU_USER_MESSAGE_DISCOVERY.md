@@ -13,9 +13,28 @@ to the configured account, application, tenant, User principal, and
 `identityType: user`. A Bot response or a response for another identity fails
 closed.
 
-The intended adapter uses user-identity message search with a bounded time
-filter, then retrieves the returned message details and conversation context.
-This depends on all of the following:
+The production HTTP primitive uses the User-token form of the official
+[IM v1 message search](https://open.feishu.cn/api-explorer?from=op_doc_tab&apiName=search&project=im&resource=message&version=v1)
+endpoint with a bounded time filter, then reads each result through the official
+[IM v1 message detail](https://open.feishu.cn/api-explorer?from=op_doc_tab&apiName=get&project=im&resource=message&version=v1)
+endpoint. It deliberately uses IM v1 search rather than
+[Search v2](https://open.feishu.cn/api-explorer?from=op_doc_tab&apiName=create&project=search&resource=message&version=v2):
+the current official SDK contract makes the Search v2 query text mandatory, so
+it cannot represent an unfiltered incremental time window. If indexed metadata
+omits the optional chat mode, the primitive uses the official
+[IM v1 chat detail](https://open.feishu.cn/api-explorer?from=op_doc_tab&apiName=get&project=im&resource=chat&version=v1)
+endpoint required by the declared `im:chat:read` scope instead of guessing a
+conversation type. The primitive validates exact fixed endpoints, pagination,
+message metadata/detail consistency, chat type, sender and mention identifier
+types, response bounds, and cancellation. It maps inaccessible individual
+details to the existing explicit partial-result path while global authorization,
+scope, rate-limit, network, and malformed-response failures stay terminal or
+retryable according to the discovery contract.
+
+This primitive still requires its caller to supply a borrowed User access token.
+OAuth secret resolution, rotation, scope authorization, and exact configured
+principal verification remain outside it and must be composed before hosted
+polling. This depends on all of the following:
 
 - an unexpired user access token resolved outside ordinary business storage;
 - the application's granted scopes and the user's matching authorization;
@@ -115,9 +134,10 @@ reply, send request, or other Feishu write.
 
 - The Workbench now owns a supervised polling loop that holds the Host lease,
   restores the durable cursor for every page, atomically commits normalized
-  events/projections/cursors, and applies bounded retry. A concrete Feishu
-  HTTP/SDK search adapter, OAuth secret resolution, and Cordis activation are
-  not wired yet. See
+  events/projections/cursors, and applies bounded retry. The concrete bounded
+  Feishu HTTP search/detail primitive now exists, but OAuth secret resolution,
+  rotation and scope-gate composition, a configured-principal client wrapper,
+  and Cordis activation are not wired yet. See
   [Workbench Feishu User Polling Runtime](WORKBENCH_FEISHU_USER_POLLING_RUNTIME.md).
 - The fixed operation scope gate and User Keychain credential probe exist, but
   they are not composed with polling or a production search client yet.
@@ -134,6 +154,11 @@ reply, send request, or other Feishu write.
 
 ## Verification
 
+`tests/feishu-user-message-search-http-client.test.mjs` covers the fixed search
+and detail requests, rounded API time bounds with exact result filtering,
+pagination, unavailable details, chat-mode fallback, authorization/scope/rate-
+limit/page-token mapping, identity/detail consistency, response-size limits,
+cancellation, timeout, and hostile borrowed-token handling.
 `tests/feishu-user-discovery.test.mjs` covers the bounded first window, rolling
 overlap, exact identity binding, multi-page restart, final-page watermark
 advance, expired-token replay, out-of-order messages, missing detail retry,
