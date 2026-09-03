@@ -2,9 +2,11 @@
 
 The Workbench polling runtime composes the existing User-message discoverer,
 message normalizer, TwinDesk SQLite transaction, and exclusive Feishu Host
-lease into one supervised read-only lifecycle. It remains an injected-client
-contract: this increment does not claim that a live OAuth credential or Feishu
-HTTP endpoint has been accepted.
+lease into one supervised read-only lifecycle. It still accepts an injected
+search client. A concrete lease-held adapter now composes OAuth rotation,
+Keychain resolution, fixed scope authorization, and the bounded Feishu HTTP
+primitive, but the Workbench runtime factory does not construct that adapter yet
+and no live account has been accepted.
 
 ## Lifecycle and Commit Order
 
@@ -48,14 +50,13 @@ approval authority. Its constructor accepts the tenant identity only from Host
 composition, never from a browser request. It exposes no message, principal,
 credential, opaque cursor, or page-token status surface.
 
-The concrete Feishu User search HTTP adapter, Keychain/OAuth rotation and scope
-composition for that adapter, Cordis activation, production diagnostics, and
-live-account acceptance remain open. Cordis activation must promote polling,
-OAuth maintenance, diagnostics, and replies beneath one top-level lease owner;
-it must not run this long-lived owner beside the current independently leasing
-operation compositions, which would correctly exclude each other. Those
-components must preserve this runtime's cancellation, partial-result, and
-atomic-commit boundaries while sharing the one held lease.
+Workbench construction of the concrete User search adapter, Cordis activation,
+production diagnostics, and live-account acceptance remain open. Cordis
+activation must promote polling, OAuth maintenance, diagnostics, and replies
+beneath one top-level lease owner; it must not run this long-lived owner beside
+the current independently leasing operation compositions, which would correctly
+exclude each other. Those components must preserve this runtime's cancellation,
+partial-result, and atomic-commit boundaries while sharing the one held lease.
 
 ## Verification
 
@@ -64,3 +65,6 @@ restart, exact page-token resumption, event/projection/cursor commit, lease
 checks, cancellation, rate-limit backoff, repeated missing-detail backoff,
 terminal authorization failure, and interrupted commit without durable state.
 All identities and messages are synthetic.
+`tests/feishu-user-message-search-adapter.test.mjs` separately proves the
+rotation, scope, Keychain, lease, HTTP, and secret-lifetime composition without
+making a live request.

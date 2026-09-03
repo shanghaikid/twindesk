@@ -31,10 +31,14 @@ details to the existing explicit partial-result path while global authorization,
 scope, rate-limit, network, and malformed-response failures stay terminal or
 retryable according to the discovery contract.
 
-This primitive still requires its caller to supply a borrowed User access token.
-OAuth secret resolution, rotation, scope authorization, and exact configured
-principal verification remain outside it and must be composed before hosted
-polling. This depends on all of the following:
+The configured `FeishuUserMessageSearchAdapter` wraps this primitive only while
+the Host's exclusive Feishu lease remains held. It binds the exact account,
+application, tenant, and User principal; runs durable OAuth rotation; authorizes
+the fixed `user_message_discovery` scope policy; rereads the exact Keychain item
+to close the scope-check/use gap; rechecks scopes and lease ownership; and lends
+the current access token only for the HTTP callback. The primitive still never
+resolves or retains a credential itself. Workbench construction and Cordis
+activation remain outside this layer. This path depends on all of the following:
 
 - an unexpired user access token resolved outside ordinary business storage;
 - the application's granted scopes and the user's matching authorization;
@@ -47,11 +51,11 @@ private message, group, thread reply, document notification, deleted message,
 historical edit, or item visible in a Feishu client. Bot event delivery remains
 the separate TD-201 path.
 
-The adapter contract does not request reactions or resource downloads. The
-concrete adapter must pass the fixed `user_message_discovery` operation policy,
-which requires `search:message`, `im:message:readonly`, and `im:chat:read`, and
-must surface authorization or scope failures rather than returning an empty
-successful page. Scope health and diagnostics are defined by
+The adapter does not request reactions or resource downloads. It must pass the
+fixed `user_message_discovery` operation policy, which requires
+`search:message`, `im:message:readonly`, and `im:chat:read`, and surfaces
+authorization or scope failures rather than returning an empty successful page.
+Scope health and diagnostics are defined by
 [Feishu Connector Diagnostics](FEISHU_CONNECTOR_DIAGNOSTICS.md); its production
 diagnostics probe remains unwired. The concrete local credential probe is
 defined by
@@ -135,18 +139,16 @@ reply, send request, or other Feishu write.
 - The Workbench now owns a supervised polling loop that holds the Host lease,
   restores the durable cursor for every page, atomically commits normalized
   events/projections/cursors, and applies bounded retry. The concrete bounded
-  Feishu HTTP search/detail primitive now exists, but OAuth secret resolution,
-  rotation and scope-gate composition, a configured-principal client wrapper,
-  and Cordis activation are not wired yet. See
+  Feishu HTTP search/detail primitive and its lease-held, rotation-, scope-, and
+  Keychain-bound adapter now exist, but the Workbench factory and Cordis
+  activation are not wired yet. See
   [Workbench Feishu User Polling Runtime](WORKBENCH_FEISHU_USER_POLLING_RUNTIME.md).
-- The fixed operation scope gate and User Keychain credential probe exist, but
-  they are not composed with polling or a production search client yet.
 - TD-203 now defines bounded conversation, document-excerpt, and attachment
   context retrieval; its concrete SDK/HTTP adapter is not wired yet.
 - TD-204 now normalizes Bot and User sources into durable ExternalEvents and
   Work Items and atomically commits User events, projections, and candidate
   cursors; the Workbench polling lifecycle composes this path through an
-  injected search client, but the production adapter and activation remain
+  injected search client, but production construction and activation remain
   unwired.
 - TD-208 now exposes the runtime identity, scope, cursor, rate-limit, and health
   diagnostics contract. Its concrete Feishu/SQLite probe remains unwired. See
@@ -159,6 +161,10 @@ and detail requests, rounded API time bounds with exact result filtering,
 pagination, unavailable details, chat-mode fallback, authorization/scope/rate-
 limit/page-token mapping, identity/detail consistency, response-size limits,
 cancellation, timeout, and hostile borrowed-token handling.
+`tests/feishu-user-message-search-adapter.test.mjs` covers rotation-before-use,
+fresh scope authorization, the final Keychain reread, exact identity and opaque
+page-token forwarding, lease loss, missing scope, blocked credential recovery,
+cancellation, and transient secret cleanup.
 `tests/feishu-user-discovery.test.mjs` covers the bounded first window, rolling
 overlap, exact identity binding, multi-page restart, final-page watermark
 advance, expired-token replay, out-of-order messages, missing detail retry,
