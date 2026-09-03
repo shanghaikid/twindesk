@@ -41,6 +41,8 @@ The Workbench Bundle supplies developer defaults for the Profile:
 - `TWINDESK_MODEL` defaults to `deepseek-v4-flash`;
 - `TWINDESK_HOME_DIRECTORY` defaults to the operating-system home directory and
   only affects the existing fixed Workbench local-data path resolver.
+- `TWINDESK_FEISHU_TENANT_KEY` has no default; when supplied with an existing
+  User identity it enables the separate shared-owner polling lifecycle.
 
 These values are Host launch configuration and never browser request fields.
 The provider's API key remains in Harness's credential sources and is resolved
@@ -64,8 +66,10 @@ and two ephemeral loopback ports. It verifies both the Harness Client artifact
 and the product model-Draft capability, then requests normal shutdown and
 removes the temporary product data.
 
-No test invokes a live model. Local editing is documented separately in
+No test invokes a live model. Feishu polling activation is documented separately
+in
+[Workbench Cordis Feishu Polling Runtime](WORKBENCH_CORDIS_FEISHU_POLLING_RUNTIME.md).
+Local editing is documented separately in
 [Workbench Model Draft Editing](WORKBENCH_MODEL_DRAFT_EDITING.md). Provider
 credential health, authenticated remote generation, production data paths,
-Connector polling, and live Feishu acceptance remain
-open Stage 2 work.
+live Connector requests, and live Feishu acceptance remain open Stage 2 work.

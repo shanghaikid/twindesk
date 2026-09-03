@@ -103,7 +103,7 @@ Still open:
 
 - Keychain/rotation reconciliation actions; hosted reauthorization and its
   identifier-free recovery status now have separate product entries;
-- Cordis lifecycle activation and hosted polling coexistence;
+- automatic runtime restart after authorization or identity configuration;
 - live-account authorization and Keychain acceptance.
 
 The separate product entry, memory-only status controller, explicit browser

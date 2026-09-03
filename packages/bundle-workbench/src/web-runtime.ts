@@ -4,6 +4,7 @@ import {
   type TwinDeskWebServerOptions,
 } from '@twindesk/web'
 import { openTwinDeskDatabase } from '@twindesk/storage-sqlite'
+import { FeishuRuntimeLeaseManager } from '@twindesk/plugin-feishu'
 
 import {
   openWorkbenchFeishuSettingsStores,
@@ -29,6 +30,8 @@ export interface WorkbenchWebServerOptions extends WorkbenchLocalDataPathOptions
   readonly host?: TwinDeskWebServerOptions['host']
   readonly port?: number
   readonly databasePath?: string
+  /** Optional shared top-level Feishu owner; never accepted from the browser. */
+  readonly feishuLeaseManager?: FeishuRuntimeLeaseManager
   /** Host-owned Harness route. Credentials remain in the configured provider. */
   readonly modelDraftRuntime?: Omit<WorkbenchModelDraftControllerOptions, 'database'>
 }
@@ -74,6 +77,7 @@ function readOptions(value: unknown): WorkbenchWebServerOptions {
       'host',
       'port',
       'databasePath',
+      'feishuLeaseManager',
       'modelDraftRuntime',
     ]
     if (
@@ -96,7 +100,9 @@ function readOptions(value: unknown): WorkbenchWebServerOptions {
       (record.databasePath !== undefined &&
         (typeof record.databasePath !== 'string' ||
           record.databasePath.length === 0 ||
-          record.databasePath.includes('\u0000')))
+          record.databasePath.includes('\u0000'))) ||
+      (record.feishuLeaseManager !== undefined &&
+        !(record.feishuLeaseManager instanceof FeishuRuntimeLeaseManager))
     ) {
       throw new TypeError()
     }
@@ -134,6 +140,9 @@ export async function startWorkbenchWebServer(
   const feishuAuthorization = createDefaultWorkbenchFeishuOAuthAuthorizationController({
     identityStore: stores.identityStore,
     authorizationStore: stores.authorizationStore,
+    ...(options.feishuLeaseManager === undefined
+      ? {}
+      : { leaseManager: options.feishuLeaseManager }),
   })
   const feishuOAuthRecovery = createWorkbenchFeishuOAuthRecoveryPresentation({
     rotationJournal: stores.rotationJournal,
@@ -144,11 +153,17 @@ export async function startWorkbenchWebServer(
       identityStore: stores.identityStore,
       journal: stores.rotationJournal,
       database: maintenanceDatabase,
+      ...(options.feishuLeaseManager === undefined
+        ? {}
+        : { leaseManager: options.feishuLeaseManager }),
     })
     const feishuReauthorization = createDefaultWorkbenchFeishuOAuthReauthorizationController({
       identityStore: stores.identityStore,
       authorizationStore: stores.authorizationStore,
       journal: stores.rotationJournal,
+      ...(options.feishuLeaseManager === undefined
+        ? {}
+        : { leaseManager: options.feishuLeaseManager }),
     })
     const modelDraft =
       options.modelDraftRuntime === undefined
@@ -172,6 +187,9 @@ export async function startWorkbenchWebServer(
       identityStore: stores.identityStore,
       proposalController: feishuReplyProposal,
       rotationJournal: stores.rotationJournal,
+      ...(options.feishuLeaseManager === undefined
+        ? {}
+        : { leaseManager: options.feishuLeaseManager }),
     })
     const feishuReplyFlow = createWorkbenchFeishuReplyFlowController({
       database: maintenanceDatabase,

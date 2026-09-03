@@ -84,5 +84,5 @@ Still open:
 
 - product actions and durable Audit for Keychain and rotation reconciliation;
 - credential health, disconnect, revocation, and deletion;
-- Cordis lifecycle activation and hosted polling; and
+- automatic polling restart after reauthorization; and
 - live Feishu and macOS Keychain acceptance.

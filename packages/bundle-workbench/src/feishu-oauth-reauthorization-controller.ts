@@ -6,6 +6,7 @@ import {
   FeishuOAuthReauthorizationError,
   FeishuOAuthRotationJournal,
   FeishuRuntimeLeaseError,
+  FeishuRuntimeLeaseManager,
 } from '@twindesk/plugin-feishu'
 
 import {
@@ -57,6 +58,7 @@ export interface DefaultWorkbenchFeishuOAuthReauthorizationControllerOptions {
   readonly identityStore: FeishuIdentityConfigurationStore
   readonly authorizationStore: FeishuOAuthAuthorizationConfigurationStore
   readonly journal: FeishuOAuthRotationJournal
+  readonly leaseManager?: FeishuRuntimeLeaseManager
 }
 
 export class WorkbenchFeishuOAuthReauthorizationControllerError extends Error {
@@ -145,12 +147,19 @@ function readOptions(
 function readDefaultOptions(
   value: unknown,
 ): DefaultWorkbenchFeishuOAuthReauthorizationControllerOptions {
-  const record = dataRecord(value, ['identityStore', 'authorizationStore', 'journal'])
+  const record = dataRecord(value, [
+    'identityStore',
+    'authorizationStore',
+    'journal',
+    'leaseManager',
+  ])
   if (
-    Object.keys(record).length !== 3 ||
+    (Object.keys(record).length !== 3 && Object.keys(record).length !== 4) ||
     !(record.identityStore instanceof FeishuIdentityConfigurationStore) ||
     !(record.authorizationStore instanceof FeishuOAuthAuthorizationConfigurationStore) ||
-    !(record.journal instanceof FeishuOAuthRotationJournal)
+    !(record.journal instanceof FeishuOAuthRotationJournal) ||
+    (Object.hasOwn(record, 'leaseManager') &&
+      !(record.leaseManager instanceof FeishuRuntimeLeaseManager))
   ) {
     throw invalid()
   }
@@ -158,6 +167,9 @@ function readDefaultOptions(
     identityStore: record.identityStore,
     authorizationStore: record.authorizationStore,
     journal: record.journal,
+    ...(Object.hasOwn(record, 'leaseManager')
+      ? { leaseManager: record.leaseManager as FeishuRuntimeLeaseManager }
+      : {}),
   })
 }
 
@@ -365,6 +377,7 @@ export function createDefaultWorkbenchFeishuOAuthReauthorizationController(
         identityStore: options.identityStore,
         authorizationStore: options.authorizationStore,
         journal: options.journal,
+        ...(options.leaseManager === undefined ? {} : { leaseManager: options.leaseManager }),
       }),
   })
 }

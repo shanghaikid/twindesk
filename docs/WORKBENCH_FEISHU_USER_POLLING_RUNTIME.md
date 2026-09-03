@@ -55,13 +55,12 @@ approval authority. Its constructor accepts the tenant identity only from Host
 composition, never from a browser request. It exposes no message, principal,
 credential, opaque cursor, or page-token status surface.
 
-Cordis activation, production diagnostics, and live-account acceptance remain
-open. Cordis activation must promote polling, OAuth maintenance, diagnostics,
-and replies beneath one top-level lease owner; it must not run this long-lived
-owner beside the current independently leasing operation compositions, which
-would correctly exclude each other. Those components must preserve this
-runtime's cancellation, partial-result, and atomic-commit boundaries while
-sharing the one held lease.
+Cordis now activates this runtime only beneath the shared top-level owner
+documented in
+[Workbench Cordis Feishu Polling Runtime](WORKBENCH_CORDIS_FEISHU_POLLING_RUNTIME.md).
+Automatic restart after Settings or credential changes, production diagnostics,
+and live-account acceptance remain open. Those components must preserve this
+runtime's cancellation, partial-result, and atomic-commit boundaries.
 
 ## Verification
 

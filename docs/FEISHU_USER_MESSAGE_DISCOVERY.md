@@ -37,9 +37,10 @@ application, tenant, and User principal; runs durable OAuth rotation; authorizes
 the fixed `user_message_discovery` scope policy; rereads the exact Keychain item
 to close the scope-check/use gap; rechecks scopes and lease ownership; and lends
 the current access token only for the HTTP callback. The primitive still never
-resolves or retains a credential itself. Workbench now constructs this adapter
-lazily inside the polling runtime's already-held Host lease; Cordis activation
-remains outside this layer. This path depends on all of the following:
+resolves or retains a credential itself. Workbench constructs this adapter
+lazily inside the polling runtime's already-held Host lease, and Cordis now
+activates that composition through its shared owner. This path depends on all of
+the following:
 
 - an unexpired user access token resolved outside ordinary business storage;
 - the application's granted scopes and the user's matching authorization;
@@ -141,16 +142,17 @@ reply, send request, or other Feishu write.
   restores the durable cursor for every page, atomically commits normalized
   events/projections/cursors, and applies bounded retry. The concrete bounded
   Feishu HTTP search/detail primitive and its lease-held, rotation-, scope-, and
-  Keychain-bound adapter now exist, but the Workbench factory and Cordis
-  activation are not wired yet. See
+  Keychain-bound adapter, Workbench factory, and Cordis shared-owner activation
+  now exist. Automatic lifecycle reconstruction, production diagnostics, and
+  live acceptance remain open. See
   [Workbench Feishu User Polling Runtime](WORKBENCH_FEISHU_USER_POLLING_RUNTIME.md).
 - TD-203 now defines bounded conversation, document-excerpt, and attachment
   context retrieval; its concrete SDK/HTTP adapter is not wired yet.
 - TD-204 now normalizes Bot and User sources into durable ExternalEvents and
   Work Items and atomically commits User events, projections, and candidate
   cursors; the Workbench polling lifecycle composes this path through an
-  injected search client, but production construction and activation remain
-  unwired.
+  production search adapter beneath one Cordis-owned shared lease. Live
+  acceptance remains unwired.
 - TD-208 now exposes the runtime identity, scope, cursor, rate-limit, and health
   diagnostics contract. Its concrete Feishu/SQLite probe remains unwired. See
   [Feishu Connector Diagnostics](FEISHU_CONNECTOR_DIAGNOSTICS.md).

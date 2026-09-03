@@ -19,5 +19,6 @@
         port: !!js "Number(process.env.TWINDESK_WEB_PORT || '4173')"
         provider: !!js "process.env.TWINDESK_MODEL_PROVIDER || 'deepseek-official'"
         model: !!js "process.env.TWINDESK_MODEL || 'deepseek-v4-flash'"
+        feishuTenantKey: !!js 'process.env.TWINDESK_FEISHU_TENANT_KEY || undefined'
     - id: twindesk-ui
       name: '@twindesk/plugin-ui'

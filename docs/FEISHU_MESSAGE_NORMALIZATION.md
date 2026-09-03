@@ -82,8 +82,8 @@ echoing rejected identities or content.
 
 ## Remaining Integration Work
 
-- Concrete Feishu callback hosting and Cordis activation of the existing
-  OAuth/Keychain-backed User polling composition are not installed.
+- Concrete Feishu callback hosting and live acceptance of the Cordis-activated
+  OAuth/Keychain-backed User polling composition remain open.
 - The Bot callback handler still needs runtime composition around normalization
   and the atomic commit call. The User polling loop already owns that boundary
   synthetically but has not run against a live account.

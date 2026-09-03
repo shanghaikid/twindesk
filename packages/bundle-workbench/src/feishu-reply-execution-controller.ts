@@ -5,6 +5,7 @@ import {
   FeishuOAuthV3HttpTransport,
   FeishuOAuthV3TokenRefresher,
   FeishuReplyHttpClient,
+  FeishuRuntimeLeaseManager,
   FeishuSystemKeychainSecretReplacer,
   FeishuSystemKeychainSecretResolver,
   FeishuUserCredentialScopeProbe,
@@ -58,6 +59,7 @@ export interface DefaultWorkbenchFeishuReplyExecutionControllerOptions {
   readonly identityStore: FeishuIdentityConfigurationStore
   readonly proposalController: WorkbenchFeishuReplyProposalController
   readonly rotationJournal: FeishuOAuthRotationJournal
+  readonly leaseManager?: FeishuRuntimeLeaseManager
   readonly now?: () => number
 }
 
@@ -450,12 +452,14 @@ export function createDefaultWorkbenchFeishuReplyExecutionController(
 ): WorkbenchFeishuReplyExecutionController {
   const record = dataRecord(optionsValue)
   const required = ['database', 'identityStore', 'proposalController', 'rotationJournal']
-  const allowed = [...required, 'now']
+  const allowed = [...required, 'leaseManager', 'now']
   if (
     required.some((key) => !Object.hasOwn(record, key)) ||
     Object.keys(record).some((key) => !allowed.includes(key)) ||
     !(record.identityStore instanceof FeishuIdentityConfigurationStore) ||
     !(record.rotationJournal instanceof FeishuOAuthRotationJournal) ||
+    (record.leaseManager !== undefined &&
+      !(record.leaseManager instanceof FeishuRuntimeLeaseManager)) ||
     (record.now !== undefined && typeof record.now !== 'function')
   ) {
     throw fail('invalid_options', 'The Workbench Feishu reply execution options are invalid.')
@@ -487,6 +491,7 @@ export function createDefaultWorkbenchFeishuReplyExecutionController(
         replyClient: new FeishuReplyHttpClient(),
         userScopeProbe,
         userRotationCoordinator,
+        ...(options.leaseManager === undefined ? {} : { leaseManager: options.leaseManager }),
         now,
       })
     },

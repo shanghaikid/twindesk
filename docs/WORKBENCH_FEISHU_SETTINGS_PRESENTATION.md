@@ -62,7 +62,7 @@ account, or network request is used.
 
 Still open:
 
-- activate the same composition in the Cordis lifecycle;
+- automatically reconstruct the Cordis polling lifecycle after Settings change;
 - replace/edit existing identities, create Bot identities, manage actual
   credentials, disconnect, and revoke. The create-only User bootstrap and
   narrow OAuth callback/scope editor are documented in

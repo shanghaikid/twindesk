@@ -74,4 +74,4 @@ Still open:
   deletion as separate user actions;
 - product paths for SQLite business data and Harness Sessions;
 - non-macOS path and secret-store decisions;
-- Cordis lifecycle activation and live-account acceptance.
+- live-account acceptance and final production paths for remaining stores.

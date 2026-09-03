@@ -9,6 +9,7 @@ import {
   FeishuOAuthUserInfoHttpClient,
   FeishuOAuthUserPrincipalVerifier,
   FeishuOAuthV3HttpTransport,
+  FeishuRuntimeLeaseManager,
   FeishuSystemKeychainSecretReplacer,
   FeishuSystemKeychainSecretResolver,
 } from '@twindesk/plugin-feishu'
@@ -61,6 +62,7 @@ export interface WorkbenchFeishuOAuthAuthorizationControllerOptions {
 export interface DefaultWorkbenchFeishuOAuthAuthorizationControllerOptions {
   readonly identityStore: FeishuIdentityConfigurationStore
   readonly authorizationStore: FeishuOAuthAuthorizationConfigurationStore
+  readonly leaseManager?: FeishuRuntimeLeaseManager
 }
 
 export class WorkbenchFeishuOAuthAuthorizationControllerError extends Error {
@@ -117,17 +119,22 @@ function readOptions(value: unknown): WorkbenchFeishuOAuthAuthorizationControlle
 function readDefaultOptions(
   value: unknown,
 ): DefaultWorkbenchFeishuOAuthAuthorizationControllerOptions {
-  const record = dataRecord(value, ['identityStore', 'authorizationStore'])
+  const record = dataRecord(value, ['identityStore', 'authorizationStore', 'leaseManager'])
   if (
-    Object.keys(record).length !== 2 ||
+    (Object.keys(record).length !== 2 && Object.keys(record).length !== 3) ||
     !(record.identityStore instanceof FeishuIdentityConfigurationStore) ||
-    !(record.authorizationStore instanceof FeishuOAuthAuthorizationConfigurationStore)
+    !(record.authorizationStore instanceof FeishuOAuthAuthorizationConfigurationStore) ||
+    (Object.hasOwn(record, 'leaseManager') &&
+      !(record.leaseManager instanceof FeishuRuntimeLeaseManager))
   ) {
     throw invalid()
   }
   return Object.freeze({
     identityStore: record.identityStore,
     authorizationStore: record.authorizationStore,
+    ...(Object.hasOwn(record, 'leaseManager')
+      ? { leaseManager: record.leaseManager as FeishuRuntimeLeaseManager }
+      : {}),
   })
 }
 
@@ -360,6 +367,7 @@ export function createDefaultWorkbenchFeishuOAuthAuthorizationController(
         flow,
         persister,
         resolver,
+        ...(options.leaseManager === undefined ? {} : { leaseManager: options.leaseManager }),
       }),
   })
 }

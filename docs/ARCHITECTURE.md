@@ -232,9 +232,11 @@ exact Keychain credential callbacks, Bot tenant-token acquisition, and that HTTP
 primitive. The Connector-neutral Work Hub Host operation owns approval,
 dispatch, receipt, and recoverable Audit ordering under exclusive ownership.
 The Workbench composition root now binds both boundaries with the real runtime
-lease in a production-shaped API and synthetic end-to-end test. Hosting that
-API and placing every polling and refresh boundary under the same lease remain
-TD-209 work. See
+lease in a production-shaped API and synthetic end-to-end test. Cordis acquires
+one top-level owner and gives polling plus the hosted OAuth, reconciliation, and
+reply paths an exact-configuration shared manager view. Live acceptance,
+automatic restart after configuration repair, production diagnostics, and Bot
+event hosting remain TD-209 work. See
 [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) and
 [Feishu OAuth v3 Refresh](FEISHU_OAUTH_V3_REFRESH.md) and
 [Feishu OAuth Authorization Code and PKCE](FEISHU_OAUTH_AUTHORIZATION_CODE.md) and
@@ -319,7 +321,8 @@ distinct CSRF capability and accepts its transient app-secret body only after a
 fresh recovery read is exactly `reauthorization_required`. The browser validates
 the exact Feishu URL, opens it only after a click, polls minimized state, and can
 cancel the in-process attempt. Reconciliation states grant no retry or repair
-action. Cordis activation remains open. See
+action. Cordis now activates these operations and User polling beneath one
+shared top-level Feishu owner. See
 [Workbench Feishu OAuth Settings Editing](WORKBENCH_FEISHU_OAUTH_SETTINGS_EDITING.md),
 [Workbench Feishu User Identity Bootstrap](WORKBENCH_FEISHU_USER_IDENTITY_BOOTSTRAP.md),
 [Workbench Feishu Settings Presentation](WORKBENCH_FEISHU_SETTINGS_PRESENTATION.md),
@@ -394,8 +397,8 @@ A Profile Bundle that composes the plugins above, default Agent Presets, model T
 
 Its exported Workbench Feishu reply runtime factory composes the exact durable
 approval operation, real kernel-backed lease, production reply adapter, and
-injected credential/scope/HTTP collaborators. It is production-shaped
-composition evidence but is not activated as a hosted Cordis lifecycle yet.
+injected credential/scope/HTTP collaborators. Cordis now hosts this path and
+User polling beneath one shared top-level owner; live acceptance remains open.
 
 The Stage 0 bundle inserts `@twindesk/plugin-work-hub` and
 `@twindesk/plugin-ui` after the pinned Harness base and Web application

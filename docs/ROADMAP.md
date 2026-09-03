@@ -85,8 +85,10 @@ durably rotated expired token, one send, and no resend after restart and
 approval expiry. A separate Workbench host now holds the same lease while the
 existing coordinator persists already-exchanged blocked-state reauthorization
 evidence, without starting OAuth or retrying a reply. The required live-account
-path is still missing hosted ingestion or polling and Cordis lifecycle
-composition. The product Web boundary can render a minimized read-only Feishu
+path is still missing hosted Bot ingestion and live polling acceptance. Cordis
+now starts the production-shaped User polling composition and existing Web
+operations beneath one shared top-level lease when a Host tenant key and
+restart-loaded User identity are present. The product Web boundary can render a minimized read-only Feishu
 Settings status, and the default launcher injects the fixed-path Workbench
 reader. The product can now edit an existing User identity's non-secret
 literal-loopback callback and requested scopes behind same-origin,
@@ -126,8 +128,8 @@ shell now adds a strict Work Item-only Draft intent while Workbench owns the
 redacted prompt, runtime identities, and explicit provider/model route. The standalone launcher
 advertises this capability as unavailable until a Harness Host injects that
 runtime; no browser field can select or credential a provider.
-Connector Cordis activation, existing-identity replacement, Bot identity creation,
-credential repair/removal, live authorization and
+Existing-identity replacement, Bot identity creation, credential
+repair/removal, automatic polling restart, live authorization and
 reauthorization acceptance, credential-healthy production provider acceptance,
 and a real Feishu send remain missing. Local model Draft editing, explicit
 `ready_for_review`, an exact persisted Feishu User reply preview, fixed-lifetime

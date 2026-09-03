@@ -91,8 +91,9 @@ would invalidate established bindings. See
   Keychain replacement. This path and an exclusive Host lease pass synthetic
   contracts, and fixed reply plus User-search HTTP primitives are now covered
   synthetically. Workbench composes reply execution and User polling under
-  lease-held production-shaped adapters. Cordis lifecycle activation,
-  revocation handling, context API adapters, and live acceptance remain open. See
+  lease-held production-shaped adapters, and Cordis now activates them beneath
+  one shared owner. Revocation handling, context API adapters, automatic
+  lifecycle restart, and live acceptance remain open. See
   [Feishu System Keychain Resolution and Replacement](FEISHU_SYSTEM_KEYCHAIN.md) and
   [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) and
   [Feishu OAuth v3 Refresh](FEISHU_OAUTH_V3_REFRESH.md) and
@@ -110,8 +111,8 @@ would invalidate established bindings. See
   [Feishu Bot Event Ingestion](FEISHU_BOT_EVENT_INGESTION.md).
 - TD-202 implements bounded, explicitly partial User message discovery,
   candidate cursors, the concrete OAuth/scope/Keychain/HTTP search adapter, and
-  a restart-safe Workbench polling composition. Cordis activation and live
-  polling remain open. See
+  a restart-safe Workbench polling composition. Cordis activation is covered
+  synthetically; live polling remains open. See
   [Feishu User Message Discovery](FEISHU_USER_MESSAGE_DISCOVERY.md).
 - TD-203 implements the User-bound, bounded context adapter contract for
   conversation messages, document excerpts, and attachment text or metadata,

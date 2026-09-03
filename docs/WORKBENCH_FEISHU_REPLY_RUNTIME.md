@@ -54,11 +54,11 @@ No live Keychain item, credential, Feishu account, or network endpoint is used.
 
 ## Remaining Work
 
-This factory is an executable composition API, not yet a hosted Cordis
-Connector lifecycle. A rotation result that requires reauthorization or
+This factory is now hosted beneath the Cordis-owned shared Feishu lifecycle. A
+rotation result that requires reauthorization or
 Keychain reconciliation terminates the approved reply without blind retry;
-hosted recovery and reauthorization UX remain open. The Workbench Inbox now
+automatic polling restart after recovery remains open. The Workbench Inbox now
 invokes this Host through a separate approved-action execution control and
-restores its durable presentation after refresh. Hosted callback or polling and
-an authorized live-account acceptance run also remain open. Synthetic
+restores its durable presentation after refresh. Hosted Bot callbacks, live
+polling, and an authorized live-account acceptance run also remain open. Synthetic
 evidence must not be presented as a live Feishu guarantee.

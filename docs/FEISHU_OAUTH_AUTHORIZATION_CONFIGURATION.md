@@ -73,7 +73,8 @@ Still open:
 - existing-identity and SecretReference replacement through product Settings;
 - reauthorization and reconciliation recovery UI;
 - live verification that the configured URI is registered for the application;
-- Cordis lifecycle activation and live-account acceptance.
+- automatic lifecycle reconstruction after configuration changes and
+  live-account acceptance.
 
 The initial browser entry is documented in
 [Workbench Feishu OAuth Authorization UI](WORKBENCH_FEISHU_OAUTH_AUTHORIZATION_UI.md).
