@@ -81,6 +81,12 @@ export {
   type TwinDeskRouteId,
 } from './routes.ts'
 export {
+  parseFeishuDiagnosticsSnapshot,
+  type FeishuDiagnosticRecovery,
+  type FeishuDiagnosticsSnapshot,
+  type FeishuRuntimeDiagnostic,
+} from './feishu-diagnostics-contract.ts'
+export {
   parseFeishuOAuthSettingsUpdate,
   parseFeishuUserIdentityCreate,
   parseFeishuSettingsSnapshot,

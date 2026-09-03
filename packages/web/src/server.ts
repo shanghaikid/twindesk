@@ -19,6 +19,7 @@ import {
   parseFeishuSettingsSnapshot,
   parseFeishuUserIdentityCreate,
 } from './feishu-settings-contract.ts'
+import { parseFeishuDiagnosticsSnapshot } from './feishu-diagnostics-contract.ts'
 import { parseFeishuAuthorizationSnapshot } from './feishu-authorization-contract.ts'
 import { parseFeishuOAuthRecoverySnapshot } from './feishu-oauth-recovery-contract.ts'
 import { parseFeishuOAuthReconciliationSnapshot } from './feishu-oauth-reconciliation-contract.ts'
@@ -87,6 +88,10 @@ const ASSETS = new Map([
   [
     '/feishu-settings-contract.js',
     { file: 'feishu-settings-contract.js', type: 'text/javascript; charset=utf-8' },
+  ],
+  [
+    '/feishu-diagnostics-contract.js',
+    { file: 'feishu-diagnostics-contract.js', type: 'text/javascript; charset=utf-8' },
   ],
   ['/inbox-contract.js', { file: 'inbox-contract.js', type: 'text/javascript; charset=utf-8' }],
   [
@@ -160,6 +165,10 @@ export interface TwinDeskWebServerOptions {
     updateOAuth?(value: unknown): Promise<unknown>
     createUserIdentity?(value: unknown): Promise<unknown>
   }
+  /** Identifier-free Connector diagnostics supplied by the Workbench composition root. */
+  readonly feishuDiagnostics?: {
+    read(signal: AbortSignal): Promise<unknown>
+  }
   /** Memory-only initial OAuth authorization service supplied by Workbench. */
   readonly feishuAuthorization?: {
     read(): Promise<unknown> | unknown
@@ -209,6 +218,7 @@ export interface TwinDeskWebServerOptions {
 }
 
 type FeishuSettingsService = NonNullable<TwinDeskWebServerOptions['feishuSettings']>
+type FeishuDiagnosticsService = NonNullable<TwinDeskWebServerOptions['feishuDiagnostics']>
 type FeishuSettingsSnapshot = ReturnType<typeof parseFeishuSettingsSnapshot>
 type FeishuAuthorizationService = NonNullable<TwinDeskWebServerOptions['feishuAuthorization']>
 type FeishuOAuthRecoveryService = NonNullable<TwinDeskWebServerOptions['feishuOAuthRecovery']>
@@ -405,6 +415,31 @@ function normalizeModelDraftService(value: unknown): ModelDraftService | undefin
     })
   } catch {
     throw new TypeError('TwinDesk Web model Draft service is invalid.')
+  }
+}
+
+function normalizeFeishuDiagnosticsService(value: unknown): FeishuDiagnosticsService | undefined {
+  if (value === undefined) return undefined
+  try {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError()
+    const prototype = Object.getPrototypeOf(value) as unknown
+    const descriptors = Object.getOwnPropertyDescriptors(value)
+    if (
+      (prototype !== Object.prototype && prototype !== null) ||
+      Object.getOwnPropertySymbols(value).length !== 0 ||
+      Object.keys(descriptors).length !== 1 ||
+      !Object.hasOwn(descriptors, 'read') ||
+      !Object.hasOwn(descriptors.read as PropertyDescriptor, 'value') ||
+      typeof descriptors.read?.value !== 'function'
+    ) {
+      throw new TypeError()
+    }
+    const read = descriptors.read.value as (signal: AbortSignal) => Promise<unknown>
+    return Object.freeze({
+      read: (signal: AbortSignal) => Reflect.apply(read, value, [signal]),
+    })
+  } catch {
+    throw new TypeError('TwinDesk Web Feishu diagnostics service is invalid.')
   }
 }
 
@@ -644,6 +679,64 @@ async function serveFeishuSettingsApi(
     ...feishuSettingsCapabilityHeaders(settings, snapshot, csrfToken),
   })
   response.end(headOnly ? undefined : body)
+}
+
+async function serveFeishuDiagnosticsApi(
+  request: IncomingMessage,
+  response: ServerResponse,
+  requestUrl: URL,
+  headOnly: boolean,
+  diagnostics: FeishuDiagnosticsService | undefined,
+  activeControllers: Set<AbortController>,
+): Promise<void> {
+  if (requestUrl.search.length > 0) {
+    send(
+      response,
+      400,
+      headOnly ? '' : 'Invalid Feishu diagnostics query.\n',
+      'text/plain; charset=utf-8',
+    )
+    return
+  }
+  if (diagnostics === undefined) {
+    send(
+      response,
+      503,
+      headOnly ? '' : 'Feishu diagnostics unavailable.\n',
+      'text/plain; charset=utf-8',
+    )
+    return
+  }
+  const controller = new AbortController()
+  const abort = (): void => controller.abort()
+  activeControllers.add(controller)
+  request.once('aborted', abort)
+  response.once('close', abort)
+  try {
+    const snapshot = parseFeishuDiagnosticsSnapshot(await diagnostics.read(controller.signal))
+    const body = JSON.stringify(snapshot)
+    response.writeHead(200, {
+      ...commonHeaders('application/json; charset=utf-8'),
+      'content-length': String(Buffer.byteLength(body)),
+      'cache-control': 'no-store',
+    })
+    response.end(headOnly ? undefined : body)
+  } catch {
+    if (controller.signal.aborted) {
+      response.destroy()
+    } else {
+      send(
+        response,
+        503,
+        headOnly ? '' : 'Feishu diagnostics unavailable.\n',
+        'text/plain; charset=utf-8',
+      )
+    }
+  } finally {
+    request.off('aborted', abort)
+    response.off('close', abort)
+    activeControllers.delete(controller)
+  }
 }
 
 class FeishuSettingsRequestError extends Error {
@@ -2149,6 +2242,7 @@ export async function startTwinDeskWebServer(
     throw new Error('TwinDesk Web accepts only one business database source')
   }
   const feishuSettings = normalizeFeishuSettingsService(options.feishuSettings)
+  const feishuDiagnostics = normalizeFeishuDiagnosticsService(options.feishuDiagnostics)
   const feishuAuthorization = normalizeFeishuAuthorizationService(options.feishuAuthorization)
   const feishuOAuthRecovery = normalizeFeishuOAuthRecoveryService(options.feishuOAuthRecovery)
   const feishuOAuthReconciliation = normalizeFeishuOAuthReconciliationService(
@@ -2180,6 +2274,7 @@ export async function startTwinDeskWebServer(
   const activeFeishuReplyApprovalControllers = new Set<AbortController>()
   const activeFeishuReplyExecutionControllers = new Set<AbortController>()
   const activeFeishuReplyFlowControllers = new Set<AbortController>()
+  const activeFeishuDiagnosticsControllers = new Set<AbortController>()
   let boundOrigin: string | undefined
 
   const server = createServer((request, response) => {
@@ -2451,6 +2546,17 @@ export async function startTwinDeskWebServer(
         )
         return
       }
+      if (requestUrl.pathname === '/api/diagnostics/feishu') {
+        await serveFeishuDiagnosticsApi(
+          request,
+          response,
+          requestUrl,
+          method === 'HEAD',
+          feishuDiagnostics,
+          activeFeishuDiagnosticsControllers,
+        )
+        return
+      }
       if (requestUrl.pathname === '/api/authorization/feishu') {
         await serveFeishuAuthorizationApi(
           response,
@@ -2537,6 +2643,7 @@ export async function startTwinDeskWebServer(
           for (const controller of activeFeishuReplyApprovalControllers) controller.abort()
           for (const controller of activeFeishuReplyExecutionControllers) controller.abort()
           for (const controller of activeFeishuReplyFlowControllers) controller.abort()
+          for (const controller of activeFeishuDiagnosticsControllers) controller.abort()
           try {
             await feishuAuthorization?.cancel()
           } catch {

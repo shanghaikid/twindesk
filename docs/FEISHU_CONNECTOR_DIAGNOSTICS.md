@@ -16,11 +16,15 @@ The service implements `health(signal)` with the product-owned
 future Connector settings and support surfaces. It is independent of Persona,
 Skill, model, approval, and execution logic.
 
-The repository still has no production Feishu HTTP diagnostics adapter. The
-isolated system-Keychain reader and credential parser do not acquire or refresh
-tokens or probe current scopes. The injected client contract is the runtime composition point for
-resolving a SecretReference, checking authorization/scopes, normalizing rate
-headers, and reading SQLite cursor snapshots.
+The Workbench production composition now resolves configured SecretReferences
+beneath the shared Feishu Host lease, reuses the concrete Bot and User
+operation-scope probes, and reads the product-owned SQLite User-message cursor.
+The Bot probe acquires a bounded tenant token and verifies the current Bot
+principal and tenant scopes against fixed Feishu endpoints. The User probe
+validates the current local OAuth credential bundle and its combined discovery
+and reply scopes; it does not make a remote User request or claim that Feishu
+still accepts the token. Rate state remains `unknown` because the current scope
+probes do not return trustworthy normalized rate metadata.
 
 ## Identity and Scope Diagnostics
 
@@ -104,14 +108,37 @@ duplicate, oversized, identity-mismatched, future, or malformed values fail
 into bounded Connector issues without echoing rejected data. Cancellation is
 checked before probes and after every awaited client call.
 
+## Workbench and Browser Composition
+
+`createWorkbenchFeishuConnectorDiagnostics()` rereads durable identity state on
+every request, acquires the same exact-configuration lease used by polling and
+writes, and projects the TD-208 result before it reaches Web. The projection
+removes account IDs, app IDs, display names, principal IDs, SecretReferences,
+granted-scope lists, rate counts, raw errors, and cursor positions. It exposes
+only identity type and readiness, required and missing operation scopes,
+normalized rate state, cursor freshness timestamps, fixed issue codes, and
+fixed recovery categories.
+
+The Cordis polling supervisor supplies an identifier-free in-memory state:
+disabled, starting, running, stopped, or attention required. Terminal
+authorization, scope, cursor/configuration, and unknown failures map to fixed
+recovery categories without serializing the caught error. Diagnostics cannot
+restart polling, rotate a credential, retry a write, or grant authority.
+
+The loopback-only `GET`/`HEAD /api/diagnostics/feishu` endpoint independently
+parses the minimized shape and uses `no-store`. The Connectors page runs the
+check only when opened or explicitly refreshed. Issue text is local UI copy
+derived from a fixed code; Host error strings cannot cross the browser boundary.
+Request disconnect and Web shutdown cancel active probes.
+
 ## Remaining Work
 
-- Production operation and diagnostics HTTP clients, composition under the
-  exclusive Host lease, and SQLite diagnostics adapters are not wired.
-- A Connector settings UI has not yet been connected to `diagnose()`.
-- TD-209 now composes healthy diagnostics with the local synthetic
-  ingestion-to-receipt acceptance path. Production probe composition and the
-  live-account write gate remain open; see
+- User diagnostics prove only the current local credential bundle and
+  configured scopes; live polling acceptance is required to prove remote User
+  authorization and connectivity.
+- The fixed operation clients do not preserve a reusable normalized rate
+  observation, so production diagnostics report rate state as `unknown`.
+- TD-209 still requires live-account diagnostics and write acceptance; see
   [Stage 2 Exit Gate](STAGE_2_EXIT_GATE.md).
 
 ## Verification
@@ -120,4 +147,7 @@ Synthetic tests cover healthy Bot/User scope and rate state, redacted current
 cursors, missing scopes, authorization loss, zero-capacity normalization,
 active rate limits, stale/future/unavailable cursors, partial and complete probe
 failure, hostile accessors and arrays, identity mismatch, deterministic issues,
-and cancellation before client access. No real credential or service is used.
+and cancellation before client access. Workbench tests additionally cover
+shared-lease composition, concrete User probe routing, identifier removal,
+runtime stop recovery, strict browser parsing, loopback methods, invalid output,
+and shutdown cancellation. No real credential or service is used.

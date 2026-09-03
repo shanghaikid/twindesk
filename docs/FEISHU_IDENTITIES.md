@@ -103,7 +103,8 @@ would invalidate established bindings. See
   [Feishu OAuth User Principal Verification](FEISHU_OAUTH_PRINCIPAL_VERIFICATION.md).
 - Required and granted scopes are not persisted by this identity record.
   TD-208 now defines a runtime-only scope, rate, health, and cursor diagnostics
-  boundary; its production probe and settings UI remain unwired. See
+  boundary; Workbench now composes its concrete probes and minimized Connectors
+  UI, while live User connectivity and normalized rate observations remain open. See
   [Feishu Connector Diagnostics](FEISHU_CONNECTOR_DIAGNOSTICS.md).
 - TD-201 implements the verified in-memory Bot message consumer and hash-only
   receipt journal, but no callback host, subscription setup, or Encrypt Key

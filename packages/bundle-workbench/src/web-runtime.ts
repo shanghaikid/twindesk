@@ -16,6 +16,8 @@ import { createWorkbenchFeishuOAuthRecoveryPresentation } from './feishu-oauth-r
 import { createWorkbenchFeishuOAuthReconciliationService } from './feishu-oauth-reconciliation-runtime.ts'
 import { createDefaultWorkbenchFeishuOAuthReauthorizationController } from './feishu-oauth-reauthorization-controller.ts'
 import { createWorkbenchFeishuSettingsPresentation } from './feishu-settings-presentation.ts'
+import { createWorkbenchFeishuConnectorDiagnostics } from './feishu-connector-diagnostics.ts'
+import type { WorkbenchFeishuRuntimeStatus } from './feishu-runtime-supervisor.ts'
 import { createWorkbenchFeishuUserIdentityBootstrapper } from './feishu-user-identity-bootstrap.ts'
 import { createWorkbenchFeishuReplyProposalController } from './feishu-reply-proposal-controller.ts'
 import { createWorkbenchFeishuReplyApprovalController } from './feishu-reply-approval-controller.ts'
@@ -34,6 +36,8 @@ export interface WorkbenchWebServerOptions extends WorkbenchLocalDataPathOptions
   readonly feishuLeaseManager?: FeishuRuntimeLeaseManager
   /** Host-only notification after durable Settings or credential state changes. */
   readonly onFeishuRuntimeChanged?: () => void
+  /** Host-owned, identifier-free polling lifecycle status. */
+  readonly feishuRuntimeStatus?: () => WorkbenchFeishuRuntimeStatus
   /** Host-owned Harness route. Credentials remain in the configured provider. */
   readonly modelDraftRuntime?: Omit<WorkbenchModelDraftControllerOptions, 'database'>
 }
@@ -81,6 +85,7 @@ function readOptions(value: unknown): WorkbenchWebServerOptions {
       'databasePath',
       'feishuLeaseManager',
       'onFeishuRuntimeChanged',
+      'feishuRuntimeStatus',
       'modelDraftRuntime',
     ]
     if (
@@ -107,7 +112,8 @@ function readOptions(value: unknown): WorkbenchWebServerOptions {
       (record.feishuLeaseManager !== undefined &&
         !(record.feishuLeaseManager instanceof FeishuRuntimeLeaseManager)) ||
       (record.onFeishuRuntimeChanged !== undefined &&
-        typeof record.onFeishuRuntimeChanged !== 'function')
+        typeof record.onFeishuRuntimeChanged !== 'function') ||
+      (record.feishuRuntimeStatus !== undefined && typeof record.feishuRuntimeStatus !== 'function')
     ) {
       throw new TypeError()
     }
@@ -173,6 +179,16 @@ export async function startWorkbenchWebServer(
       ...(options.feishuLeaseManager === undefined
         ? {}
         : { leaseManager: options.feishuLeaseManager }),
+    })
+    const feishuDiagnostics = createWorkbenchFeishuConnectorDiagnostics({
+      identityStore: stores.identityStore,
+      database: maintenanceDatabase,
+      ...(options.feishuLeaseManager === undefined
+        ? {}
+        : { leaseManager: options.feishuLeaseManager }),
+      ...(options.feishuRuntimeStatus === undefined
+        ? {}
+        : { runtimeStatus: options.feishuRuntimeStatus }),
     })
     const feishuReauthorization = createDefaultWorkbenchFeishuOAuthReauthorizationController({
       identityStore: stores.identityStore,
@@ -247,6 +263,7 @@ export async function startWorkbenchWebServer(
           return operation
         },
       },
+      feishuDiagnostics,
       feishuAuthorization: {
         read: feishuAuthorization.read,
         start: feishuAuthorization.start,

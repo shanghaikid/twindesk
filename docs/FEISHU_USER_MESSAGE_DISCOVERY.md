@@ -58,9 +58,8 @@ fixed `user_message_discovery` operation policy, which requires
 `search:message`, `im:message:readonly`, and `im:chat:read`, and surfaces
 authorization or scope failures rather than returning an empty successful page.
 Scope health and diagnostics are defined by
-[Feishu Connector Diagnostics](FEISHU_CONNECTOR_DIAGNOSTICS.md); its production
-diagnostics probe remains unwired. The concrete local credential probe is
-defined by
+[Feishu Connector Diagnostics](FEISHU_CONNECTOR_DIAGNOSTICS.md); its Workbench
+composition now reuses the concrete local credential probe defined by
 [Feishu User Credential Scope Probe](FEISHU_USER_CREDENTIAL_SCOPE_PROBE.md).
 
 ## Bounded Incremental Windows
@@ -143,8 +142,8 @@ reply, send request, or other Feishu write.
   events/projections/cursors, and applies bounded retry. The concrete bounded
   Feishu HTTP search/detail primitive and its lease-held, rotation-, scope-, and
   Keychain-bound adapter, Workbench factory, and Cordis shared-owner activation
-  now exist. Product-mediated lifecycle reconstruction is also covered;
-  production diagnostics, out-of-process configuration watching, and live
+  now exist. Product-mediated lifecycle reconstruction and production-shaped
+  diagnostics are also covered; out-of-process configuration watching and live
   acceptance remain open. See
   [Workbench Feishu User Polling Runtime](WORKBENCH_FEISHU_USER_POLLING_RUNTIME.md).
 - TD-203 now defines bounded conversation, document-excerpt, and attachment
@@ -154,8 +153,9 @@ reply, send request, or other Feishu write.
   cursors; the Workbench polling lifecycle composes this path through an
   production search adapter beneath one Cordis-owned shared lease. Live
   acceptance remains unwired.
-- TD-208 now exposes the runtime identity, scope, cursor, rate-limit, and health
-  diagnostics contract. Its concrete Feishu/SQLite probe remains unwired. See
+- TD-208 exposes the runtime identity, scope, cursor, rate-limit, and health
+  diagnostics contract. Workbench now composes its concrete Feishu/SQLite
+  probes; live User connectivity and normalized rate observations remain open. See
   [Feishu Connector Diagnostics](FEISHU_CONNECTOR_DIAGNOSTICS.md).
 
 ## Verification

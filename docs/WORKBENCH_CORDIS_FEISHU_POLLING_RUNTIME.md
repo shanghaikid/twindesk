@@ -68,7 +68,8 @@ separately retains cross-process exclusion and crash release. The adapter and
 polling suites retain OAuth/scope/Keychain ordering, secret cleanup, restart,
 cursor, replay, partial-result, and cancellation coverage.
 
-No test reads a live Keychain item or calls Feishu. Live User polling, live reply
-execution, production diagnostics, hosted Bot ingestion, out-of-process
+No test reads a live Keychain item or calls Feishu. Production-shaped
+diagnostics now share this owner, but live User polling, live reply execution,
+live diagnostics, hosted Bot ingestion, out-of-process
 configuration watching, and credential-healthy model generation remain outside
 this evidence.

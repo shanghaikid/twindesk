@@ -100,6 +100,7 @@ The reply execution adapter now consumes this probe under an already-held Host
 lease, then reacquires a callback-scoped tenant token for fixed-endpoint HTTP.
 The Connector-neutral Host operation now owns approval, dispatch, receipt, and
 Audit ordering under injected exclusive ownership, and the Workbench root binds
-both under the actual lease while also rotating User credentials. Remaining
-work includes wiring production diagnostics and settings, hosted event or
-polling lifecycle, and live-account acceptance.
+both under the actual lease while also rotating User credentials. Workbench
+diagnostics now reuse this concrete probe beneath the same owner. Hosted Bot
+ingestion, live polling, normalized rate observations, and live-account
+acceptance remain open.

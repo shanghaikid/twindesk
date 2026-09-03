@@ -175,6 +175,7 @@ export function apply(contextValue: unknown, configValue: unknown): void {
       running = await startWorkbenchWebServer({
         ...webOptions,
         feishuLeaseManager: supervisor.leaseManager,
+        feishuRuntimeStatus: () => supervisor.readStatus(),
         onFeishuRuntimeChanged: () => supervisor.requestRefresh(),
       })
     } catch (error) {

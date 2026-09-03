@@ -20,6 +20,11 @@ import {
   type FeishuUserIdentityCreate,
 } from './feishu-settings-contract.ts'
 import {
+  parseFeishuDiagnosticsSnapshot,
+  type FeishuDiagnosticRecovery,
+  type FeishuDiagnosticsSnapshot,
+} from './feishu-diagnostics-contract.ts'
+import {
   parseFeishuAuthorizationSnapshot,
   type FeishuAuthorizationRecovery,
   type FeishuAuthorizationSnapshot,
@@ -149,6 +154,10 @@ interface FeishuOAuthSettingsDraft {
   readonly scopes: string
 }
 let feishuSettingsDraft: FeishuOAuthSettingsDraft | undefined
+let feishuDiagnostics: FeishuDiagnosticsSnapshot | undefined
+let feishuDiagnosticsLoading = false
+let feishuDiagnosticsError: string | undefined
+let feishuDiagnosticsRequest = 0
 type FeishuUserIdentityCreationMode = 'new' | 'existing'
 interface FeishuUserIdentityDraft {
   readonly appId: string
@@ -660,6 +669,103 @@ function feishuAuthorizationContent(): string {
   </form>`
 }
 
+function diagnosticRecoveryLabel(recovery: FeishuDiagnosticRecovery): string {
+  return {
+    reauthorize: 'Reauthorize the User identity',
+    grant_scope: 'Grant the missing Feishu scope',
+    retry: 'Retry diagnostics after the service recovers',
+    repair_configuration: 'Review Connector configuration',
+    restart_host: 'Restart the TwinDesk Host',
+  }[recovery]
+}
+
+function diagnosticIssueLabel(code: string): string {
+  if (code.endsWith('_not_authorized')) return 'A configured identity is not authorized.'
+  if (code.endsWith('_scope_missing')) return 'A configured identity is missing a required scope.'
+  if (code.endsWith('_rate_limited')) return 'A Feishu diagnostic probe is rate limited.'
+  if (code.endsWith('_network')) return 'A Feishu diagnostic probe cannot reach its service.'
+  if (code.endsWith('_storage_unavailable')) return 'Local diagnostic storage is unavailable.'
+  if (code.endsWith('_invalid_response')) return 'A diagnostic response is invalid.'
+  if (code === 'cursor_stale') return 'The synchronization cursor has not advanced recently.'
+  if (code === 'cursor_in_future')
+    return 'The synchronization cursor is newer than the local clock.'
+  if (code === 'polling_disabled') return 'User message polling is disabled.'
+  if (code === 'polling_stopped') return 'User message polling stopped safely.'
+  return 'A Connector diagnostic probe failed.'
+}
+
+function feishuDiagnosticsContent(): string {
+  if (feishuDiagnosticsLoading) {
+    return `<article class="settings-editor"><div class="settings-editor-heading"><div><h3>Connector diagnostics</h3><p>Checking credentials, operation scopes, polling, and durable synchronization state…</p></div></div></article>`
+  }
+  if (feishuDiagnosticsError !== undefined) {
+    return `<article class="settings-editor"><div class="settings-editor-heading"><div><h3>Connector diagnostics unavailable</h3><p class="form-message error" role="alert">${escapeHtml(feishuDiagnosticsError)}</p></div><button class="secondary-button" type="button" data-feishu-diagnostics-retry>Retry</button></div></article>`
+  }
+  const snapshot = feishuDiagnostics
+  if (snapshot === undefined || snapshot.status === 'not_configured') return ''
+  const statusLabel =
+    snapshot.status === 'healthy'
+      ? 'Healthy'
+      : snapshot.status === 'degraded'
+        ? 'Attention required'
+        : 'Unavailable'
+  const statusClass = snapshot.status === 'healthy' ? ' success' : ' neutral'
+  const runtimeLabel =
+    snapshot.runtime.state === 'disabled'
+      ? snapshot.runtime.reason === 'host_configuration_missing'
+        ? 'Polling disabled by Host configuration'
+        : 'Polling not configured'
+      : snapshot.runtime.state === 'starting'
+        ? 'Polling starting'
+        : snapshot.runtime.state === 'running'
+          ? 'Polling running'
+          : snapshot.runtime.state === 'stopped'
+            ? 'Polling stopped during shutdown'
+            : snapshot.runtime.state === 'attention_required'
+              ? `Polling stopped — ${diagnosticRecoveryLabel(snapshot.runtime.recovery)}`
+              : 'Polling state unavailable'
+  const identityRows = snapshot.identities
+    .map((identity) => {
+      const missing =
+        identity.status === 'unavailable'
+          ? 'Credential or scope probe unavailable'
+          : identity.status === 'attention_required' && identity.missingScopes.length === 0
+            ? 'Authorization or rate-limit attention required'
+            : identity.missingScopes.length === 0
+              ? 'Required operation scopes present'
+              : `Missing: ${escapeHtml(identity.missingScopes.join(', '))}`
+      const label = identity.identityType === 'bot' ? 'Bot identity' : 'User identity'
+      const badge =
+        identity.status === 'ready'
+          ? '<span class="badge success">Ready</span>'
+          : identity.status === 'attention_required'
+            ? '<span class="badge neutral">Attention</span>'
+            : '<span class="badge neutral">Unavailable</span>'
+      return `<div class="setting-row"><div><h3>${label}</h3><p>${missing}</p></div>${badge}</div>`
+    })
+    .join('')
+  const cursorRows = snapshot.cursors
+    .map(
+      (cursor) =>
+        `<div class="setting-row"><div><h3>Synchronization</h3><p>${escapeHtml(cursor.stream)}${cursor.updatedAt === undefined ? '' : ` · checked ${escapeHtml(formatTimestamp(cursor.updatedAt))}`}</p></div><span class="badge${cursor.status === 'current' || cursor.status === 'not_started' ? ' success' : ' neutral'}">${escapeHtml(cursor.status.replace('_', ' '))}</span></div>`,
+    )
+    .join('')
+  const issues =
+    snapshot.issues.length === 0
+      ? ''
+      : `<div class="notice"><strong>Recovery.</strong> ${snapshot.issues
+          .map(
+            (issue) =>
+              `${escapeHtml(diagnosticIssueLabel(issue.code))} ${escapeHtml(diagnosticRecoveryLabel(issue.recovery))}.`,
+          )
+          .join(' ')}</div>`
+  return `<article class="settings-editor">
+    <div class="settings-editor-heading"><div><h3>Connector diagnostics</h3><p>${escapeHtml(runtimeLabel)}. User credential checks use the current local OAuth bundle; Bot checks also verify Feishu remotely.</p></div><div class="resource-actions"><span class="badge${statusClass}">${statusLabel}</span><button class="secondary-button" type="button" data-feishu-diagnostics-retry>Refresh</button></div></div>
+    <div class="settings-list">${identityRows}${cursorRows}</div>
+    ${issues}
+  </article>`
+}
+
 function connectorsContent(): string {
   let feishuStatus: string
   let feishuDetails: string
@@ -757,6 +863,7 @@ function connectorsContent(): string {
   const authorization = feishuAuthorizationContent()
   const recovery = feishuOAuthRecoveryContent()
   const reauthorization = feishuReauthorizationContent()
+  const diagnostics = feishuDiagnosticsContent()
   return `
     <section class="panel">
       <div class="panel-header">
@@ -770,6 +877,7 @@ function connectorsContent(): string {
         </article>
         ${userIdentityEditor}
         ${editor}
+        ${diagnostics}
         ${recovery}
         ${reauthorization}
         ${authorization}
@@ -1540,6 +1648,32 @@ async function loadFeishuSettings(): Promise<void> {
   }
 }
 
+async function loadFeishuDiagnostics(): Promise<void> {
+  const request = ++feishuDiagnosticsRequest
+  feishuDiagnosticsLoading = true
+  feishuDiagnosticsError = undefined
+  render()
+  try {
+    const response = await fetch('/api/diagnostics/feishu', {
+      headers: { accept: 'application/json' },
+    })
+    if (!response.ok) throw new Error(`Local API returned ${response.status}.`)
+    const snapshot = parseFeishuDiagnosticsSnapshot(await response.json())
+    if (request !== feishuDiagnosticsRequest) return
+    feishuDiagnostics = snapshot
+  } catch (error) {
+    if (request !== feishuDiagnosticsRequest) return
+    feishuDiagnostics = undefined
+    feishuDiagnosticsError =
+      error instanceof Error ? error.message : 'The local Feishu diagnostics request failed.'
+  } finally {
+    if (request === feishuDiagnosticsRequest) {
+      feishuDiagnosticsLoading = false
+      render()
+    }
+  }
+}
+
 async function loadFeishuOAuthRecovery(): Promise<void> {
   const request = ++feishuOAuthRecoveryRequest
   feishuOAuthRecoveryLoading = true
@@ -1979,6 +2113,7 @@ function renderRouteAndLoad(): void {
   if (route.id === 'audit') void loadAudit()
   if (route.id === 'connectors') {
     void loadFeishuSettings()
+    void loadFeishuDiagnostics()
     void loadFeishuAuthorization()
     void loadFeishuOAuthRecovery()
     void loadFeishuReauthorization()
@@ -2058,6 +2193,7 @@ document.addEventListener('click', (event) => {
   if (target.closest('[data-inbox-retry]') !== null) void loadInbox(activeInboxState)
   if (target.closest('[data-audit-retry]') !== null) void loadAudit()
   if (target.closest('[data-feishu-settings-retry]') !== null) void loadFeishuSettings()
+  if (target.closest('[data-feishu-diagnostics-retry]') !== null) void loadFeishuDiagnostics()
   if (target.closest('[data-feishu-authorization-retry]') !== null) {
     void loadFeishuAuthorization()
   }

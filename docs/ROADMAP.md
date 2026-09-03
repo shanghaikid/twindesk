@@ -106,6 +106,14 @@ evidence after restart without placing it in Settings. An identifier-free
 read-only projection now surfaces whether that journal is settled, active, or
 requires reauthorization/reconciliation and blocks unsafe initial-authorization
 retries; it does not inspect credential health or grant an automatic retry.
+The Connectors page now separately runs production-shaped read-only diagnostics
+beneath the shared Host lease: Bot identity and scopes are checked remotely,
+User credential and combined operation scopes are checked from the current
+Keychain bundle, the durable polling cursor is classified, and terminal polling
+state carries a fixed recovery action. The browser receives no account,
+principal, SecretReference, token, cursor position, raw error, or rate count.
+This synthetic composition does not replace live-account acceptance, and User
+connectivity plus rate state remain unproven.
 An explicit local reconciliation action now compares the exact configured
 Keychain bundle with unresolved journal evidence under the Host lease and can
 settle only a strictly newer identity-bound result. It performs no OAuth,

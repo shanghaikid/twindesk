@@ -11,6 +11,7 @@ import {
   FeishuSystemKeychainSecretReplacer,
   FeishuSystemKeychainSecretResolver,
   FeishuUserCredentialScopeProbe,
+  FeishuUserDiscoveryError,
   FeishuUserMessageSearchHttpClient,
   type FeishuIdentityConfiguration,
   type FeishuRuntimeLease,
@@ -35,6 +36,8 @@ export interface WorkbenchFeishuRuntimeSupervisorOptions {
 export interface WorkbenchFeishuRuntimeSupervisor {
   /** Stable Web-facing manager that delegates to the current exact owner. */
   readonly leaseManager: FeishuRuntimeLeaseManager
+  /** Read the identifier-free in-memory polling lifecycle state. */
+  readStatus(): WorkbenchFeishuRuntimeStatus
   /** Re-read durable identity state and restart polling beneath the right owner. */
   refresh(): Promise<void>
   /** Schedule refresh without making a completed Settings or OAuth write fail. */
@@ -44,6 +47,19 @@ export interface WorkbenchFeishuRuntimeSupervisor {
   /** Release the owner and close the dedicated polling database. */
   close(): Promise<void>
 }
+
+export type WorkbenchFeishuRuntimeStatus =
+  | Readonly<{
+      version: 1
+      state: 'disabled'
+      reason: 'not_configured' | 'host_configuration_missing'
+    }>
+  | Readonly<{ version: 1; state: 'starting' | 'running' | 'stopped' }>
+  | Readonly<{
+      version: 1
+      state: 'attention_required'
+      recovery: 'reauthorize' | 'grant_scope' | 'repair_configuration' | 'restart_host'
+    }>
 
 type UnknownRecord = Readonly<Record<string, unknown>>
 type LeaseConsumer<TResult> = (lease: FeishuRuntimeLease) => Promise<TResult> | TResult
@@ -192,6 +208,11 @@ class DefaultWorkbenchFeishuRuntimeSupervisor implements WorkbenchFeishuRuntimeS
   #quiescing = false
   #quiesced: Promise<void> | undefined
   #closing: Promise<void> | undefined
+  #status: WorkbenchFeishuRuntimeStatus = Object.freeze({
+    version: 1,
+    state: 'disabled',
+    reason: 'not_configured',
+  })
 
   constructor(options: WorkbenchFeishuRuntimeSupervisorOptions) {
     this.#options = options
@@ -204,7 +225,24 @@ class DefaultWorkbenchFeishuRuntimeSupervisor implements WorkbenchFeishuRuntimeS
 
   refresh(): Promise<void> {
     if (this.#quiescing) return Promise.reject(stopped())
-    return this.#enqueue(() => this.#refreshNow())
+    return this.#enqueue(async () => {
+      try {
+        await this.#refreshNow()
+      } catch (error) {
+        if (!this.#quiescing) {
+          this.#status = Object.freeze({
+            version: 1,
+            state: 'attention_required',
+            recovery: 'restart_host',
+          })
+        }
+        throw error
+      }
+    })
+  }
+
+  readStatus(): WorkbenchFeishuRuntimeStatus {
+    return this.#status
   }
 
   requestRefresh(): void {
@@ -214,7 +252,10 @@ class DefaultWorkbenchFeishuRuntimeSupervisor implements WorkbenchFeishuRuntimeS
 
   quiesce(): Promise<void> {
     this.#quiescing = true
-    this.#quiesced ??= this.#enqueue(() => this.#stopPolling())
+    this.#quiesced ??= this.#enqueue(async () => {
+      await this.#stopPolling()
+      this.#status = Object.freeze({ version: 1, state: 'stopped' })
+    })
     return this.#quiesced
   }
 
@@ -276,6 +317,7 @@ class DefaultWorkbenchFeishuRuntimeSupervisor implements WorkbenchFeishuRuntimeS
 
   async #refreshNow(): Promise<void> {
     if (this.#quiescing) throw stopped()
+    this.#status = Object.freeze({ version: 1, state: 'starting' })
     const configuration = await this.#options.identityStore.read()
     if (configuration?.user === undefined) {
       await this.#stopPolling()
@@ -283,6 +325,7 @@ class DefaultWorkbenchFeishuRuntimeSupervisor implements WorkbenchFeishuRuntimeS
       this.#owner = undefined
       this.#ownerConfigurationKey = undefined
       await owner?.close()
+      this.#status = Object.freeze({ version: 1, state: 'disabled', reason: 'not_configured' })
       return
     }
 
@@ -334,10 +377,36 @@ class DefaultWorkbenchFeishuRuntimeSupervisor implements WorkbenchFeishuRuntimeS
       .run(controller.signal)
       .then(
         () => {
-          if (!controller.signal.aborted) this.#attention()
+          if (!controller.signal.aborted && this.#polling === run) {
+            this.#status = Object.freeze({
+              version: 1,
+              state: 'attention_required',
+              recovery: 'restart_host',
+            })
+            this.#attention()
+          }
         },
-        () => {
-          if (!controller.signal.aborted) this.#attention()
+        (error: unknown) => {
+          if (!controller.signal.aborted && this.#polling === run) {
+            this.#status = Object.freeze({
+              version: 1,
+              state: 'attention_required',
+              recovery:
+                error instanceof FeishuUserDiscoveryError
+                  ? error.code === 'not_authorized'
+                    ? 'reauthorize'
+                    : error.code === 'scope_missing'
+                      ? 'grant_scope'
+                      : error.code === 'invalid_request' ||
+                          error.code === 'identity_mismatch' ||
+                          error.code === 'invalid_cursor' ||
+                          error.code === 'invalid_response'
+                        ? 'repair_configuration'
+                        : 'restart_host'
+                  : 'restart_host',
+            })
+            this.#attention()
+          }
         },
       )
       .finally(() => {
@@ -345,6 +414,7 @@ class DefaultWorkbenchFeishuRuntimeSupervisor implements WorkbenchFeishuRuntimeS
       })
     run = Object.freeze({ controller, completion })
     this.#polling = run
+    this.#status = Object.freeze({ version: 1, state: 'running' })
   }
 
   async #stopPolling(): Promise<void> {

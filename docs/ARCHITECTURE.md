@@ -235,8 +235,9 @@ The Workbench composition root now binds both boundaries with the real runtime
 lease in a production-shaped API and synthetic end-to-end test. Cordis acquires
 one top-level owner and gives polling plus the hosted OAuth, reconciliation, and
 reply paths an exact-configuration shared manager view. Live acceptance,
-out-of-process configuration watching, production diagnostics, and Bot event
-hosting remain TD-209 work. Product-mediated Settings and credential success
+out-of-process configuration watching, and Bot event hosting remain TD-209
+work. Production diagnostics now run beneath the shared owner. Product-mediated
+Settings and credential success
 now reconstruct polling beneath the same owner. See
 [Feishu Credential Bundles](FEISHU_CREDENTIAL_BUNDLES.md) and
 [Feishu OAuth v3 Refresh](FEISHU_OAUTH_V3_REFRESH.md) and
@@ -259,8 +260,11 @@ contract. It probes configured Bot/User identities independently, computes
 missing operation scopes, normalizes rate-limit observations, and classifies
 durable cursor freshness without exposing credentials, principals, raw
 responses, or opaque cursor positions. Health does not grant authority and may
-be stale by execution time; TD-207 still validates every write. Production
-probe composition and the real closed-loop acceptance flow remain TD-209 work.
+be stale by execution time; TD-207 still validates every write. Workbench now
+composes the concrete Bot/User scope probes and SQLite cursor reader beneath the
+shared Host lease, adds the polling supervisor's minimized lifecycle state, and
+serves a separately validated identifier-free Web projection. Live-account
+diagnostics and the real closed-loop acceptance flow remain TD-209 work.
 See [Feishu Connector Diagnostics](FEISHU_CONNECTOR_DIAGNOSTICS.md).
 
 TD-209 now has a local contract-level acceptance path spanning normalized Bot

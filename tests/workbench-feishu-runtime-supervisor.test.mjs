@@ -137,6 +137,11 @@ test('the supervisor restarts terminal polling beneath the same owner after a du
 
   await supervisor.refresh()
   await attention
+  assert.deepEqual(supervisor.readStatus(), {
+    version: 1,
+    state: 'attention_required',
+    recovery: 'reauthorize',
+  })
   assert.equal(searchCalls, 1)
   assert.equal(parent.acquisitions, 1)
   assert.equal(parent.active, true)
@@ -150,8 +155,10 @@ test('the supervisor restarts terminal polling beneath the same owner after a du
   ])
   assert.equal(searchCalls, 2)
   assert.equal(parent.acquisitions, 1)
+  assert.deepEqual(supervisor.readStatus(), { version: 1, state: 'running' })
 
   await supervisor.quiesce()
+  assert.deepEqual(supervisor.readStatus(), { version: 1, state: 'stopped' })
   await assert.rejects(
     supervisor.leaseManager.withLease(
       CONFIGURATION,
@@ -163,4 +170,37 @@ test('the supervisor restarts terminal polling beneath the same owner after a du
   await supervisor.close()
   await supervisor.close()
   assert.equal(parent.active, false)
+})
+
+test('a failed runtime refresh becomes explicit attention instead of remaining starting', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'twindesk-runtime-supervisor-refresh-failure-'))
+  context.after(() => rm(root, { recursive: true, force: true }))
+  const state = join(root, 'state')
+  await mkdir(state)
+  const stores = await openWorkbenchFeishuSettingsStores({
+    platform: 'darwin',
+    homeDirectory: root,
+  })
+  Object.defineProperty(stores.identityStore, 'read', {
+    configurable: true,
+    async value() {
+      throw new Error('synthetic-private-settings-read-failure')
+    },
+  })
+  const supervisor = createWorkbenchFeishuRuntimeSupervisor({
+    identityStore: stores.identityStore,
+    rotationJournal: stores.rotationJournal,
+    databasePath: join(state, 'twindesk.sqlite3'),
+    tenantKey: TENANT_KEY,
+    parentLeaseManager: new SyntheticParentLeaseManager(),
+  })
+  context.after(() => supervisor.close())
+
+  await assert.rejects(supervisor.refresh())
+  assert.deepEqual(supervisor.readStatus(), {
+    version: 1,
+    state: 'attention_required',
+    recovery: 'restart_host',
+  })
+  assert.equal(JSON.stringify(supervisor.readStatus()).includes('synthetic-private'), false)
 })

@@ -126,8 +126,9 @@ explicit shared-event, cursor, deletion-receipt, and Harness Session retention
 behavior. The Audit page shows four synthetic routing records plus two
 deterministic Persona Draft records. The fixture flow reaches `ready_for_review`
 across restart with no model call, approval, Connector execution, or external
-write. Credential health, user-created Personas, and hosted Connector
-subscriptions are not implemented. A Host-controlled model-Draft entry covers initial generation
+write. Production-shaped Feishu diagnostics are implemented, but live credential
+health is not accepted; user-created Personas and hosted Connector subscriptions
+are not implemented. A Host-controlled model-Draft entry covers initial generation
 synthetically. The standalone `web:start` launcher remains unavailable by
 design, while the Workbench Harness Profile now owns the product Web and
 configured model route through a disposable Cordis lifecycle. Credential health
@@ -152,8 +153,9 @@ validates bounded conversation, document-excerpt, and attachment context without
 returning binary files. Verified Bot messages and bounded User discovery batches
 now normalize into canonical ExternalEvents and event-anchored Inbox Work Items;
 User events, projections, and candidate cursors share one transaction. It is not
-connected to a real account, reads no live secret, and hosts no callback or
-polling scheduler. A Draft-bound Feishu reply can now be packaged as a local
+connected to a real account and hosts no Bot callback. The production polling
+and diagnostics compositions resolve configured Keychain references, but their
+live-account behavior is not yet accepted. A Draft-bound Feishu reply can now be packaged as a local
 plain-text ActionProposal with an explicit Bot or User identity and exact
 message target. The local approval policy can now bind that proposal to an
 explicit responder decision and expiration, then consume the approval once
@@ -244,9 +246,9 @@ not an automatic repair service. The Inbox now has a Host-controlled model-Draft
 entry. The standalone launcher correctly reports its Agent Runtime as
 unavailable, while `profile:start` injects the pinned Harness runner and
 Host-selected route. Stage 2 is not
-declared complete: hosted ingestion or polling, remaining Connector lifecycle
-wiring, production provider activation, and a live-account send remain
-unimplemented. The Inbox now restores the exact durable Draft, proposal,
+declared complete: hosted Bot ingestion, live polling acceptance, remaining
+Connector lifecycle wiring, production provider activation, and a live-account
+send remain unimplemented. The Inbox now restores the exact durable Draft, proposal,
 approval, and receipt presentation after refresh without mutating local state
 or invoking a Connector.
 Versioned domain records and the product-owned Connector contract are
