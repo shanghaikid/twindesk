@@ -5,6 +5,11 @@ import { parseSecretReference, type SecretReference } from '@twindesk/domain'
 export const FEISHU_SYSTEM_KEYCHAIN_SERVICE = 'com.twindesk.feishu' as const
 export const FEISHU_SYSTEM_KEYCHAIN_SECRET_MAX_BYTES = 64 * 1024
 export const FEISHU_SYSTEM_KEYCHAIN_DIAGNOSTIC_MAX_BYTES = 8 * 1024
+const fillBytes = Uint8Array.prototype.fill
+
+function zeroBytes(value: Uint8Array): void {
+  fillBytes.call(value, 0)
+}
 
 export type FeishuSystemKeychainErrorCode =
   | 'invalid_reference'
@@ -78,6 +83,32 @@ export interface FeishuSystemKeychainSecretReplacerOptions {
   readonly runner?: FeishuKeychainReplaceCommandRunner
 }
 
+export interface FeishuKeychainInstallCommandRequest {
+  readonly executable: '/usr/bin/security'
+  readonly arguments: readonly [
+    'add-generic-password',
+    '-s',
+    typeof FEISHU_SYSTEM_KEYCHAIN_SERVICE,
+    '-a',
+    string,
+    '-w',
+  ]
+  readonly maximumDiagnosticBytes: typeof FEISHU_SYSTEM_KEYCHAIN_DIAGNOSTIC_MAX_BYTES
+}
+
+export interface FeishuKeychainInstallCommandRunner {
+  install(
+    request: FeishuKeychainInstallCommandRequest,
+    secret: Uint8Array,
+    signal: AbortSignal,
+  ): Promise<void>
+}
+
+export interface FeishuSystemKeychainSecretInstallerOptions {
+  readonly platform?: NodeJS.Platform
+  readonly runner?: FeishuKeychainInstallCommandRunner
+}
+
 type KeychainOptions = Readonly<Record<string, unknown>>
 
 function fail(code: FeishuSystemKeychainErrorCode, message: string): FeishuSystemKeychainError {
@@ -119,7 +150,7 @@ function configuredPlatform(options: KeychainOptions): NodeJS.Platform {
 
 function configuredRunner<TMethod extends (...arguments_: never[]) => unknown>(
   options: KeychainOptions,
-  methodName: 'run' | 'replace',
+  methodName: 'run' | 'replace' | 'install',
   fallback: () => object,
 ): object & Record<typeof methodName, TMethod> {
   if (!Object.hasOwn(options, 'runner')) {
@@ -252,6 +283,54 @@ class MacOsSecurityReplaceCommandRunner implements FeishuKeychainReplaceCommandR
   }
 }
 
+class MacOsSecurityInstallCommandRunner implements FeishuKeychainInstallCommandRunner {
+  install(
+    request: FeishuKeychainInstallCommandRequest,
+    secret: Uint8Array,
+    signal: AbortSignal,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let settled = false
+      let diagnosticBytes = 0
+      const child = spawn(request.executable, request.arguments, {
+        signal,
+        stdio: ['pipe', 'ignore', 'pipe'],
+        windowsHide: true,
+      })
+      const finish = (error?: unknown): void => {
+        if (settled) return
+        settled = true
+        if (error === undefined) resolve()
+        else reject(error)
+      }
+      child.stderr?.on('data', (chunk: unknown) => {
+        if (chunk instanceof Uint8Array) {
+          diagnosticBytes += chunk.byteLength
+          chunk.fill(0)
+        } else {
+          diagnosticBytes = request.maximumDiagnosticBytes + 1
+        }
+        if (diagnosticBytes > request.maximumDiagnosticBytes) child.kill()
+      })
+      child.once('error', finish)
+      child.once('close', (code, childSignal) => {
+        if (
+          code === 0 &&
+          childSignal === null &&
+          diagnosticBytes <= request.maximumDiagnosticBytes
+        ) {
+          finish()
+          return
+        }
+        finish(new Error('The Keychain installation did not complete successfully.'))
+      })
+      child.stdin?.once('error', finish)
+      child.stdin?.write(secret)
+      child.stdin?.end(new Uint8Array([0x0a]))
+    })
+  }
+}
+
 function parseFeishuKeychainReference(value: unknown): SecretReference {
   let reference: SecretReference
   try {
@@ -336,7 +415,7 @@ export class FeishuSystemKeychainSecretResolver {
       }
       return await use(secret)
     } finally {
-      secret.fill(0)
+      zeroBytes(secret)
     }
   }
 }
@@ -404,7 +483,78 @@ export class FeishuSystemKeychainSecretReplacer {
         )
       }
     } finally {
-      secret.fill(0)
+      zeroBytes(secret)
+    }
+  }
+}
+
+/**
+ * Create one Bot application-credential Keychain item without update mode.
+ * Secret bytes travel through stdin and are cleared on every exit. Any
+ * post-start failure is uncertain and must never be retried automatically.
+ */
+export class FeishuSystemKeychainSecretInstaller {
+  readonly #platform: NodeJS.Platform
+  readonly #runner: FeishuKeychainInstallCommandRunner
+
+  constructor(options?: FeishuSystemKeychainSecretInstallerOptions) {
+    const validated = readOptions(options)
+    this.#platform = configuredPlatform(validated)
+    this.#runner = configuredRunner<FeishuKeychainInstallCommandRunner['install']>(
+      validated,
+      'install',
+      () => new MacOsSecurityInstallCommandRunner(),
+    )
+  }
+
+  async install(referenceValue: unknown, secret: Uint8Array, signal: AbortSignal): Promise<void> {
+    if (!(secret instanceof Uint8Array)) {
+      throw fail('secret_empty', 'The Feishu credential to install is empty.')
+    }
+    try {
+      if (!(signal instanceof AbortSignal)) {
+        throw fail('unavailable', 'The Feishu Keychain installation request is invalid.')
+      }
+      signal.throwIfAborted()
+      const reference = parseFeishuKeychainReference(referenceValue)
+      if (reference.purpose !== 'connector_app_credential') {
+        throw fail(
+          'unsupported_purpose',
+          'Only a Feishu Bot application credential can be installed.',
+        )
+      }
+      if (secret.byteLength === 0) {
+        throw fail('secret_empty', 'The Feishu credential to install is empty.')
+      }
+      if (secret.byteLength > FEISHU_SYSTEM_KEYCHAIN_SECRET_MAX_BYTES) {
+        throw fail('secret_too_large', 'The Feishu Keychain credential is too large.')
+      }
+      if (this.#platform !== 'darwin') {
+        throw fail('unsupported_platform', 'The system Keychain adapter requires macOS.')
+      }
+      const request = Object.freeze({
+        executable: '/usr/bin/security' as const,
+        arguments: Object.freeze([
+          'add-generic-password',
+          '-s',
+          FEISHU_SYSTEM_KEYCHAIN_SERVICE,
+          '-a',
+          reference.id,
+          '-w',
+        ]) as FeishuKeychainInstallCommandRequest['arguments'],
+        maximumDiagnosticBytes: FEISHU_SYSTEM_KEYCHAIN_DIAGNOSTIC_MAX_BYTES,
+      })
+      try {
+        await this.#runner.install(request, secret, signal)
+        signal.throwIfAborted()
+      } catch {
+        throw fail(
+          'write_uncertain',
+          'The Feishu Keychain installation outcome is uncertain and requires inspection.',
+        )
+      }
+    } finally {
+      zeroBytes(secret)
     }
   }
 }

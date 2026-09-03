@@ -1,3 +1,4 @@
+export * from './app-credential-bundle-encoder.ts'
 export * from './bot-event-consumer.ts'
 export * from './bot-event-subscription-secret.ts'
 export * from './bot-identity-scope-http-client.ts'

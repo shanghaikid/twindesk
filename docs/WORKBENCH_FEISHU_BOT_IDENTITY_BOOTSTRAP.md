@@ -52,6 +52,8 @@ credential-field rejection, CSRF routing, stale presentation, and the default
 Workbench Web composition. They use temporary homes and no Keychain or network
 access.
 
-Still open are existing Bot replacement, credential installation or repair,
+The Connector layer now has a create-only Keychain installer and exact Bot
+bundle encoder, but no product Web route invokes them yet. Still open are
+existing Bot replacement, product credential installation or repair,
 event-subscription secret setup, disconnect/revocation, Settings-change Audit,
 public TLS forwarding, live Bot delivery, and Stage 2 live-account acceptance.

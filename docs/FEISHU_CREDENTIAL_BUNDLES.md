@@ -7,7 +7,9 @@ future Feishu HTTP adapters. `FeishuCredentialBundleParser` accepts one bounded
 UTF-8 JSON bundle, binds it to the exact configured Bot or User identity, and
 exposes validated secrets only inside a callback.
 `FeishuOAuthCredentialBundleEncoder` creates the same exact User format from a
-validated current credential and rotated OAuth token set. Neither boundary
+validated current credential and rotated OAuth token set.
+`FeishuAppCredentialBundleEncoder` creates the exact Bot format from configured
+identity metadata and one callback-scoped app-secret buffer. Neither boundary
 obtains a token, calls Feishu, grants a scope, revokes authorization, or
 authorizes an external write.
 
@@ -84,7 +86,9 @@ contracts.
 
 ## Secret Lifetime and Failure Handling
 
-The source Keychain buffer is overwritten on every exit. Parsed app secrets,
+The source Keychain buffer is overwritten on every exit. The Bot encoder also
+owns and overwrites the supplied app-secret bytes plus its encoded bundle on
+every exit. Parsed app secrets,
 client secrets, access tokens, and refresh tokens are exposed as `Uint8Array`
 values and overwritten immediately after the consumer callback settles,
 including callback failure and cancellation. The parsed wrapper and scope list
@@ -96,9 +100,9 @@ requires a strictly later acquisition timestamp, a refresh token distinct from
 the current single-use token, authoritative sorted scopes with
 `offline_access`, and the same size limits as the parser. Its encoded buffer
 is callback-scoped and overwritten after use. Encoding JSON necessarily
-creates temporary immutable strings for the client secret and rotated tokens;
-they are never logged, persisted outside the Keychain value, or returned in
-errors.
+creates temporary immutable strings for the Bot app secret, OAuth client
+secret, and rotated tokens; they are never logged, persisted outside the
+Keychain value, or returned in errors.
 
 JavaScript JSON decoding necessarily creates temporary immutable strings that
 cannot be retroactively erased. A consumer that decodes, copies, transfers, or
@@ -114,7 +118,8 @@ buffers are cleared.
 
 ## Verification and Remaining Work
 
-Synthetic tests cover Bot/User identity binding, exact schemas, duplicate
+Synthetic tests cover Bot/User identity binding, exact schemas, Bot encoding
+and parse-back, duplicate
 fields, size and encoding bounds, scope and lifetime rules, refresh-required
 and reauthorization states, rotated encoding and parse-back, old-token
 exclusion, hostile data, cancellation, callback failures, payload-free errors,
