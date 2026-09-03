@@ -4,11 +4,21 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { WorkbenchFeishuUserPollingRuntime } from '../packages/bundle-workbench/dist/index.js'
 import {
+  WorkbenchFeishuUserPollingRuntime,
+  createWorkbenchFeishuUserPollingRuntime,
+} from '../packages/bundle-workbench/dist/index.js'
+import {
+  FeishuOAuthRotationCoordinator,
+  FeishuOAuthRotationJournal,
+  FeishuOAuthV3TokenRefresher,
   FeishuRuntimeLeaseError,
   FeishuRuntimeLeaseManager,
+  FeishuSystemKeychainSecretReplacer,
+  FeishuSystemKeychainSecretResolver,
+  FeishuUserCredentialScopeProbe,
   FeishuUserMessageSearchClientError,
+  FeishuUserMessageSearchHttpClient,
 } from '../packages/plugin-feishu/dist/index.js'
 import { openTwinDeskDatabase } from '../packages/storage-sqlite/dist/index.js'
 
@@ -78,6 +88,7 @@ function page(overrides = {}) {
 
 class SyntheticLeaseManager extends FeishuRuntimeLeaseManager {
   assertions = 0
+  active = false
 
   /**
    * @override
@@ -89,12 +100,18 @@ class SyntheticLeaseManager extends FeishuRuntimeLeaseManager {
    */
   async withLease(_configuration, signal, use) {
     signal.throwIfAborted()
-    return use({
-      assertHeld: () => {
-        signal.throwIfAborted()
-        this.assertions += 1
-      },
-    })
+    this.active = true
+    try {
+      return await use({
+        assertHeld: () => {
+          signal.throwIfAborted()
+          assert.equal(this.active, true)
+          this.assertions += 1
+        },
+      })
+    } finally {
+      this.active = false
+    }
   }
 }
 
@@ -392,5 +409,176 @@ test('lease loss after discovery stops before committing the observed page', asy
       stream: 'user_visible_messages',
     }),
     undefined,
+  )
+})
+
+test('the production polling composition constructs and uses its search adapter inside one lease', async (context) => {
+  const path = await temporaryDatabase(context)
+  const database = openTwinDeskDatabase(path)
+  context.after(() => database.close())
+  const controller = new AbortController()
+  const leaseManager = new SyntheticLeaseManager()
+  /** @type {string[]} */
+  const events = []
+  const credential = new TextEncoder().encode(
+    `${JSON.stringify({
+      kind: 'feishu_user_oauth_credential_bundle',
+      schemaVersion: 1,
+      appId: APP_ID,
+      principalId: USER_PRINCIPAL_ID,
+      clientSecret: 'synthetic-private-polling-client-secret',
+      tokenType: 'Bearer',
+      accessToken: 'u-synthetic-private-polling-access-token',
+      obtainedAt: '2026-09-02T07:00:00.000Z',
+      accessTokenExpiresAt: '2026-09-02T09:00:00.000Z',
+      refreshToken: 'synthetic-private-polling-refresh-token',
+      refreshTokenExpiresAt: '2026-09-09T07:00:00.000Z',
+      scopes: ['im:chat:read', 'im:message:readonly', 'offline_access', 'search:message'],
+    })}\n`,
+  )
+  const resolver = new FeishuSystemKeychainSecretResolver({
+    platform: 'darwin',
+    runner: {
+      async run() {
+        assert.equal(leaseManager.active, true)
+        events.push('keychain')
+        return credential.slice()
+      },
+    },
+  })
+  const scopeProbe = new FeishuUserCredentialScopeProbe({
+    configuration: configuration(),
+    resolver,
+    now: () => NOW,
+  })
+  const rotationCoordinator = new FeishuOAuthRotationCoordinator({
+    resolver,
+    refresher: new FeishuOAuthV3TokenRefresher({
+      now: () => NOW,
+      transport: {
+        async send() {
+          return { status: 500, body: new Uint8Array() }
+        },
+      },
+    }),
+    replacer: new FeishuSystemKeychainSecretReplacer({
+      platform: 'darwin',
+      runner: { async replace() {} },
+    }),
+    journal: new FeishuOAuthRotationJournal(join(tmpdir(), 'twindesk-unused-polling.jsonl')),
+    now: () => NOW,
+  })
+  Object.defineProperty(rotationCoordinator, 'refreshIfNeeded', {
+    value: async () => {
+      assert.equal(leaseManager.active, true)
+      events.push('rotation')
+      return { status: 'not_required', obtainedAt: '2026-09-02T07:00:00.000Z' }
+    },
+  })
+  const httpClient = new FeishuUserMessageSearchHttpClient({
+    fetch: async () => new Response(null, { status: 500 }),
+  })
+  Object.defineProperty(httpClient, 'search', {
+    /**
+     * @param {unknown} _request
+     * @param {AbortSignal} signal
+     */
+    value: async (_request, signal) => {
+      signal.throwIfAborted()
+      assert.equal(leaseManager.active, true)
+      events.push('http')
+      return page()
+    },
+  })
+
+  const polling = createWorkbenchFeishuUserPollingRuntime({
+    database,
+    configuration: configuration(),
+    tenantKey: TENANT_KEY,
+    resolver,
+    scopeProbe,
+    rotationCoordinator,
+    httpClient,
+    leaseManager,
+    pageSize: 10,
+    pollIntervalMs: 100,
+    retryDelayMs: 5,
+    maximumRetryDelayMs: 20,
+    now: () => NOW,
+    wait: async () => controller.abort(),
+  })
+  assert.deepEqual(events, [])
+
+  await assert.rejects(polling.run(controller.signal), { name: 'AbortError' })
+  assert.deepEqual(events, ['rotation', 'keychain', 'keychain', 'http'])
+  assert.equal(leaseManager.active, false)
+  assert.equal(leaseManager.assertions, 9)
+  assert.ok(
+    database.getConnectorCursor({
+      connectorId: 'feishu',
+      accountId: ACCOUNT_ID,
+      stream: 'user_visible_messages',
+    }),
+  )
+})
+
+test('lease-aware search factories are exclusive, lazy, and descriptor-safe', async (context) => {
+  const path = await temporaryDatabase(context)
+  const database = openTwinDeskDatabase(path)
+  context.after(() => database.close())
+  const leaseManager = new SyntheticLeaseManager()
+  let factoryCalls = 0
+  let getterCalls = 0
+  const controller = new AbortController()
+  const polling = new WorkbenchFeishuUserPollingRuntime({
+    database,
+    configuration: configuration(),
+    tenantKey: TENANT_KEY,
+    searchClientFactory() {
+      factoryCalls += 1
+      assert.equal(leaseManager.active, true)
+      return /** @type {any} */ (
+        Object.defineProperty({}, 'search', {
+          get() {
+            getterCalls += 1
+            return async () => page()
+          },
+        })
+      )
+    },
+    leaseManager,
+  })
+  assert.equal(factoryCalls, 0)
+  await assert.rejects(polling.run(controller.signal), {
+    name: 'TypeError',
+    message: 'The Workbench Feishu User polling runtime configuration is invalid.',
+  })
+  assert.equal(factoryCalls, 1)
+  assert.equal(getterCalls, 0)
+  assert.equal(leaseManager.active, false)
+
+  assert.throws(
+    () =>
+      new WorkbenchFeishuUserPollingRuntime(
+        /** @type {any} */ ({
+          database,
+          configuration: configuration(),
+          tenantKey: TENANT_KEY,
+          searchClient: { search: async () => page() },
+          searchClientFactory: () => ({ search: async () => page() }),
+        }),
+      ),
+    { name: 'TypeError' },
+  )
+  assert.throws(
+    () =>
+      new WorkbenchFeishuUserPollingRuntime(
+        /** @type {any} */ ({
+          database,
+          configuration: configuration(),
+          tenantKey: TENANT_KEY,
+        }),
+      ),
+    { name: 'TypeError' },
   )
 })

@@ -37,8 +37,9 @@ application, tenant, and User principal; runs durable OAuth rotation; authorizes
 the fixed `user_message_discovery` scope policy; rereads the exact Keychain item
 to close the scope-check/use gap; rechecks scopes and lease ownership; and lends
 the current access token only for the HTTP callback. The primitive still never
-resolves or retains a credential itself. Workbench construction and Cordis
-activation remain outside this layer. This path depends on all of the following:
+resolves or retains a credential itself. Workbench now constructs this adapter
+lazily inside the polling runtime's already-held Host lease; Cordis activation
+remains outside this layer. This path depends on all of the following:
 
 - an unexpired user access token resolved outside ordinary business storage;
 - the application's granted scopes and the user's matching authorization;

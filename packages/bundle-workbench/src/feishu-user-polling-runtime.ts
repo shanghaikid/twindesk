@@ -1,9 +1,14 @@
 import {
   FEISHU_USER_MESSAGE_STREAM,
   FeishuMessageNormalizer,
+  FeishuOAuthRotationCoordinator,
   FeishuRuntimeLeaseManager,
+  FeishuSystemKeychainSecretResolver,
+  FeishuUserCredentialScopeProbe,
   FeishuUserDiscoveryError,
   FeishuUserMessageDiscoverer,
+  FeishuUserMessageSearchAdapter,
+  FeishuUserMessageSearchHttpClient,
   parseFeishuIdentityConfiguration,
   type FeishuIdentityConfiguration,
   type FeishuRuntimeLease,
@@ -16,12 +21,11 @@ const DEFAULT_POLL_INTERVAL_MS = 30_000
 const DEFAULT_RETRY_DELAY_MS = 1_000
 const DEFAULT_MAXIMUM_RETRY_DELAY_MS = 60_000
 
-export interface WorkbenchFeishuUserPollingRuntimeOptions {
+interface WorkbenchFeishuUserPollingRuntimeSharedOptions {
   readonly database: TwinDeskDatabase
   readonly configuration: unknown
   /** Verified Host configuration; never accepted from a browser request. */
   readonly tenantKey: string
-  readonly searchClient: FeishuUserMessageSearchClient
   readonly leaseManager?: FeishuRuntimeLeaseManager
   readonly pageSize?: number
   readonly pollIntervalMs?: number
@@ -31,13 +35,40 @@ export interface WorkbenchFeishuUserPollingRuntimeOptions {
   readonly wait?: (delayMs: number, signal: AbortSignal) => Promise<void>
 }
 
+export type WorkbenchFeishuUserSearchClientFactory = (
+  lease: FeishuRuntimeLease,
+) => FeishuUserMessageSearchClient
+
+export type WorkbenchFeishuUserPollingRuntimeOptions =
+  WorkbenchFeishuUserPollingRuntimeSharedOptions &
+    (
+      | {
+          /** Test or embedding boundary for a client whose lifetime is already controlled. */
+          readonly searchClient: FeishuUserMessageSearchClient
+          readonly searchClientFactory?: never
+        }
+      | {
+          /** Called exactly once, after the runtime has acquired its Host lease. */
+          readonly searchClient?: never
+          readonly searchClientFactory: WorkbenchFeishuUserSearchClientFactory
+        }
+    )
+
+export interface WorkbenchFeishuUserPollingCompositionOptions extends WorkbenchFeishuUserPollingRuntimeSharedOptions {
+  readonly resolver: FeishuSystemKeychainSecretResolver
+  readonly scopeProbe: FeishuUserCredentialScopeProbe
+  readonly rotationCoordinator: FeishuOAuthRotationCoordinator
+  readonly httpClient: FeishuUserMessageSearchHttpClient
+}
+
 type UnknownRecord = Readonly<Record<string, unknown>>
 
 interface ParsedOptions {
   readonly database: TwinDeskDatabase
   readonly configuration: FeishuIdentityConfiguration
   readonly tenantKey: string
-  readonly searchClient: FeishuUserMessageSearchClient
+  readonly searchClient?: FeishuUserMessageSearchClient
+  readonly searchClientFactory?: WorkbenchFeishuUserSearchClientFactory
   readonly leaseManager: FeishuRuntimeLeaseManager
   readonly pageSize: number
   readonly pollIntervalMs: number
@@ -104,6 +135,37 @@ function hasDataMethod(value: object, name: string): boolean {
   }
 }
 
+function readInjectedSearchClient(value: unknown): FeishuUserMessageSearchClient {
+  const client = dataRecord(value)
+  exactKeys(client, ['search'])
+  if (typeof client.search !== 'function') throw invalid()
+  return Object.freeze({ search: client.search as FeishuUserMessageSearchClient['search'] })
+}
+
+function readFactorySearchClient(value: unknown): FeishuUserMessageSearchClient {
+  try {
+    if ((typeof value !== 'object' && typeof value !== 'function') || value === null) {
+      throw new TypeError()
+    }
+    let owner: object | null = value
+    for (let depth = 0; owner !== null && depth < 8; depth += 1) {
+      const descriptor = Object.getOwnPropertyDescriptor(owner, 'search')
+      if (descriptor !== undefined) {
+        if (!Object.hasOwn(descriptor, 'value') || typeof descriptor.value !== 'function') {
+          throw new TypeError()
+        }
+        return Object.freeze({
+          search: descriptor.value.bind(value) as FeishuUserMessageSearchClient['search'],
+        })
+      }
+      owner = Object.getPrototypeOf(owner) as object | null
+    }
+    throw new TypeError()
+  } catch {
+    throw invalid()
+  }
+}
+
 function isPollingDatabase(value: unknown): value is TwinDeskDatabase {
   return (
     typeof value === 'object' &&
@@ -133,7 +195,15 @@ function defaultWait(delayMs: number, signal: AbortSignal): Promise<void> {
 
 function readOptions(value: unknown): ParsedOptions {
   const record = dataRecord(value)
-  const expected = ['database', 'configuration', 'tenantKey', 'searchClient']
+  const hasSearchClient = Object.hasOwn(record, 'searchClient')
+  const hasSearchClientFactory = Object.hasOwn(record, 'searchClientFactory')
+  if (hasSearchClient === hasSearchClientFactory) throw invalid()
+  const expected = [
+    'database',
+    'configuration',
+    'tenantKey',
+    hasSearchClient ? 'searchClient' : 'searchClientFactory',
+  ]
   for (const optional of [
     'leaseManager',
     'pageSize',
@@ -153,8 +223,8 @@ function readOptions(value: unknown): ParsedOptions {
   } catch {
     throw invalid()
   }
-  const client = dataRecord(record.searchClient)
-  exactKeys(client, ['search'])
+  const searchClient = hasSearchClient ? readInjectedSearchClient(record.searchClient) : undefined
+  const searchClientFactory = hasSearchClientFactory ? record.searchClientFactory : undefined
   const tenantKey = record.tenantKey
   const leaseManager = record.leaseManager ?? new FeishuRuntimeLeaseManager()
   const pageSize = record.pageSize ?? DEFAULT_PAGE_SIZE
@@ -170,7 +240,7 @@ function readOptions(value: unknown): ParsedOptions {
     tenantKey.length === 0 ||
     tenantKey.trim() !== tenantKey ||
     !/^[A-Za-z0-9][A-Za-z0-9._:-]*$/u.test(tenantKey) ||
-    typeof client.search !== 'function' ||
+    (hasSearchClientFactory && typeof searchClientFactory !== 'function') ||
     !(leaseManager instanceof FeishuRuntimeLeaseManager) ||
     !positiveInteger(pageSize, 1, 50) ||
     !positiveInteger(pollIntervalMs, 1, 24 * 60 * 60 * 1000) ||
@@ -185,9 +255,10 @@ function readOptions(value: unknown): ParsedOptions {
     database: record.database as TwinDeskDatabase,
     configuration,
     tenantKey,
-    searchClient: Object.freeze({
-      search: client.search as FeishuUserMessageSearchClient['search'],
-    }),
+    ...(searchClient === undefined ? {} : { searchClient }),
+    ...(searchClientFactory === undefined
+      ? {}
+      : { searchClientFactory: searchClientFactory as WorkbenchFeishuUserSearchClientFactory }),
     leaseManager,
     pageSize,
     pollIntervalMs,
@@ -228,17 +299,25 @@ export class WorkbenchFeishuUserPollingRuntime {
   }
 
   async #runWithLease(lease: FeishuRuntimeLease, signal: AbortSignal): Promise<void> {
-    const discoverer = new FeishuUserMessageDiscoverer(
-      this.#options.configuration,
-      this.#options.searchClient,
-      {
-        tenantKey: this.#options.tenantKey,
-        now: this.#options.now,
-        initialLookbackMs: 24 * 60 * 60 * 1000,
-        overlapMs: 5 * 60 * 1000,
-        indexingDelayMs: 30 * 1000,
-      },
-    )
+    let searchClient = this.#options.searchClient
+    if (searchClient === undefined) {
+      signal.throwIfAborted()
+      lease.assertHeld()
+      try {
+        searchClient = readFactorySearchClient(this.#options.searchClientFactory!(lease))
+      } catch {
+        throw invalid()
+      }
+      signal.throwIfAborted()
+      lease.assertHeld()
+    }
+    const discoverer = new FeishuUserMessageDiscoverer(this.#options.configuration, searchClient, {
+      tenantKey: this.#options.tenantKey,
+      now: this.#options.now,
+      initialLookbackMs: 24 * 60 * 60 * 1000,
+      overlapMs: 5 * 60 * 1000,
+      indexingDelayMs: 30 * 1000,
+    })
     const normalizer = new FeishuMessageNormalizer(
       this.#options.configuration,
       this.#options.tenantKey,
@@ -299,4 +378,83 @@ export class WorkbenchFeishuUserPollingRuntime {
       await this.#options.wait(this.#options.pollIntervalMs, signal)
     }
   }
+}
+
+/**
+ * Compose the production OAuth, scope, Keychain, and HTTP search adapter only
+ * after the polling runtime has acquired the same exclusive Host lease.
+ * Construction itself performs no secret, filesystem, or network access.
+ */
+export function createWorkbenchFeishuUserPollingRuntime(
+  optionsValue: WorkbenchFeishuUserPollingCompositionOptions,
+): WorkbenchFeishuUserPollingRuntime {
+  const record = dataRecord(optionsValue)
+  const expected = [
+    'database',
+    'configuration',
+    'tenantKey',
+    'resolver',
+    'scopeProbe',
+    'rotationCoordinator',
+    'httpClient',
+  ]
+  for (const optional of [
+    'leaseManager',
+    'pageSize',
+    'pollIntervalMs',
+    'retryDelayMs',
+    'maximumRetryDelayMs',
+    'now',
+    'wait',
+  ]) {
+    if (Object.hasOwn(record, optional)) expected.push(optional)
+  }
+  exactKeys(record, expected)
+  let configuration: FeishuIdentityConfiguration
+  try {
+    configuration = parseFeishuIdentityConfiguration(record.configuration)
+  } catch {
+    throw invalid()
+  }
+  try {
+    if (
+      configuration.user === undefined ||
+      !(record.resolver instanceof FeishuSystemKeychainSecretResolver) ||
+      !(record.scopeProbe instanceof FeishuUserCredentialScopeProbe) ||
+      !(record.rotationCoordinator instanceof FeishuOAuthRotationCoordinator) ||
+      !(record.httpClient instanceof FeishuUserMessageSearchHttpClient)
+    ) {
+      throw new TypeError()
+    }
+  } catch {
+    throw invalid()
+  }
+  const runtimeOptions = {
+    database: record.database,
+    configuration,
+    tenantKey: record.tenantKey,
+    searchClientFactory: (lease: FeishuRuntimeLease) =>
+      new FeishuUserMessageSearchAdapter({
+        configuration,
+        tenantKey: record.tenantKey as string,
+        lease,
+        resolver: record.resolver as FeishuSystemKeychainSecretResolver,
+        scopeProbe: record.scopeProbe as FeishuUserCredentialScopeProbe,
+        rotationCoordinator: record.rotationCoordinator as FeishuOAuthRotationCoordinator,
+        httpClient: record.httpClient as FeishuUserMessageSearchHttpClient,
+        ...(Object.hasOwn(record, 'now') ? { now: record.now as () => number } : {}),
+      }),
+    ...(Object.hasOwn(record, 'leaseManager') ? { leaseManager: record.leaseManager } : {}),
+    ...(Object.hasOwn(record, 'pageSize') ? { pageSize: record.pageSize } : {}),
+    ...(Object.hasOwn(record, 'pollIntervalMs') ? { pollIntervalMs: record.pollIntervalMs } : {}),
+    ...(Object.hasOwn(record, 'retryDelayMs') ? { retryDelayMs: record.retryDelayMs } : {}),
+    ...(Object.hasOwn(record, 'maximumRetryDelayMs')
+      ? { maximumRetryDelayMs: record.maximumRetryDelayMs }
+      : {}),
+    ...(Object.hasOwn(record, 'now') ? { now: record.now } : {}),
+    ...(Object.hasOwn(record, 'wait') ? { wait: record.wait } : {}),
+  }
+  return new WorkbenchFeishuUserPollingRuntime(
+    runtimeOptions as WorkbenchFeishuUserPollingRuntimeOptions,
+  )
 }

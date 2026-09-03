@@ -2,11 +2,11 @@
 
 The Workbench polling runtime composes the existing User-message discoverer,
 message normalizer, TwinDesk SQLite transaction, and exclusive Feishu Host
-lease into one supervised read-only lifecycle. It still accepts an injected
-search client. A concrete lease-held adapter now composes OAuth rotation,
-Keychain resolution, fixed scope authorization, and the bounded Feishu HTTP
-primitive, but the Workbench runtime factory does not construct that adapter yet
-and no live account has been accepted.
+lease into one supervised read-only lifecycle. Tests and embedders may still
+provide an injected search client. The production Workbench constructor instead
+creates the concrete OAuth rotation, Keychain resolution, fixed scope
+authorization, and bounded Feishu HTTP adapter only after the runtime has
+acquired that same lease. No live account has been accepted.
 
 ## Lifecycle and Commit Order
 
@@ -14,6 +14,11 @@ and no live account has been accepted.
 `FeishuRuntimeLeaseManager` lease for its complete lifetime. The caller owns and
 supervises the returned promise and cancels shutdown through the supplied
 `AbortSignal`. A second concurrent run on the same instance fails closed.
+`createWorkbenchFeishuUserPollingRuntime()` is side-effect-free at construction;
+its lease-aware adapter factory runs exactly once per supervised run, after an
+initial lease assertion and before any credential or network operation.
+Supplying both an injected client and a factory, neither one, or a
+malformed/accessor-backed client fails closed.
 
 Each polling iteration performs the following order:
 
@@ -50,13 +55,13 @@ approval authority. Its constructor accepts the tenant identity only from Host
 composition, never from a browser request. It exposes no message, principal,
 credential, opaque cursor, or page-token status surface.
 
-Workbench construction of the concrete User search adapter, Cordis activation,
-production diagnostics, and live-account acceptance remain open. Cordis
-activation must promote polling, OAuth maintenance, diagnostics, and replies
-beneath one top-level lease owner; it must not run this long-lived owner beside
-the current independently leasing operation compositions, which would correctly
-exclude each other. Those components must preserve this runtime's cancellation,
-partial-result, and atomic-commit boundaries while sharing the one held lease.
+Cordis activation, production diagnostics, and live-account acceptance remain
+open. Cordis activation must promote polling, OAuth maintenance, diagnostics,
+and replies beneath one top-level lease owner; it must not run this long-lived
+owner beside the current independently leasing operation compositions, which
+would correctly exclude each other. Those components must preserve this
+runtime's cancellation, partial-result, and atomic-commit boundaries while
+sharing the one held lease.
 
 ## Verification
 
@@ -67,4 +72,7 @@ terminal authorization failure, and interrupted commit without durable state.
 All identities and messages are synthetic.
 `tests/feishu-user-message-search-adapter.test.mjs` separately proves the
 rotation, scope, Keychain, lease, HTTP, and secret-lifetime composition without
-making a live request.
+making a live request. The polling tests also prove the production constructor is
+lazy, creates the adapter within one held lease, performs all injected Keychain
+and HTTP work under that lease, and rejects hostile factory results without
+invoking accessors.

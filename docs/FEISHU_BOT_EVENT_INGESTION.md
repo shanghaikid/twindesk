@@ -93,8 +93,8 @@ remain separate tasks:
 
 - HTTP/long-connection hosting, subscription setup, secret resolution, and
   callback acknowledgement wiring;
-- the concrete User search adapter and polling scheduler; TD-202 now defines its
-  bounded discovery and candidate-cursor semantics;
+- Cordis activation of the production-shaped User search and polling
+  composition below one shared top-level lease owner;
 - runtime composition with the completed bounded context and durable
   normalization boundaries (TD-203 and TD-204);
 - production scope, rate-limit, health, and cursor probe composition; TD-208 now
